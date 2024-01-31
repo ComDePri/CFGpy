@@ -1,5 +1,4 @@
 from ._version import __version__
-from . import behavioral, utils
 import os
 
 
@@ -24,3 +23,7 @@ def get_nas_path():
 
 
 NAS_PATH = get_nas_path()
+
+# the following line has to appear after NAS_PATH is defined, because sub-packages use import CFGpy.NAS_PATH.
+# Importing them before NAS_PATH exists results in circular import
+from . import behavioral, utils
