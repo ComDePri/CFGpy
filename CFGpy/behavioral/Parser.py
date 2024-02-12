@@ -1,15 +1,13 @@
 import re
-import os
 import pandas as pd
 import argparse
 import json
 import numpy as np
-import subprocess
-import platform
-import ParserUtils
+import utils
 from _ctypes import PyObj_FromPtr
 from datetime import datetime
 from scipy import stats
+from consts import *
 
 
 class CFGParserException(Exception):
@@ -22,7 +20,6 @@ class Parser:
     MINUTE = 60 * SECOND
     MIN_GAME_TIME = 10 * MINUTE
     MAX_SECONDS_FOR_PAUSE = 90 * SECOND
-    MAX_STD_FOR_OUTLIERS = 3
 
     MINIMAL_ROWS_FOR_GAME_START = 2
     MIN_SHAPES_MOVED = 80
@@ -64,8 +61,6 @@ class Parser:
     gallery_save_time_column = 'gallery save time'
     merged_shape_column = 'merged_shapes_actions'
 
-    disqualified_ids = 'disqualified_ids'
-
     game_start_command = 'start'
     tutorial_end_command = 'startsearch'
     game_ended_command = 'end search'
@@ -80,16 +75,12 @@ class Parser:
     parsed_game_headers = [shape_move_column, time_column, gallery_save_time_column]
     first_shape = '[[0,0],[1,0],[2,0],[4,0],[5,0],[6,0],[3,0],[7,0],[8,0],[9,0]]'
 
-    parsed_game_id_key = 'id'
-    parsed_game_time_key = 'absolute start time'
-    parsed_game_actions_key = 'actions'
-    parsed_game_chosen_shapes = 'chosen_shapes'
+    parsed_game_id_key = PARSED_PLAYER_ID_KEY
+    parsed_game_time_key = PARSED_TIME_KEY
+    parsed_game_actions_key = PARSED_ALL_SHAPES_KEY
+    parsed_game_chosen_shapes = PARSED_CHOSEN_SHAPES_KEY
 
-    explore_json = 'explore'
-    exploit_json = 'exploit'
-
-    def __init__(self, disqualified_ids: list = [], include_in_id: list = [], id_columns: list = default_id_columns):
-        self.disqualified_ids = disqualified_ids
+    def __init__(self, include_in_id: list = [], id_columns: list = default_id_columns):
         self.include_in_id = include_in_id
         self.id_columns = id_columns
 
@@ -105,15 +96,12 @@ class Parser:
         sorted_players_games = self._reorganize_and_sort_data(preprocessed_data)
 
         filtered_players_games = []
-        filtered_sorted_players_games = self._filter_disqualified_players(sorted_players_games)
-        for player_games_list in filtered_sorted_players_games:
+        for player_games_list in sorted_players_games:
             filtered_player_games_list = self._filter_disqualified_games(player_games_list)
             if filtered_player_games_list != []:
                 filtered_players_games.append(filtered_player_games_list)
 
         parsed_data = self._parse_all_player_games(filtered_players_games)
-        # parsed_data = self.post_processing(parsed_data)
-
         return parsed_data
 
     def _read_and_preprocess_data(self, raw_data_filename):
@@ -189,12 +177,7 @@ class Parser:
             lambda val: sorted(json.loads(val)) if type(val) is str else np.NAN)
         sorted_player_data[self.shape_save_column] = sorted_player_data[self.shape_save_column].apply(
             lambda val: sorted(json.loads(val)) if type(val) is str else np.NAN)
-        duplicate_moves_mask = sorted_player_data[self.shape_move_column].dropna().iloc[:-1].reset_index(drop=True) == \
-                               sorted_player_data[self.shape_move_column].dropna().iloc[1:].reset_index(drop=True)
-        duplicate_moves_indices = sorted_player_data[self.shape_move_column].dropna().iloc[
-            np.flatnonzero(duplicate_moves_mask) + 1].index
 
-        # return sorted_player_data.drop(duplicate_moves_indices).reset_index(drop=True)
         return sorted_player_data
 
     def split_player_games(self, player_data):
@@ -215,27 +198,23 @@ class Parser:
 
         return player_games
 
-    def _filter_disqualified_players(self, players_list):
-        return [player_games for player_games in players_list if
-                player_games[0].iloc[0][self.id_column_name] not in self.disqualified_ids]
-
     def _filter_disqualified_games(self, player_games_list):
-        player_games_list = self.filter_to_first_started_game(player_games_list)
+        player_games_list = self.filter_to_started_games(player_games_list)
+        player_games_list = self.filter_to_first_game(player_games_list)
         player_games_list = self.filter_unfinished_games(player_games_list)
-        # player_games_list = self.filter_min_shapes_made(player_games_list)
-        # player_games_list = self.filter_min_time_games(player_games_list)
-        # player_games_list = self.filter_paused_games(player_games_list)
-        # player_games_list = self.filter_games_with_illegal_shapes(player_games_list)
 
         return player_games_list
 
-    def filter_to_first_started_game(self, games):
-        '''Returns the first game that has actually started'''
+    def filter_to_started_games(self, games):
+        '''Returns games that actually started'''
         games = [game for game in games if
                  len(game) > self.MINIMAL_ROWS_FOR_GAME_START]  # Remove games that haven't actually started
         games = [game for game in games if game[self.command_type_column].str.contains(
             self.tutorial_end_command).sum() > 0]  # Remove games that didn't continue past the tutorial stage
 
+        return games
+
+    def filter_to_first_game(self, games):
         if games != []:
             return [games[0]]
 
@@ -249,59 +228,6 @@ class Parser:
     def is_game_ended(self, game):
         return game[self.command_type_column].str.contains(self.game_ended_command).sum() > 0
 
-    def filter_min_shapes_made(self, games):
-        return [game for game in games if game[self.command_type_column].str.contains(
-            self.shape_move_command).sum() >= self.MIN_SHAPES_MOVED]  # Removes games where the amount of steps is below some minimum.
-
-    def filter_min_time_games(self, games):
-        filtered_games = []
-        for game in games:
-            start_time = game[game[self.command_type_column] == self.game_start_command].iloc[0][self.time_column]
-            end_time = game[game[self.command_type_column] == self.game_ended_command].iloc[0][self.time_column]
-
-            time_delta = end_time - start_time
-            if time_delta.total_seconds() * self.SECOND >= self.MIN_GAME_TIME:
-                filtered_games.append(game)
-
-        return filtered_games
-
-    def filter_paused_games(self, games):
-        """Filters all games where there is a 90 second break at some point"""
-        filtered_games = []
-
-        for game in games:
-            tutorial_end_index = np.flatnonzero(game[self.command_type_column] == self.tutorial_end_command)[0]
-            game_without_tutorial = game.iloc[tutorial_end_index:]
-            game_without_metamoves = game_without_tutorial[game_without_tutorial[self.command_type_column].isin(
-                self.shape_relevant_actions)]  # Keep only block move/save actions
-            time_deltas = game_without_metamoves[self.time_column].diff()
-            time_deltas_in_seconds = time_deltas.apply(lambda time_delta: time_delta.total_seconds())
-            if not any(time_deltas_in_seconds * self.SECOND > self.MAX_SECONDS_FOR_PAUSE):
-                filtered_games.append(game)
-
-        return filtered_games
-
-    def filter_games_with_illegal_shapes(self, games):
-        legal_games = []
-        for game in games:
-            game_shapes_coords = game[game[self.command_type_column].isin(self.shape_relevant_actions)][
-                self.shape_move_column].copy()  # Keeps only rows with shape coords
-            none_indices_mask = game_shapes_coords.isna()
-            missing_indices = none_indices_mask.iloc[
-                np.flatnonzero(none_indices_mask)].index  # There has to be a better way to do this
-            gallery_save_rows = game.loc[missing_indices, self.shape_save_column]
-            game_shapes_coords.loc[missing_indices] = gallery_save_rows
-            game_shapes_coords = game_shapes_coords.apply(np.array)
-            if all(game_shapes_coords.apply(lambda arr: arr.shape[0] == 10).values):
-                legal_games.append(game)
-            else:
-                bad_coords = game_shapes_coords.iloc[
-                    np.flatnonzero(game_shapes_coords.apply(lambda arr: arr.shape[0] != 10))[0]]
-                exc = CFGParserException('Found illegal shape in game', bad_coords)
-                raise exc
-
-        return legal_games
-
     def _parse_all_player_games(self, player_games):
         all_parsed_games = []
         for games in player_games:
@@ -314,7 +240,7 @@ class Parser:
     def parse_single_game(self, game_data):
         game_start_time = game_data[game_data[self.command_type_column] == self.tutorial_end_command].iloc[0][
             self.time_column]
-        first_row = pd.DataFrame([[ParserUtils.csv_coords_to_bin_coords(self.first_shape), 0, None]],
+        first_row = pd.DataFrame([[utils.csv_coords_to_bin_coords(self.first_shape), 0, None]],
                                  columns=self.parsed_game_headers)
         game_data = game_data[
             game_data[self.command_type_column].isin(self.shape_relevant_actions)]  # Remove all irrelevant rows
@@ -323,7 +249,7 @@ class Parser:
         game_data[self.time_column] = (game_data[self.time_column] - game_start_time).apply(
             lambda time_delta: time_delta.total_seconds())
         game_data[self.shape_move_column] = game_data[self.shape_move_column].apply(
-            ParserUtils.csv_coords_to_bin_coords)
+            utils.csv_coords_to_bin_coords)
 
         game_data[self.gallery_save_time_column] = None
 
@@ -345,45 +271,6 @@ class Parser:
         }
 
         return parsed_game
-
-    def post_processing(self, parsed_data):
-        parsed_data = self.add_explore_exploit(parsed_data)
-        outliers_filtered = self.filter_outliers(parsed_data)
-
-        return outliers_filtered
-
-    def add_explore_exploit(self, parsed_data):
-        for game in parsed_data:
-            explore, exploit = ParserUtils.segment_explore_exploit(game[self.parsed_game_actions_key])
-            game[self.explore_json] = ParserUtils.cast_list_of_tuple_to_ints(explore)
-            game[self.exploit_json] = ParserUtils.cast_list_of_tuple_to_ints(exploit)
-
-        return parsed_data
-
-    def filter_outliers(self, parsed_data):
-        all_median_explore = []
-        all_median_exploit = []
-        for game in parsed_data:
-            explore = game[self.explore_json]
-            explore_lengths = [explore_slice[1] - explore_slice[0] for explore_slice in explore]
-            median_explore = np.median(explore_lengths)
-            all_median_explore.append(median_explore)
-
-            exploit = game[self.exploit_json]
-            exploit_lengths = [exploit_slice[1] - exploit_slice[0] for exploit_slice in exploit]
-            median_exploit = np.median(exploit_lengths)
-            all_median_exploit.append(median_exploit)
-
-        zscore_exploit = stats.zscore(all_median_exploit)
-        outliers = [parsed_data[index] for index in np.where(zscore_exploit > self.MAX_STD_FOR_OUTLIERS)]
-        zscore_explore = stats.zscore(all_median_explore)
-        outliers += [parsed_data[index] for index in np.where(zscore_explore > self.MAX_STD_FOR_OUTLIERS)]
-        outliers = list(set(outliers))
-
-        for outlier in outliers:
-            parsed_data.remove(outlier)
-
-        return parsed_data
 
     @classmethod
     def translate_parsed_results_to_mathematica(cls, json_format):
@@ -523,11 +410,8 @@ class ParserOldCommands(Parser):
     tutorial_end_command = 'tutorial complete'
 
     def _filter_disqualified_games(self, player_games_list):
-        player_games_list = self.filter_to_first_started_game(player_games_list)
-        player_games_list = self.filter_min_shapes_made(player_games_list)
+        player_games_list = self.filter_to_started_games(player_games_list)
         player_games_list = self.filter_min_time_games(player_games_list)
-        player_games_list = self.filter_paused_games(player_games_list)
-        player_games_list = self.filter_games_with_illegal_shapes(player_games_list)
 
         return player_games_list
 
@@ -589,8 +473,10 @@ class CustomIndentEncoder(json.JSONEncoder):
 
 if __name__ == '__main__':
     p = Parser()
-    folder = r'C:\Users\roygutg\Documents\GitRepos\CFGAnalysisTools\py_math_compare'
-    parsed_data = p.parse_from_file(folder + r"\event.csv")
+    parsed_data = p.parse_from_file(r"\event.csv")
+    with open("test_file.json", "w") as f:
+        json.dump(parsed_data, f)
     old_format = Parser.translate_parsed_results_to_mathematica(parsed_data)
-    with open(rf"{folder}\py_parse_old_format.txt", "w") as f:
+    with open(r"C:\Users\roygutg\Documents\GitRepos\CFGAnalysisTools\py_math_compare\py_parse_old_format.txt",
+              "w") as f:
         f.write(old_format)
