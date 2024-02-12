@@ -5,6 +5,20 @@ import pandas as pd
 MIN_SAVE_FOR_EXPLOIT = 3
 
 
+class CFGPipelineException(Exception):
+    pass
+
+
+def load_json(json_path):
+    if not str.endswith(json_path, ".json"):
+        raise CFGPipelineException("Data expected in json format")
+
+    with open(json_path) as json_fp:
+        j = json.load(json_fp)
+
+    return j
+
+
 def csv_coords_to_bin_coords(csv_coords):
     if csv_coords == "" or csv_coords is np.nan:
         return None
@@ -48,15 +62,6 @@ def coords_to_bin_coords(coords):
 
     shape_id = [int(d) for d in shape_id_wth_0 if d != 0]
     return shape_id
-
-
-def check_decimino(coords: np.ndarray):
-    """
-        Takes a matrix of coordinates, if any row is not length 10, return False
-        This is also supposed to check to see that each row is a list of 10 contiguous coordinates in discrete space
-        The mathematica code doesn't check for this, I might add this later.
-    """
-    return coords.shape[1] == 10
 
 
 def segment_explore_exploit(actions_list, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT):
@@ -116,100 +121,12 @@ def cast_list_of_tuple_to_ints(l):
     return list(map(lambda x: (int(x[0]), int(x[1])), l))
 
 
-def shapeplot5a(s, backgroundcolor='black'):
-    """
-    Shows an image of a shape with grid coordinates s.
-    Default background color is black
-    """
-    pass
-
-
-def alledges():
-    pass
-
-
-def allshapes():
-    """
-    List containing all possible grid coordinates of shapes in the game
-    """
-    pass
-
-
-def R():
-    """
-    Mapping from every grid coordinates of a shape to its serial number
-    """
-    pass
-
-
-def backr():
-    """
-    backr is a dispatch (?) of a mapping from every shape's serial number
-    to its grid coordinates
-    """
-    return
-
-
-def g():
-    """
-    g is the graph of shapes
-    """
-    return
-
-
-def symrule():
-    """
-    ?
-    """
-    return
-
-
-def vanilla():
-    """
-    A parsed dataset of every subject so far that played without any \
-    experimental manipulation
-    """
-    return
-
-
-def all_gallery_sp():
-    """
-    AllGallerySP is a dispatch of a mapping from each pair of serial \
-    numbers of shapes to the length of the shortest path between them. \
-    Accounts only for shapes ever saved to gallery.
-    """
-    pass
-
-
-def findclusters2(parsed_game_data):
-    """
-        findclusters2[parsedGameData] is a list where each element represents \
-    an exploitation cluster in this game. In each such list, each element \
-    is another list representing a single shape in the cluster. Each \
-    shape list includes the following elements (ordered): \[Delta]t, \
-    accumulated time, length of shortest path from previous shape, length \
-    of actual path form previous shape, accumulated steps, shape id.
-    """
-    return
-
-
 def phase_durations(clustered_game_data):
     """
     phaseDurations[clusteredGameData] is a list of two lists: all \
     explorations phase durations, all exploitation phase durations. \
     Expected input clusteredGameData is a single game clustered by \
     findclusters2
-    """
-    return
-
-
-def segment_shapes(parsed_data, cluster_finder):
-    """
-    segmentShapes[parsedData, clusterFinder] returns a partition of the \
-    shapes in parsedData to exploration and exploitation phases. The \
-    output is of the form {exploreIdx, exploitIdx}. The clusterFinder \
-    argument should be a callable wrapping a version of findclusters s.t. \
-    it expects just the parsedData argumnt
     """
     return
 
@@ -226,36 +143,6 @@ def get_giant_component(clustered_data, min_shared_shapes_for_edges):
     return
 
 
-def extract_measures(parsed_game_data):
-    """
-    extractMeasures[parsedGameData] returns a table where rows are \
-    subjects and columns are the 30 standard CFG measures. The output of \
-    this function includes a first row of labels for the columns.
-    """
-    return
-
-
-def reduce_seqs(parsed_game_data):
-    """
-    reduceSeqs[parsedGameData] changes the shape series such that \
-    sequences of the same shape are reduced to the first instance only. \
-    If the sequence included gallery shapes, the reduced shape will be a \
-    gallery shape with creation time like the first in the sequence and \
-    save time like the first gallery in the sequence
-    """
-    return
-
-
-def find_clusters_MRI(parsed_game_data, k, o):
-    """
-    findclustersMRI[ParsedGameData, k, o] will return a result similar to \
-    findclusters2[ParsedGameData], but will nest k times instead of \
-    twice, and will then join clusters if the optimality score of the \
-    first shape in the latter is higher than o
-    """
-    return
-
-
-def extract_measures_mri():
-    "like extractMeasures, but uses findclusters2MRI"
-    return
+def get_vanilla_descriptors():
+    # TODO
+    return 0, 0
