@@ -413,12 +413,12 @@ class ParserOldCommands(Parser):
 if __name__ == '__main__':
     import argparse
 
-    parserarg = argparse.ArgumentParser(description="Parse raw CFG data")
-    parserarg.add_argument("-i", "--input", dest="input_filename",
+    argparser = argparse.ArgumentParser(description="Parse raw CFG data")
+    argparser.add_argument("-i", "--input", dest="input_filename",
                            help='Filename of raw data CSV')
-    parserarg.add_argument("-o", "--output", default=DEFAULT_OUTPUT_FILENAME, dest="output_filename",
+    argparser.add_argument("-o", "--output", default=DEFAULT_OUTPUT_FILENAME, dest="output_filename",
                            help='Filename of output CSV')
-    args = parserarg.parse_args()
+    args = argparser.parse_args()
 
     p = Parser.from_file(args.input_filename)
     p.parse()

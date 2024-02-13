@@ -282,12 +282,12 @@ if __name__ == '__main__':
     import argparse
     from Preprocessor import Preprocessor
 
-    parserarg = argparse.ArgumentParser(description="Calculate measures from parsed CFG data")
-    parserarg.add_argument("-i", "--input", dest="input_filename",
+    argparser = argparse.ArgumentParser(description="Calculate measures from parsed CFG data")
+    argparser.add_argument("-i", "--input", dest="input_filename",
                            help='Filename of parsed data JSON')
-    parserarg.add_argument("-o", "--output", default=DEFAULT_FINAL_OUTPUT_FILENAME, dest="output_filename",
+    argparser.add_argument("-o", "--output", default=DEFAULT_FINAL_OUTPUT_FILENAME, dest="output_filename",
                            help='Filename of output CSV')
-    args = parserarg.parse_args()
+    args = argparser.parse_args()
 
     pp = Preprocessor.from_json(args.input_filename)
     preprocessed_data = pp.preprocess()

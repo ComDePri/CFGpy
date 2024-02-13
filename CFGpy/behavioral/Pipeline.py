@@ -33,11 +33,11 @@ class Pipeline:
 if __name__ == '__main__':
     import argparse
 
-    parserarg = argparse.ArgumentParser(description="Run CFG behavioral data pipeline")
-    parserarg.add_argument("url", help='Web address of the "Download all pages as CSV"')
-    parserarg.add_argument("-o", "--output", default=DEFAULT_FINAL_OUTPUT_FILENAME, dest="output_filename",
+    argparser = argparse.ArgumentParser(description="Run CFG behavioral data pipeline")
+    argparser.add_argument("url", help='Web address of the "Download all pages as CSV"')
+    argparser.add_argument("-o", "--output", default=DEFAULT_FINAL_OUTPUT_FILENAME, dest="output_filename",
                            help='Filename of output CSV')
-    args = parserarg.parse_args()
+    args = argparser.parse_args()
 
     pl = Pipeline(args.url, args.output_filename)
     pl.run_pipeline()
