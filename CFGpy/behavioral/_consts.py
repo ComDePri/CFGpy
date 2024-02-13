@@ -8,6 +8,7 @@ SHAPE_SAVE_TIME_IDX = 2
 PARSED_CHOSEN_SHAPES_KEY = 'chosen_shapes'
 
 # preprocessing
+MIN_SAVE_FOR_EXPLOIT = 3
 EXPLORE_KEY = "explore"
 EXPLOIT_KEY = "exploit"
 
@@ -18,6 +19,8 @@ GAME_DURATION_KEY = "Total Play Time"
 MEDIAN_EXPLORE_LENGTH_KEY = "median exp steps"
 MEDIAN_EXPLOIT_LENGTH_KEY = "median scav steps"
 LONGEST_PAUSE_KEY = "max dt"
+DEFAULT_FINAL_OUTPUT_FILENAME = "CFG measures.csv"
+
 # default soft filters
 MANUALLY_EXCLUDED_IDS = ()
 MIN_N_MOVES = 80

@@ -1,8 +1,9 @@
-import json
 import numpy as np
 import pandas as pd
-
-MIN_SAVE_FOR_EXPLOIT = 3
+import json
+import re
+from _consts import *
+from _ctypes import PyObj_FromPtr
 
 
 class CFGPipelineException(Exception):
@@ -121,16 +122,6 @@ def cast_list_of_tuple_to_ints(l):
     return list(map(lambda x: (int(x[0]), int(x[1])), l))
 
 
-def phase_durations(clustered_game_data):
-    """
-    phaseDurations[clusteredGameData] is a list of two lists: all \
-    explorations phase durations, all exploitation phase durations. \
-    Expected input clusteredGameData is a single game clustered by \
-    findclusters2
-    """
-    return
-
-
 def get_giant_component(clustered_data, min_shared_shapes_for_edges):
     """
     getGC[clusteredData,minSharedShapesForEdge] returns the Giant \
@@ -143,6 +134,67 @@ def get_giant_component(clustered_data, min_shared_shapes_for_edges):
     return
 
 
-def get_vanilla_descriptors():
-    # TODO
-    return 0, 0
+#########################
+# json formatting utils #
+#########################
+def prettify_games_json(parsed_games):
+    prettified_games = []
+    for game in parsed_games:
+        game['actions'] = [NoIndent(action) for action in game['actions']]
+        chosen_shapes = game.get(PARSED_CHOSEN_SHAPES_KEY, None)
+        if chosen_shapes is not None:
+            game[PARSED_CHOSEN_SHAPES_KEY] = [NoIndent(chosen_shape) for chosen_shape in chosen_shapes]
+
+        explore = game.get(EXPLORE_KEY, None)
+        if explore:
+            game[EXPLORE_KEY] = NoIndent(explore)
+
+        exploit = game.get(EXPLOIT_KEY, None)
+        if exploit:
+            game[EXPLOIT_KEY] = NoIndent(exploit)
+
+        prettified_games.append(game)
+
+    return json.dumps(prettified_games, cls=CustomIndentEncoder, sort_keys=True, indent=4)
+
+
+# Using the answer from here https://stackoverflow.com/a/13252112 to make a prettier json file
+class NoIndent(object):
+    """ Value wrapper. """
+
+    def __init__(self, value):
+        self.value = value
+
+
+class CustomIndentEncoder(json.JSONEncoder):
+    FORMAT_SPEC = '@@{}@@'
+    regex = re.compile(FORMAT_SPEC.format(r'(\d+)'))
+
+    def __init__(self, **kwargs):
+        # Save copy of any keyword argument values needed for use here.
+        self.__sort_keys = kwargs.get('sort_keys', None)
+        super(CustomIndentEncoder, self).__init__(**kwargs)
+
+    def default(self, obj):
+        return (self.FORMAT_SPEC.format(id(obj)) if isinstance(obj, NoIndent)
+                else super(CustomIndentEncoder, self).default(obj))
+
+    def encode(self, obj):
+        format_spec = self.FORMAT_SPEC  # Local var to expedite access.
+        json_repr = super(CustomIndentEncoder, self).encode(obj)  # Default JSON.
+
+        # Replace any marked-up object ids in the JSON repr with the
+        # value returned from the json.dumps() of the corresponding
+        # wrapped Python object.
+        for match in self.regex.finditer(json_repr):
+            # see https://stackoverflow.com/a/15012814/355230
+            id = int(match.group(1))
+            no_indent = PyObj_FromPtr(id)
+            json_obj_repr = json.dumps(no_indent.value, sort_keys=self.__sort_keys)
+
+            # Replace the matched id string with json formatted representation
+            # of the corresponding Python object.
+            json_repr = json_repr.replace(
+                '"{}"'.format(format_spec.format(id)), json_obj_repr)
+
+        return json_repr
