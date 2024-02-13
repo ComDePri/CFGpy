@@ -38,4 +38,4 @@ def binary_shape_to_id(binary_shape):
     if shape_id.size != 1:
         raise ValueError('Was not able to find the desired shape', binary_shape)
 
-    return shape_id[0]
+    return int(shape_id[0])
