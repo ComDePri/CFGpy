@@ -76,7 +76,7 @@ class Parser:
 
     @classmethod
     def from_file(cls, raw_data_filename: str, include_in_id: list = [], id_columns: list = default_id_columns):
-        raw_data = pd.read_csv(raw_data_filename, dtype=str, encoding='utf-8', header=0,
+        raw_data = pd.read_csv(raw_data_filename, encoding='utf-8', header=0,
                                converters={cls.json_column: cls.pandas_read_csv_player_custom_data_parser})
         return cls(raw_data, include_in_id, id_columns)
 
