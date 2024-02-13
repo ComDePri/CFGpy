@@ -1,6 +1,8 @@
-from utils import *
-from consts import *
+from _utils import *
+from _consts import *
 from CFGpy.utils import binary_shape_to_id as bin2id
+
+DEFAULT_OUTPUT_FILENAME = "preprocessed.json"
 
 
 class Preprocessor:
@@ -15,6 +17,7 @@ class Preprocessor:
         self.convert_shape_ids()
         self.handle_empty_moves()
         self.add_explore_exploit()
+        return self.all_players_data
 
     def convert_shape_ids(self):
         """
@@ -43,7 +46,6 @@ class Preprocessor:
             player_data[EXPLORE_KEY] = cast_list_of_tuple_to_ints(explore)
             player_data[EXPLOIT_KEY] = cast_list_of_tuple_to_ints(exploit)
 
-
-if __name__ == '__main__':
-    pp = Preprocessor.from_json('test_file.json')
-    pp.preprocess()
+    def dump(self, path=DEFAULT_OUTPUT_FILENAME):
+        with open(path, "w") as out_file:
+            json.dump(self.all_players_data, out_file)

@@ -1,28 +1,16 @@
 import re
 import pandas as pd
-import argparse
 import json
 import numpy as np
-import utils
-from _ctypes import PyObj_FromPtr
+from _utils import csv_coords_to_bin_coords, prettify_games_json, CFGPipelineException
 from datetime import datetime
-from scipy import stats
-from consts import *
+from _consts import *
 
-
-class CFGParserException(Exception):
-    pass
+DEFAULT_OUTPUT_FILENAME = "parsed.json"
 
 
 class Parser:
-    MS = 1
-    SECOND = 1000 * MS
-    MINUTE = 60 * SECOND
-    MIN_GAME_TIME = 10 * MINUTE
-    MAX_SECONDS_FOR_PAUSE = 90 * SECOND
-
     MINIMAL_ROWS_FOR_GAME_START = 2
-    MIN_SHAPES_MOVED = 80
 
     parser_date_format = '%Y-%m-%dT%H:%M:%S.%fZ'
     old_date_format_with_placeholder = 'DateObject<{%Y, %m, %d, %H, %M, %S.%f}, "Instant", "Gregorian", 2.>'  # The actual format has '[' instead of '<' but it makes everything easier this way
@@ -80,9 +68,17 @@ class Parser:
     parsed_game_actions_key = PARSED_ALL_SHAPES_KEY
     parsed_game_chosen_shapes = PARSED_CHOSEN_SHAPES_KEY
 
-    def __init__(self, include_in_id: list = [], id_columns: list = default_id_columns):
+    def __init__(self, raw_data, include_in_id: list = [], id_columns: list = default_id_columns):
+        self.raw_data = raw_data
         self.include_in_id = include_in_id
         self.id_columns = id_columns
+        self.parsed_data = None
+
+    @classmethod
+    def from_file(cls, raw_data_filename: str, include_in_id: list = [], id_columns: list = default_id_columns):
+        raw_data = pd.read_csv(raw_data_filename, dtype=str, encoding='utf-8', header=0,
+                               converters={cls.json_column: cls.pandas_read_csv_player_custom_data_parser})
+        return cls(raw_data, include_in_id, id_columns)
 
     @staticmethod
     def pandas_read_csv_player_custom_data_parser(data):
@@ -91,24 +87,27 @@ class Parser:
 
         return json.loads(data)
 
-    def parse_from_file(self, raw_data_filename: str):
-        preprocessed_data = self._read_and_preprocess_data(raw_data_filename)
+    def parse(self):
+        preprocessed_data = self._preprocess_data()
         sorted_players_games = self._reorganize_and_sort_data(preprocessed_data)
 
         filtered_players_games = []
         for player_games_list in sorted_players_games:
-            filtered_player_games_list = self._filter_disqualified_games(player_games_list)
+            filtered_player_games_list = self._apply_hard_filters(player_games_list)
             if filtered_player_games_list != []:
                 filtered_players_games.append(filtered_player_games_list)
 
-        parsed_data = self._parse_all_player_games(filtered_players_games)
-        return parsed_data
+        self.parsed_data = self._parse_all_player_games(filtered_players_games)
+        return self.parsed_data
 
-    def _read_and_preprocess_data(self, raw_data_filename):
-        data = pd.read_csv(raw_data_filename, dtype=str,
-                           converters={self.json_column: self.pandas_read_csv_player_custom_data_parser}, header=0,
-                           encoding='utf-8')
-        data = self.patchfix_csv_data(data)
+    def dump(self, path=DEFAULT_OUTPUT_FILENAME, pretty=False):
+        json_str = prettify_games_json(self.parsed_data) if pretty else json.dumps(self.parsed_data)
+
+        with open(path, "w") as out_file:
+            out_file.write(json_str)
+
+    def _preprocess_data(self):
+        data = self.patchfix_csv_data(self.raw_data)
         all_json_keys = self.get_all_json_keys_from_csv_data(data)
         for key in all_json_keys:
             # Take the json inside the csv file and turn them into columns
@@ -198,7 +197,7 @@ class Parser:
 
         return player_games
 
-    def _filter_disqualified_games(self, player_games_list):
+    def _apply_hard_filters(self, player_games_list):
         player_games_list = self.filter_to_started_games(player_games_list)
         player_games_list = self.filter_to_first_game(player_games_list)
         player_games_list = self.filter_unfinished_games(player_games_list)
@@ -240,7 +239,7 @@ class Parser:
     def parse_single_game(self, game_data):
         game_start_time = game_data[game_data[self.command_type_column] == self.tutorial_end_command].iloc[0][
             self.time_column]
-        first_row = pd.DataFrame([[utils.csv_coords_to_bin_coords(self.first_shape), 0, None]],
+        first_row = pd.DataFrame([[csv_coords_to_bin_coords(self.first_shape), 0, None]],
                                  columns=self.parsed_game_headers)
         game_data = game_data[
             game_data[self.command_type_column].isin(self.shape_relevant_actions)]  # Remove all irrelevant rows
@@ -248,8 +247,7 @@ class Parser:
         game_data = moves_after_tutorial
         game_data[self.time_column] = (game_data[self.time_column] - game_start_time).apply(
             lambda time_delta: time_delta.total_seconds())
-        game_data[self.shape_move_column] = game_data[self.shape_move_column].apply(
-            utils.csv_coords_to_bin_coords)
+        game_data[self.shape_move_column] = game_data[self.shape_move_column].apply(csv_coords_to_bin_coords)
 
         game_data[self.gallery_save_time_column] = None
 
@@ -319,7 +317,7 @@ class Parser:
         games = [cls.replace_datetime_with_timestamp(game_string=games[i], timestamp=game_timestamps[i]) for i in
                  range(len(games))]
         games = [re.sub(pattern='(\d\.)([\[\]\{\},])', repl='\\g<1>0\\g<2>', string=game) for game in
-                 games]  # Theres a bug here if we have a user with the string "0.[" in its id
+                 games]  # There's a bug here if we have a user with the string "0.[" in its id
         games = [game.replace('{', '[').replace('}', ']').replace('$Failed', '"$Failed"') for game in games]
         games = [json.loads(game) for game in games]
 
@@ -357,7 +355,7 @@ class Parser:
             if game_date_string == []:
                 game_date_string = re.findall(cls.parse_datetime_re_day, game)
                 if game_date_string == []:
-                    raise CFGParserException('Was not able to parse the date in the following game:', game)
+                    raise CFGPipelineException('Was not able to parse the date in the following game:', game)
         else:
             year = int(game_date_string[0][0])
             month = int(game_date_string[0][1])
@@ -381,35 +379,18 @@ class Parser:
             if replaced_string != game_string:
                 return replaced_string
 
-        raise CFGParserException('Was not able to replace the DateObject with a timestamp in the following game:',
-                                 game_string)
-
-    @classmethod
-    def prettify_games_json(cls, parsed_games):
-        prettified_games = []
-        for game in parsed_games:
-            game['actions'] = [NoIndent(action) for action in game['actions']]
-            chosen_shapes = game.get(cls.parsed_game_chosen_shapes, None)
-            if chosen_shapes is not None:
-                game[cls.parsed_game_chosen_shapes] = [NoIndent(chosen_shape) for chosen_shape in chosen_shapes]
-
-            explore = game.get(cls.explore_json, None)
-            if explore:
-                game[cls.explore_json] = NoIndent(explore)
-
-            exploit = game.get(cls.exploit_json, None)
-            if exploit:
-                game[cls.exploit_json] = NoIndent(exploit)
-
-            prettified_games.append(game)
-
-        return json.dumps(prettified_games, cls=CustomIndentEncoder, sort_keys=True, indent=4)
+        raise CFGPipelineException('Was not able to replace the DateObject with a timestamp in the following game:',
+                                   game_string)
 
 
 class ParserOldCommands(Parser):
     tutorial_end_command = 'tutorial complete'
+    MS = 1
+    SECOND = 1000 * MS
+    MINUTE = 60 * SECOND
+    MIN_GAME_TIME = 10 * MINUTE
 
-    def _filter_disqualified_games(self, player_games_list):
+    def _apply_hard_filters(self, player_games_list):
         player_games_list = self.filter_to_started_games(player_games_list)
         player_games_list = self.filter_min_time_games(player_games_list)
 
@@ -429,54 +410,16 @@ class ParserOldCommands(Parser):
         return filtered_games
 
 
-# Using the answer from here https://stackoverflow.com/a/13252112 to make a prettier json file
-class NoIndent(object):
-    """ Value wrapper. """
-
-    def __init__(self, value):
-        self.value = value
-
-
-class CustomIndentEncoder(json.JSONEncoder):
-    FORMAT_SPEC = '@@{}@@'
-    regex = re.compile(FORMAT_SPEC.format(r'(\d+)'))
-
-    def __init__(self, **kwargs):
-        # Save copy of any keyword argument values needed for use here.
-        self.__sort_keys = kwargs.get('sort_keys', None)
-        super(CustomIndentEncoder, self).__init__(**kwargs)
-
-    def default(self, obj):
-        return (self.FORMAT_SPEC.format(id(obj)) if isinstance(obj, NoIndent)
-                else super(CustomIndentEncoder, self).default(obj))
-
-    def encode(self, obj):
-        format_spec = self.FORMAT_SPEC  # Local var to expedite access.
-        json_repr = super(CustomIndentEncoder, self).encode(obj)  # Default JSON.
-
-        # Replace any marked-up object ids in the JSON repr with the
-        # value returned from the json.dumps() of the corresponding
-        # wrapped Python object.
-        for match in self.regex.finditer(json_repr):
-            # see https://stackoverflow.com/a/15012814/355230
-            id = int(match.group(1))
-            no_indent = PyObj_FromPtr(id)
-            json_obj_repr = json.dumps(no_indent.value, sort_keys=self.__sort_keys)
-
-            # Replace the matched id string with json formatted representation
-            # of the corresponding Python object.
-            json_repr = json_repr.replace(
-                '"{}"'.format(format_spec.format(id)), json_obj_repr)
-
-        return json_repr
-
-
 if __name__ == '__main__':
-    p = Parser()
-    parsed_data = p.parse_from_file(r"\event.csv")
-    with open("test_file.json", "w") as f:
-        json.dump(parsed_data, f)
-    old_format = Parser.translate_parsed_results_to_mathematica(parsed_data)
-    with open(r"C:\Users\roygutg\Documents\GitRepos\CFGAnalysisTools\py_math_compare\py_parse_old_format.txt",
-              "w") as f:
-        f.write(old_format)
+    import argparse
+
+    parserarg = argparse.ArgumentParser(description="Parse raw CFG data")
+    parserarg.add_argument("-i", "--input", dest="input_filename",
+                           help='Filename of raw data CSV')
+    parserarg.add_argument("-o", "--output", default=DEFAULT_OUTPUT_FILENAME, dest="output_filename",
+                           help='Filename of output CSV')
+    args = parserarg.parse_args()
+
+    p = Parser.from_file(args.input_filename)
+    p.parse()
+    p.dump(args.output_filename)
