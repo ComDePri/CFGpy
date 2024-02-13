@@ -87,9 +87,9 @@ def segment_explore_exploit(actions_list, min_save_for_exploit=MIN_SAVE_FOR_EXPL
             exploit_start = gallery_indices[series][0]
             exploit_end = gallery_indices[series][-1] + 1
 
-            exploit_slices.append((exploit_start, exploit_end))
+            exploit_slices.append((int(exploit_start), int(exploit_end)))
             if prev_exploit_end != exploit_start:
-                explore_slices.append((prev_exploit_end, exploit_start))
+                explore_slices.append((int(prev_exploit_end), int(exploit_start)))
 
             prev_exploit_end = exploit_end
 
@@ -97,7 +97,7 @@ def segment_explore_exploit(actions_list, min_save_for_exploit=MIN_SAVE_FOR_EXPL
         return [0, actions_df.shape[0]], []
 
     if exploit_slices[-1][1] != gallery_saves.size:
-        explore_slices.append((exploit_slices[-1][1], actions_df.shape[0]))
+        explore_slices.append((exploit_slices[-1][1], len(actions_df)))
 
     return explore_slices, exploit_slices
 
@@ -116,10 +116,6 @@ def group_by_monotone_decreasing(sequence):
         monotone_sequences.append(current_sequence)
 
     return monotone_sequences
-
-
-def cast_list_of_tuple_to_ints(l):
-    return list(map(lambda x: (int(x[0]), int(x[1])), l))
 
 
 def get_giant_component(clustered_data, min_shared_shapes_for_edges):

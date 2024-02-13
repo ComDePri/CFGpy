@@ -43,8 +43,8 @@ class Preprocessor:
     def add_explore_exploit(self):
         for player_data in self.all_players_data:
             explore, exploit = segment_explore_exploit(player_data[PARSED_ALL_SHAPES_KEY])
-            player_data[EXPLORE_KEY] = cast_list_of_tuple_to_ints(explore)
-            player_data[EXPLOIT_KEY] = cast_list_of_tuple_to_ints(exploit)
+            player_data[EXPLORE_KEY] = explore
+            player_data[EXPLOIT_KEY] = exploit
 
     def dump(self, path=DEFAULT_OUTPUT_FILENAME):
         with open(path, "w") as out_file:
