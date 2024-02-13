@@ -1,8 +1,5 @@
-from Downloader import Downloader
-from Parser import Parser
-from Preprocessor import Preprocessor
-from MeasureCalculator import MeasureCalculator
-from _consts import DEFAULT_FINAL_OUTPUT_FILENAME
+from CFGpy.behavioral import Downloader, Parser, Preprocessor, MeasureCalculator
+from ._consts import DEFAULT_FINAL_OUTPUT_FILENAME
 
 
 class Pipeline:

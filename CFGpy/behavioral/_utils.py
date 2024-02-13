@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 import json
 import re
-from _consts import *
 from _ctypes import PyObj_FromPtr
+from ._consts import *
 
 
 class CFGPipelineException(Exception):

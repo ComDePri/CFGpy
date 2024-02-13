@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 from itertools import groupby, pairwise
-from _consts import *
-from _utils import load_json
+from ._consts import *
+from ._utils import load_json
 from collections.abc import Collection
 from collections import Counter
 from functools import reduce
