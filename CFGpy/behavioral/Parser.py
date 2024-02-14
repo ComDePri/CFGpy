@@ -184,9 +184,6 @@ class Parser:
         game_start_indices = player_data.index[
             player_data[self.command_type_column] == self.game_start_command].tolist()
 
-        if len(game_start_indices) == 1:
-            return [player_data]
-
         player_games = []
         for i in range(len(game_start_indices) - 1):
             game_start_index = game_start_indices[i]
@@ -194,6 +191,10 @@ class Parser:
             game = player_data.iloc[game_start_index:game_end_index]
 
             player_games.append(game)
+
+        last_game_start_index = game_start_indices[-1]
+        last_game = player_data.iloc[last_game_start_index:]
+        player_games.append(last_game)
 
         return player_games
 
