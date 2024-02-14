@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from ._utils import csv_coords_to_bin_coords, prettify_games_json, CFGPipelineException
 from ._consts import *
 
@@ -286,7 +286,7 @@ class Parser:
             ]
             old_format_entry = [
                 player_id,
-                datetime.strftime(datetime.fromtimestamp(player_start_time), cls.old_date_format_with_placeholder),
+                datetime.strftime(datetime.fromtimestamp(player_start_time, tz=timezone.utc), cls.old_date_format_with_placeholder),
                 old_format_actions,
                 "",
             ]
