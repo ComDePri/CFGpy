@@ -5,6 +5,7 @@ import os
 TEST_FILES_DIR = os.path.join(NAS_PATH, "Projects", "CFG", "CFGpy test files")
 TEST_DOWNLOADED_PATH = os.path.join(TEST_FILES_DIR, "test_event.csv")
 TEST_PARSED_PATH = os.path.join(TEST_FILES_DIR, "test_parsed.json")
+TEST_PARSED_OLD_FORMAT_PATH = os.path.join(TEST_FILES_DIR, "test_parsed_old_format.txt")
 TEST_PREPROCESSED_PATH = os.path.join(TEST_FILES_DIR, "test_preprocessed.json")
 TEST_MEASURES_PATH = os.path.join(TEST_FILES_DIR, "test_measures.csv")
 
@@ -34,6 +35,17 @@ def test_parser():
     assert test_parsed == parsed
 
 
+def test_parser_conversion_to_old_format():
+    parser = Parser.from_file(TEST_DOWNLOADED_PATH)
+    parsed_new_format = parser.parse()
+    parsed_old_format = Parser.translate_parsed_results_to_mathematica(parsed_new_format)
+
+    with open(TEST_PARSED_OLD_FORMAT_PATH, "r") as test_parsed_old_format_fp:
+        test_parsed_old_format = test_parsed_old_format_fp.read()
+
+    assert test_parsed_old_format == parsed_old_format
+
+
 def test_processor():
     preprocessor = Preprocessor.from_json(TEST_PARSED_PATH)
     preprocessor.preprocess()
@@ -58,3 +70,11 @@ def test_measures_calculator():
         measures = measures_fp.read()
 
     assert test_measures == measures
+
+
+if __name__ == '__main__':
+    test_downloader()
+    test_parser()
+    test_parser_conversion_to_old_format()
+    test_processor()
+    test_measures_calculator()
