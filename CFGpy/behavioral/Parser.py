@@ -201,7 +201,6 @@ class Parser:
     def _apply_hard_filters(self, player_games_list):
         player_games_list = self.filter_to_started_games(player_games_list)
         player_games_list = self.filter_to_first_game(player_games_list)
-        player_games_list = self.filter_unfinished_games(player_games_list)
 
         return player_games_list
 
@@ -286,7 +285,8 @@ class Parser:
             ]
             old_format_entry = [
                 player_id,
-                datetime.strftime(datetime.fromtimestamp(player_start_time, tz=timezone.utc), cls.old_date_format_with_placeholder),
+                datetime.strftime(datetime.fromtimestamp(player_start_time, tz=timezone.utc),
+                                  cls.old_date_format_with_placeholder),
                 old_format_actions,
                 "",
             ]
