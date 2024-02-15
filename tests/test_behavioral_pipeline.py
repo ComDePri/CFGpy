@@ -3,78 +3,99 @@ from CFGpy import NAS_PATH
 import os
 
 TEST_FILES_DIR = os.path.join(NAS_PATH, "Projects", "CFG", "CFGpy test files")
-TEST_DOWNLOADED_PATH = os.path.join(TEST_FILES_DIR, "test_event.csv")
-TEST_PARSED_PATH = os.path.join(TEST_FILES_DIR, "test_parsed.json")
-TEST_PARSED_OLD_FORMAT_PATH = os.path.join(TEST_FILES_DIR, "test_parsed_old_format.txt")
-TEST_PREPROCESSED_PATH = os.path.join(TEST_FILES_DIR, "test_preprocessed.json")
-TEST_MEASURES_PATH = os.path.join(TEST_FILES_DIR, "test_measures.csv")
+RED_METRICS_URL_FILENAME = "red_metrics_url.txt"
+TEST_DOWNLOADED_FILENAME = "test_event.csv"
+TEST_PARSED_FILENAME = "test_parsed.json"
+TEST_PARSED_OLD_FORMAT_FILENAME = "test_parsed_old_format.txt"
+TEST_PREPROCESSED_FILENAME = "test_preprocessed.json"
+TEST_MEASURES_FILENAME = "test_measures.csv"
 
 
 def test_downloader():
-    url = "https://api.creativeforagingtask.com/v1/event.csv?game=41e44d77-e341-4be0-95a8-7403f6c74647&entityType=event"
-    Downloader(url, "event.csv").download()
+    for filename in os.listdir(TEST_FILES_DIR):
+        absolute_path = os.path.join(TEST_FILES_DIR, filename)
+        if os.path.isdir(absolute_path):
 
-    with open(TEST_DOWNLOADED_PATH, "r") as test_event_fp:
-        test_event = test_event_fp.read()
-    with open("event.csv", "r") as event_fp:
-        event = event_fp.read()
+            with open(os.path.join(absolute_path, RED_METRICS_URL_FILENAME)) as url_fp:
+                url = url_fp.read()
+            Downloader(url, "event.csv").download()
 
-    assert test_event == event
+            with open(os.path.join(absolute_path, TEST_DOWNLOADED_FILENAME), "r") as test_event_fp:
+                test_event = test_event_fp.read()
+            with open("event.csv", "r") as event_fp:
+                event = event_fp.read()
+
+            assert test_event == event
 
 
 def test_parser():
-    parser = Parser.from_file(TEST_DOWNLOADED_PATH)
-    parser.parse()
-    parser.dump("parsed.json")
+    for filename in os.listdir(TEST_FILES_DIR):
+        absolute_path = os.path.join(TEST_FILES_DIR, filename)
+        if os.path.isdir(absolute_path):
+            parser = Parser.from_file(os.path.join(absolute_path, TEST_DOWNLOADED_FILENAME))
+            parser.parse()
+            parser.dump("parsed.json")
 
-    with open(TEST_PARSED_PATH, "r") as test_parsed_fp:
-        test_parsed = test_parsed_fp.read()
-    with open("parsed.json", "r") as parsed_fp:
-        parsed = parsed_fp.read()
+            with open(os.path.join(absolute_path, TEST_PARSED_FILENAME), "r") as test_parsed_fp:
+                test_parsed = test_parsed_fp.read()
+            with open("parsed.json", "r") as parsed_fp:
+                parsed = parsed_fp.read()
 
-    assert test_parsed == parsed
+            assert test_parsed == parsed
 
 
 def test_parser_conversion_to_old_format():
-    parser = Parser.from_file(TEST_DOWNLOADED_PATH)
-    parsed_new_format = parser.parse()
-    parsed_old_format = Parser.translate_parsed_results_to_mathematica(parsed_new_format)
+    for filename in os.listdir(TEST_FILES_DIR):
+        absolute_path = os.path.join(TEST_FILES_DIR, filename)
+        if filename == "set2" and os.path.isdir(absolute_path):
+            parser = Parser.from_file(os.path.join(absolute_path, TEST_DOWNLOADED_FILENAME))
+            parsed_new_format = parser.parse()
+            parsed_old_format = Parser.translate_parsed_results_to_mathematica(parsed_new_format)
 
-    with open(TEST_PARSED_OLD_FORMAT_PATH, "r") as test_parsed_old_format_fp:
-        test_parsed_old_format = test_parsed_old_format_fp.read()
+            with open(r"parsed_old_fmt.txt", "w") as parsed_old_format_fp:
+                parsed_old_format_fp.write(parsed_old_format)
 
-    assert test_parsed_old_format == parsed_old_format
+            with open(os.path.join(absolute_path, TEST_PARSED_OLD_FORMAT_FILENAME), "r") as test_parsed_old_format_fp:
+                test_parsed_old_format = test_parsed_old_format_fp.read()
+
+            assert test_parsed_old_format == parsed_old_format
 
 
 def test_processor():
-    preprocessor = Preprocessor.from_json(TEST_PARSED_PATH)
-    preprocessor.preprocess()
-    preprocessor.dump("preprocessed.json")
+    for filename in os.listdir(TEST_FILES_DIR):
+        absolute_path = os.path.join(TEST_FILES_DIR, filename)
+        if os.path.isdir(absolute_path):
+            preprocessor = Preprocessor.from_json(os.path.join(absolute_path, TEST_PARSED_FILENAME))
+            preprocessor.preprocess()
+            preprocessor.dump("preprocessed.json")
 
-    with open(TEST_PREPROCESSED_PATH, "r") as test_preprocessed_fp:
-        test_preprocessed = test_preprocessed_fp.read()
-    with open("preprocessed.json", "r") as preprocessed_fp:
-        preprocessed = preprocessed_fp.read()
+            with open(os.path.join(absolute_path, TEST_PREPROCESSED_FILENAME), "r") as test_preprocessed_fp:
+                test_preprocessed = test_preprocessed_fp.read()
+            with open("preprocessed.json", "r") as preprocessed_fp:
+                preprocessed = preprocessed_fp.read()
 
-    assert test_preprocessed == preprocessed
+            assert test_preprocessed == preprocessed
 
 
 def test_measures_calculator():
-    measures_calculator = MeasureCalculator.from_json(TEST_PARSED_PATH)
-    measures_calculator.calc()
-    measures_calculator.dump("measures.csv")
+    for filename in os.listdir(TEST_FILES_DIR):
+        absolute_path = os.path.join(TEST_FILES_DIR, filename)
+        if os.path.isdir(absolute_path):
+            measures_calculator = MeasureCalculator.from_json(os.path.join(absolute_path, TEST_PARSED_FILENAME))
+            measures_calculator.calc()
+            measures_calculator.dump("measures.csv")
 
-    with open(TEST_MEASURES_PATH, "r") as test_measures_fp:
-        test_measures = test_measures_fp.read()
-    with open("measures.csv", "r") as measures_fp:
-        measures = measures_fp.read()
+            with open(os.path.join(absolute_path, TEST_MEASURES_FILENAME), "r") as test_measures_fp:
+                test_measures = test_measures_fp.read()
+            with open("measures.csv", "r") as measures_fp:
+                measures = measures_fp.read()
 
-    assert test_measures == measures
+            assert test_measures == measures
 
 
 if __name__ == '__main__':
-    test_downloader()
-    test_parser()
+    # test_downloader()
+    # test_parser()
     test_parser_conversion_to_old_format()
-    test_processor()
-    test_measures_calculator()
+    # test_processor()
+    # test_measures_calculator()
