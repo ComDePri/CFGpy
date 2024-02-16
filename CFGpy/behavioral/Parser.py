@@ -39,6 +39,7 @@ class Parser:
     ]
     default_id = 'No ID Found'
 
+    unique_internal_id_column = 'playerId'
     json_column = 'playerCustomData'
     time_column = 'userTime'
     shape_move_column = 'customData.newShape'
@@ -87,15 +88,9 @@ class Parser:
 
     def parse(self):
         preprocessed_data = self._preprocess_data()
-        data_split_to_players_games = self._restructure_data(preprocessed_data)
-
-        filtered_players_games = []
-        for player_games_list in data_split_to_players_games:
-            filtered_player_games_list = self._apply_hard_filters(player_games_list)
-            if filtered_player_games_list != []:
-                filtered_players_games.append(filtered_player_games_list)
-
-        self.parsed_data = self._parse_all_player_games(filtered_players_games)
+        grouped_by_unique_id = preprocessed_data.groupby(self.unique_internal_id_column)
+        hard_filtered_games = grouped_by_unique_id.filter(self._apply_hard_filters)
+        self.parsed_data = self._parse_all_player_games(hard_filtered_games)
         return self.parsed_data
 
     def dump(self, path=DEFAULT_OUTPUT_FILENAME, pretty=False):
@@ -106,10 +101,11 @@ class Parser:
 
     def _preprocess_data(self):
         data = self.patchfix_csv_data(self.raw_data)
+        data[self.json_column] = data[self.json_column].apply(json.loads)
         all_json_keys = self.get_all_json_keys_from_csv_data(data)
         for key in all_json_keys:
             # Take the json inside the csv file and turn them into columns
-            data[key] = data[self.json_column].apply(lambda dict_str: json.loads(dict_str).get(key))
+            data[key] = data[self.json_column].apply(lambda json_dict: json_dict.get(key))
 
         data[self.shape_move_column] = data[self.shape_move_column].apply(
             lambda val: sorted(json.loads(val)) if type(val) is str else np.NAN)
@@ -138,7 +134,7 @@ class Parser:
         return data
 
     def get_all_json_keys_from_csv_data(self, data):
-        all_json_keys = np.concatenate(data[self.json_column].apply(lambda x: tuple(json.loads(x).keys())).unique())
+        all_json_keys = np.concatenate(data[self.json_column].apply(lambda x: tuple(x.keys())).unique())
 
         return set(all_json_keys)
 
@@ -155,62 +151,17 @@ class Parser:
 
         return data
 
-    def _restructure_data(self, data):
-        """
-        Groups the data by self.json_column and within that by individual games.
-        :param data: preprocessed data.
-        :return: list of lists of dataframes.
-        """
-        data_split_to_players_games = [self.split_player_games(player_data)
-                                       for _, player_data in data.groupby(self.json_column)]
-
-        return data_split_to_players_games
-
-    def split_player_games(self, player_data):
-        """
-        Splits the player data into separate games found in it. Assumes data sorted by time.
-        :param player_data: a dataframe of all data from a single player
-        :return: list of dataframes.
-        """
-        player_data = player_data.reset_index(drop=True)
-        game_start_indices = player_data.index[
-            player_data[self.command_type_column] == self.game_start_command].tolist()
-
-        if not game_start_indices:
-            return []
-
-        player_games = []
-        for i in range(len(game_start_indices) - 1):
-            game_start_index = game_start_indices[i]
-            game_end_index = game_start_indices[i + 1]
-            game = player_data.iloc[game_start_index:game_end_index]
-
-            player_games.append(game)
-
-        last_game_start_index = game_start_indices[-1]
-        last_game = player_data.iloc[last_game_start_index:]
-        player_games.append(last_game)
-
-        return player_games
-
-    def _apply_hard_filters(self, player_games_list):
-        player_games_list = self.filter_to_started_games(player_games_list)
-
-        return player_games_list
-
-    def filter_to_started_games(self, games):
-        '''Returns games that actually started'''
-        return [game for game in games if self.is_game_started(game)]
+    def _apply_hard_filters(self, player_data):
+        return self.is_game_started(player_data)
 
     def is_game_started(self, game):
         return game[self.command_type_column].str.contains(self.tutorial_end_command).sum() > 0
 
-    def _parse_all_player_games(self, player_games):
+    def _parse_all_player_games(self, games):
         all_parsed_games = []
-        for games in player_games:
-            for game in games:
-                parsed_game = self.parse_single_game(game)
-                all_parsed_games.append(parsed_game)
+        for _, game in games.groupby(self.unique_internal_id_column):
+            parsed_game = self.parse_single_game(game)
+            all_parsed_games.append(parsed_game)
 
         return all_parsed_games
 
@@ -373,11 +324,11 @@ class ParserOldCommands(Parser):
     MINUTE = 60 * SECOND
     MIN_GAME_TIME = 10 * MINUTE
 
-    def _apply_hard_filters(self, player_games_list):
-        player_games_list = self.filter_to_started_games(player_games_list)
-        player_games_list = self.filter_min_time_games(player_games_list)
+    def _apply_hard_filters(self, player_data):
+        player_data = self.filter_to_started_games(player_data)
+        player_data = self.filter_min_time_games(player_data)
 
-        return player_games_list
+        return player_data
 
     def filter_min_time_games(self, games):
         filtered_games = []
