@@ -10,8 +10,6 @@ DEFAULT_OUTPUT_FILENAME = "parsed.json"
 
 
 class Parser:
-    MINIMAL_ROWS_FOR_GAME_START = 2
-
     parser_date_format = '%Y-%m-%dT%H:%M:%S.%fZ'
     old_date_format_with_placeholder = 'DateObject<{%Y, %m, %d, %H, %M, %S.%f}, "Instant", "Gregorian", 2.>'  # The actual format has '[' instead of '<' but it makes everything easier this way
     datetime_re = '"(DateObject\[\{\d+, \d+, \d+, \d+, \d+, \d+(?:\.\d+)?}, "Instant", "Gregorian", \d+\.\])"'  # Used to remove quotes from game strings
@@ -197,19 +195,12 @@ class Parser:
 
     def _apply_hard_filters(self, player_games_list):
         player_games_list = self.filter_to_started_games(player_games_list)
-        player_games_list = self.filter_to_first_game(player_games_list)
 
         return player_games_list
 
     def filter_to_started_games(self, games):
         '''Returns games that actually started'''
         return [game for game in games if self.is_game_started(game)]
-
-    def filter_to_first_game(self, games):
-        if games != []:
-            return [games[0]]
-
-        return []
 
     def is_game_started(self, game):
         return game[self.command_type_column].str.contains(self.tutorial_end_command).sum() > 0
