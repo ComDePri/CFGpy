@@ -77,8 +77,7 @@ class Parser:
 
     @classmethod
     def from_file(cls, raw_data_filename: str, include_in_id: list = [], id_columns: list = default_id_columns):
-        raw_data = pd.read_csv(raw_data_filename, encoding='utf-8', header=0,
-                               converters={cls.json_column: cls.pandas_read_csv_player_custom_data_parser})
+        raw_data = pd.read_csv(raw_data_filename)
         return cls(raw_data, include_in_id, id_columns)
 
     @staticmethod
@@ -90,10 +89,10 @@ class Parser:
 
     def parse(self):
         preprocessed_data = self._preprocess_data()
-        sorted_players_games = self._reorganize_and_sort_data(preprocessed_data)
+        data_split_to_players_games = self._restructure_data(preprocessed_data)
 
         filtered_players_games = []
-        for player_games_list in sorted_players_games:
+        for player_games_list in data_split_to_players_games:
             filtered_player_games_list = self._apply_hard_filters(player_games_list)
             if filtered_player_games_list != []:
                 filtered_players_games.append(filtered_player_games_list)
@@ -112,12 +111,16 @@ class Parser:
         all_json_keys = self.get_all_json_keys_from_csv_data(data)
         for key in all_json_keys:
             # Take the json inside the csv file and turn them into columns
-            data[key] = data[self.json_column].apply(lambda json_dict: json_dict.get(key))
+            data[key] = data[self.json_column].apply(lambda dict_str: json.loads(dict_str).get(key))
 
-        parser_relevant_columns = self.parser_relevant_columns + self.include_in_id
+        data[self.shape_move_column] = data[self.shape_move_column].apply(
+            lambda val: sorted(json.loads(val)) if type(val) is str else np.NAN)
+        data[self.shape_save_column] = data[self.shape_save_column].apply(
+            lambda val: sorted(json.loads(val)) if type(val) is str else np.NAN)
+
         data = self.merge_id_columns(data)
-        data = data[parser_relevant_columns]
         data[self.time_column] = pd.to_datetime(data[self.time_column], format=self.parser_date_format)
+        data = data.sort_values(by=self.time_column).reset_index(drop=True)
 
         return data
 
@@ -137,7 +140,7 @@ class Parser:
         return data
 
     def get_all_json_keys_from_csv_data(self, data):
-        all_json_keys = np.concatenate(data[self.json_column].apply(lambda x: tuple(x.keys())).unique())
+        all_json_keys = np.concatenate(data[self.json_column].apply(lambda x: tuple(json.loads(x).keys())).unique())
 
         return set(all_json_keys)
 
@@ -154,34 +157,24 @@ class Parser:
 
         return data
 
-    def _reorganize_and_sort_data(self, data):
-        data_split_to_players = self.split_to_players(data)
-        sorted_players_data = [self.sort_and_clean_player_games(player_data) for player_data in data_split_to_players]
-        data_split_to_players_games = [self.split_player_games(player_data) for player_data in sorted_players_data]
+    def _restructure_data(self, data):
+        """
+        Groups the data by self.json_column and within that by individual games.
+        :param data: preprocessed data.
+        :return: list of lists of dataframes.
+        """
+        data_split_to_players_games = [self.split_player_games(player_data)
+                                       for _, player_data in data.groupby(self.json_column)]
 
         return data_split_to_players_games
 
-    def split_to_players(self, data):
-        player_identifiers = data[self.id_column_name].unique()
-
-        data_split_to_players = [
-            data[data[self.id_column_name] == player_identifier]
-            for player_identifier in player_identifiers
-        ]
-
-        return data_split_to_players
-
-    def sort_and_clean_player_games(self, player_data):
-        sorted_player_data = player_data.sort_values(by=self.time_column).reset_index(drop=True)
-        sorted_player_data[self.shape_move_column] = sorted_player_data[self.shape_move_column].apply(
-            lambda val: sorted(json.loads(val)) if type(val) is str else np.NAN)
-        sorted_player_data[self.shape_save_column] = sorted_player_data[self.shape_save_column].apply(
-            lambda val: sorted(json.loads(val)) if type(val) is str else np.NAN)
-
-        return sorted_player_data
-
     def split_player_games(self, player_data):
-        '''Assumes that the games are sorted by time'''
+        """
+        Splits the player data into separate games found in it. Assumes data sorted by time.
+        :param player_data: a dataframe of all data from a single player
+        :return: list of dataframes.
+        """
+        player_data = player_data.reset_index(drop=True)
         game_start_indices = player_data.index[
             player_data[self.command_type_column] == self.game_start_command].tolist()
 
@@ -231,22 +224,16 @@ class Parser:
         return all_parsed_games
 
     def parse_single_game(self, game_data):
+        parser_relevant_columns = self.parser_relevant_columns + self.include_in_id
+        game_data = game_data[parser_relevant_columns]
+
+        assert len(game_data[self.id_column_name].unique()) == 1
         player_id_field = game_data[self.id_column_name].iloc[0]
         game_start_time = game_data[game_data[self.command_type_column] == self.tutorial_end_command].iloc[0][
             self.time_column]
 
-        # drop moves before first tutorial end:
         game_data = game_data[game_data[self.time_column] >= game_start_time]
-        # drop moves after a tutorial started mid-game, if that happened:
-        tutorial_start_indices = game_data.reset_index().index[
-            game_data[self.command_type_column] == self.tutorial_start_command].tolist()
-        if tutorial_start_indices:
-            first_tutorial_start_idx = tutorial_start_indices[0]
-            game_data = game_data.drop(game_data[first_tutorial_start_idx:].index)
-
-        # drop irrelevant rows:
         game_data = game_data[game_data[self.command_type_column].isin(self.shape_relevant_actions)]
-        # add missing row:
         first_row = [player_id_field, self.shape_move_command, self.first_shape, np.NAN, game_start_time]
         first_row_df = pd.DataFrame([first_row], columns=game_data.columns)
         game_data = pd.concat([first_row_df, game_data], ignore_index=True)
