@@ -50,6 +50,7 @@ class Parser:
     merged_shape_column = 'merged_shapes_actions'
 
     game_start_command = 'start'
+    tutorial_start_command = 'starttutorial'
     tutorial_end_command = 'startsearch'
     game_ended_command = 'end search'
     shape_move_command = 'movedblock'
@@ -146,7 +147,7 @@ class Parser:
         for id_column in self.id_columns:
             if id_column in data.columns:
                 missing_indices = data[self.id_column_name].isna()
-                data.loc[missing_indices, self.id_column_name] = data[id_column].loc[missing_indices]
+                data.loc[missing_indices, self.id_column_name] = data[id_column].loc[missing_indices].astype(str)
 
         missing_indices = data[self.id_column_name].isna()
         data.loc[missing_indices, self.id_column_name] = self.default_id
@@ -184,6 +185,9 @@ class Parser:
         game_start_indices = player_data.index[
             player_data[self.command_type_column] == self.game_start_command].tolist()
 
+        if not game_start_indices:
+            return []
+
         player_games = []
         for i in range(len(game_start_indices) - 1):
             game_start_index = game_start_indices[i]
@@ -206,12 +210,7 @@ class Parser:
 
     def filter_to_started_games(self, games):
         '''Returns games that actually started'''
-        games = [game for game in games if
-                 len(game) > self.MINIMAL_ROWS_FOR_GAME_START]  # Remove games that haven't actually started
-        games = [game for game in games if game[self.command_type_column].str.contains(
-            self.tutorial_end_command).sum() > 0]  # Remove games that didn't continue past the tutorial stage
-
-        return games
+        return [game for game in games if self.is_game_started(game)]
 
     def filter_to_first_game(self, games):
         if games != []:
@@ -219,13 +218,8 @@ class Parser:
 
         return []
 
-    def filter_unfinished_games(self, games):
-        games = [game for game in games if self.is_game_ended(game)]
-
-        return games
-
-    def is_game_ended(self, game):
-        return game[self.command_type_column].str.contains(self.game_ended_command).sum() > 0
+    def is_game_started(self, game):
+        return game[self.command_type_column].str.contains(self.tutorial_end_command).sum() > 0
 
     def _parse_all_player_games(self, player_games):
         all_parsed_games = []
@@ -237,14 +231,26 @@ class Parser:
         return all_parsed_games
 
     def parse_single_game(self, game_data):
+        player_id_field = game_data[self.id_column_name].iloc[0]
         game_start_time = game_data[game_data[self.command_type_column] == self.tutorial_end_command].iloc[0][
             self.time_column]
-        first_row = pd.DataFrame([[csv_coords_to_bin_coords(self.first_shape), 0, None]],
-                                 columns=self.parsed_game_headers)
-        game_data = game_data[
-            game_data[self.command_type_column].isin(self.shape_relevant_actions)]  # Remove all irrelevant rows
-        moves_after_tutorial = game_data[game_data[self.time_column] >= game_start_time]
-        game_data = moves_after_tutorial
+
+        # drop moves before first tutorial end:
+        game_data = game_data[game_data[self.time_column] >= game_start_time]
+        # drop moves after a tutorial started mid-game, if that happened:
+        tutorial_start_indices = game_data.reset_index().index[
+            game_data[self.command_type_column] == self.tutorial_start_command].tolist()
+        if tutorial_start_indices:
+            first_tutorial_start_idx = tutorial_start_indices[0]
+            game_data = game_data.drop(game_data[first_tutorial_start_idx:].index)
+
+        # drop irrelevant rows:
+        game_data = game_data[game_data[self.command_type_column].isin(self.shape_relevant_actions)]
+        # add missing row:
+        first_row = [player_id_field, self.shape_move_command, self.first_shape, np.NAN, game_start_time]
+        first_row_df = pd.DataFrame([first_row], columns=game_data.columns)
+        game_data = pd.concat([first_row_df, game_data], ignore_index=True)
+
         game_data[self.time_column] = (game_data[self.time_column] - game_start_time).apply(
             lambda time_delta: time_delta.total_seconds())
         game_data[self.shape_move_column] = game_data[self.shape_move_column].apply(csv_coords_to_bin_coords)
@@ -258,8 +264,6 @@ class Parser:
             [self.shape_move_command])]  # Now that we have the save time in all move rows, we can get rid of save rows
 
         actions = game_data[self.parsed_game_headers]
-        actions = pd.concat([first_row, actions], ignore_index=True)
-        player_id_field = game_data[self.id_column_name].iloc[0]
         if self.include_in_id:
             player_id_field = [game_data[self.id_column_name].iloc[0]] + self.include_in_id
         parsed_game = {
