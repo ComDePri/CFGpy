@@ -73,11 +73,13 @@ def segment_explore_exploit(actions_list, min_save_for_exploit=MIN_SAVE_FOR_EXPL
     gallery_times = actions_df.iloc[gallery_indices][2]
     gallery_diffs = np.diff(gallery_times)
 
-    all_monotone_series = pd.Series(group_by_monotone_decreasing(gallery_diffs))
-    gallery_diffs_peaks = np.array([gallery_diffs[monotone_series[0]] for monotone_series in all_monotone_series])
-    twice_monotone_series = group_by_monotone_decreasing(gallery_diffs_peaks)
-    merged_series = [np.concatenate(all_monotone_series[monotone_series].values) for monotone_series in
-                     twice_monotone_series]
+    merged_series = []
+    if gallery_diffs.size:
+        all_monotone_series = pd.Series(group_by_monotone_decreasing(gallery_diffs))
+        gallery_diffs_peaks = np.array([gallery_diffs[monotone_series[0]] for monotone_series in all_monotone_series])
+        twice_monotone_series = group_by_monotone_decreasing(gallery_diffs_peaks)
+        merged_series = [np.concatenate(all_monotone_series[monotone_series].values) for monotone_series in
+                         twice_monotone_series]
 
     exploit_slices = []
     explore_slices = []

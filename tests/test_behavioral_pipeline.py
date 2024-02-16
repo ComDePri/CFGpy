@@ -62,7 +62,7 @@ def test_parser_conversion_to_old_format(test_dir):
 
 
 @pytest.mark.parametrize("test_dir", test_dirs)
-def test_processor(test_dir):
+def test_preprocessor(test_dir):
     preprocessor = Preprocessor.from_json(os.path.join(test_dir, TEST_PARSED_FILENAME))
     preprocessor.preprocess()
     preprocessor.dump("preprocessed.json")
