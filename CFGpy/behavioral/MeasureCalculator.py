@@ -232,6 +232,10 @@ class MeasureCalculator:
         """
         Keeps only the first game from each player. Allows functions downstream to assume unique IDs.
         """
+        self.input_data = (pd.DataFrame(self.input_data).
+                           sort_values(by=[PARSED_TIME_KEY], ascending=True).
+                           drop_duplicates(subset=[PARSED_PLAYER_ID_KEY], keep="first").
+                           to_dict("records"))
         self.output_df = (self.output_df.
                           sort_values(by=[MEASURES_START_TIME_KEY], ascending=True).
                           drop_duplicates(subset=[MEASURES_ID_KEY], keep="first"))
@@ -244,6 +248,8 @@ class MeasureCalculator:
             masks, reasons = filter_getter()
             self._update_exclusion_info(masks, reasons)
             is_excluded = reduce(np.logical_or, masks)
+
+            self.input_data = pd.DataFrame(self.input_data).loc[~is_excluded].to_dict("records")
             self.output_df = self.output_df.loc[~is_excluded]
 
     def _get_absolute_filters(self):
