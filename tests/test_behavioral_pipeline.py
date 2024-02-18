@@ -99,7 +99,9 @@ def test_preprocessor(test_dir):
 
 @pytest.mark.parametrize("test_dir", test_dirs)
 def test_measures_calculator(test_dir):
-    measures_calculator = MeasureCalculator.from_json(os.path.join(test_dir, TEST_PARSED_FILENAME))
+    with open(os.path.join(test_dir, TEST_PREPROCESSED_FILENAME), "r") as test_preprocessed_fp:
+        preprocessed_data = json.load(test_preprocessed_fp)
+    measures_calculator = MeasureCalculator(preprocessed_data)
     measures_calculator.calc()
     measures_calculator.dump("measures.csv")
 
