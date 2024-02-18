@@ -79,13 +79,6 @@ class Parser:
         raw_data = pd.read_csv(raw_data_filename)
         return cls(raw_data, include_in_id, id_columns)
 
-    @staticmethod
-    def pandas_read_csv_player_custom_data_parser(data):
-        if data == '' or data is None:
-            return {}
-
-        return json.loads(data)
-
     def parse(self):
         preprocessed_data = self._preprocess_data()
         grouped_by_unique_id = preprocessed_data.groupby(self.unique_internal_id_column)
