@@ -2,6 +2,9 @@ import pytest
 from CFGpy.behavioral import Downloader, Parser, Preprocessor, MeasureCalculator
 from CFGpy import NAS_PATH
 import os
+import json
+import numpy as np
+import pandas as pd
 
 TEST_FILES_DIR = os.path.join(NAS_PATH, "Projects", "CFG", "CFGpy test files")
 RED_METRICS_URL_FILENAME = "red_metrics_url.txt"
@@ -48,17 +51,36 @@ def test_parser(test_dir):
 
 @pytest.mark.parametrize("test_dir", test_dirs)
 def test_parser_conversion_to_old_format(test_dir):
-    parser = Parser.from_file(os.path.join(test_dir, TEST_DOWNLOADED_FILENAME))
-    parsed_new_format = parser.parse()
-    parsed_old_format = Parser.translate_parsed_results_to_mathematica(parsed_new_format)
+    with open(os.path.join(test_dir, TEST_PARSED_FILENAME), "r") as new_format_fp:
+        parsed_new_format = json.load(new_format_fp)
 
-    with open(r"parsed_old_fmt.txt", "w") as parsed_old_format_fp:
+    parsed_old_format = Parser.translate_parsed_results_to_mathematica(parsed_new_format)
+    with open(r"parsed_old_format.txt", "w") as parsed_old_format_fp:
         parsed_old_format_fp.write(parsed_old_format)
 
     with open(os.path.join(test_dir, TEST_PARSED_OLD_FORMAT_FILENAME), "r") as test_parsed_old_format_fp:
         test_parsed_old_format = test_parsed_old_format_fp.read()
 
     assert test_parsed_old_format == parsed_old_format
+
+
+@pytest.mark.parametrize("test_dir", test_dirs)
+def test_parser_conversion_to_new_format(test_dir):
+    mathematica_path = os.path.join(test_dir, TEST_PARSED_OLD_FORMAT_FILENAME)
+    converted_to_new_format = Parser.translate_mathematica_to_python(mathematica_path)
+    with open(r"parsed_converted_to_new_format.json", "w") as converted_to_new_format_fp:
+        json.dump(converted_to_new_format, converted_to_new_format_fp)
+
+    with open(os.path.join(test_dir, TEST_PARSED_FILENAME), "r") as test_parsed_fp:
+        test_parsed = json.load(test_parsed_fp)
+
+    # convert to df and compare by key, for proper float comparison in the start time column:
+    test_df = pd.DataFrame(test_parsed)
+    converted_df = pd.DataFrame(converted_to_new_format)
+    assert all(test_df["id"] == converted_df["id"])
+    assert all(np.isclose(test_df["absolute start time"], converted_df["absolute start time"]))
+    assert all(test_df["actions"] == converted_df["actions"])
+    # TODO: after parser handles chosen shapes, compare those too
 
 
 @pytest.mark.parametrize("test_dir", test_dirs)

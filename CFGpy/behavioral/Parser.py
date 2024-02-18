@@ -250,7 +250,7 @@ class Parser:
 
         json_format_games = []
         for game in games:
-            game_id = game[0]
+            game_id = game[0].replace('[', '{').replace(']', '}')  # { and } sometimes appear in Mathematica-parsed ids
             absolute_start_time = game[1]
             actions = [
                 [list(map(int, action[0])), action[1], action[2]] if len(action) == 3 else
