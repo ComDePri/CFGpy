@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 from itertools import groupby, pairwise
-from ._consts import *
-from ._utils import load_json
+from _consts import *
+from _utils import load_json
 from collections.abc import Collection
 from collections import Counter
 from functools import reduce
@@ -128,12 +128,13 @@ def _calc_absolute_measures(preprocessed_data):
     for player_data in preprocessed_data:
         # supporting data
         shapes_df = pd.DataFrame(player_data[PARSED_ALL_SHAPES_KEY])
+        shapes_df[SHAPE_SAVE_TIME_IDX] = shapes_df[SHAPE_SAVE_TIME_IDX].astype(float)
         explore, exploit = player_data[EXPLORE_KEY], player_data[EXPLOIT_KEY]
         delta_move_times = np.diff(shapes_df.iloc[:, SHAPE_MOVE_TIME_IDX])
 
         # reusable measures
         last_action_time = shapes_df.iloc[-1, SHAPE_SAVE_TIME_IDX]
-        if last_action_time is None:
+        if np.isnan(last_action_time):
             last_action_time = shapes_df.iloc[-1, SHAPE_MOVE_TIME_IDX]
         n_moves = len(shapes_df)
         n_galleries = _get_n_galleries(shapes_df)
@@ -142,7 +143,7 @@ def _calc_absolute_measures(preprocessed_data):
 
         absolute_measures.append({
             MEASURES_ID_KEY: player_data["id"],
-            "Date/Time": datetime.fromtimestamp(player_data[PARSED_TIME_KEY]).isoformat(),
+            MEASURES_START_TIME_KEY: datetime.fromtimestamp(player_data[PARSED_TIME_KEY]).isoformat(),
             GAME_DURATION_KEY: last_action_time,
             N_MOVES_KEY: n_moves,
             "Average Speed": n_moves / last_action_time,
@@ -196,6 +197,7 @@ class MeasureCalculator:
                  max_pause_duration: float = MAX_PAUSE_DURATION_SEC,
                  max_zscore_for_outlier: float = MAX_ZSCORE_FOR_OUTLIERS):
         self.input_data = preprocessed_data
+        self.all_absolute_measures = None
         self.output_df = None
 
         self.manually_excluded_ids = manually_excluded_ids
@@ -210,16 +212,29 @@ class MeasureCalculator:
         return cls(load_json(path))
 
     def calc(self):
-        self.output_df = _calc_absolute_measures(self.input_data)
+        self.all_absolute_measures = _calc_absolute_measures(self.input_data)
+        self.output_df = self.all_absolute_measures.copy()
+        self._drop_nonfirst_games()
         # TODO: uncomment once get_vanilla_descriptors is ready:
         # vanilla_relative_measures = _calc_relative_measures(self.input_data, *get_vanilla_descriptors())
         # self.output_df = self.output_df.merge(vanilla_relative_measures, on=MEASURES_ID_KEY)
         self._apply_soft_filters()
         sample_relative_measures = _calc_relative_measures(self.input_data, *_get_sample_descriptors(self.input_data),
                                                            label="sample")
-        self.output_df = self.output_df.merge(sample_relative_measures, on=MEASURES_ID_KEY)
+        self.output_df = self.output_df.merge(sample_relative_measures, on=MEASURES_ID_KEY, how="left")
 
         return self.output_df
+
+    def get_all_absolute_measures(self):
+        return self.all_absolute_measures
+
+    def _drop_nonfirst_games(self):
+        """
+        Keeps only the first game from each player. Allows functions downstream to assume unique IDs.
+        """
+        self.output_df = (self.output_df.
+                          sort_values(by=[MEASURES_START_TIME_KEY], ascending=True).
+                          drop_duplicates(subset=[MEASURES_ID_KEY], keep="first"))
 
     def _apply_soft_filters(self):
         """
