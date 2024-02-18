@@ -1,5 +1,5 @@
 from CFGpy.behavioral import Downloader, Parser, Preprocessor, MeasureCalculator
-from ._consts import DEFAULT_FINAL_OUTPUT_FILENAME
+from _consts import DEFAULT_FINAL_OUTPUT_FILENAME
 
 
 class Pipeline:

@@ -14,6 +14,7 @@ EXPLOIT_KEY = "exploit"
 
 # measure calculation
 MEASURES_ID_KEY = "ID"
+MEASURES_START_TIME_KEY = "Date/Time"
 N_MOVES_KEY = "Total # moves"
 GAME_DURATION_KEY = "Total Play Time"
 MEDIAN_EXPLORE_LENGTH_KEY = "median exp steps"
