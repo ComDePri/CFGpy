@@ -144,8 +144,8 @@ class Parser:
 
         return data
 
-    def _apply_hard_filters(self, player_data):
-        return self.is_game_started(player_data)
+    def _apply_hard_filters(self, game):
+        return self.is_game_started(game)
 
     def is_game_started(self, game):
         return game[self.command_type_column].str.contains(self.tutorial_end_command).sum() > 0
@@ -253,9 +253,10 @@ class Parser:
             game_id = game[0]
             absolute_start_time = game[1]
             actions = [
-                [list(map(int, action[0])), action[1], action[2]] if len(action) == 3 else [list(map(int, action[0])),
-                                                                                            action[1], None] for action
-                in game[2]]
+                [list(map(int, action[0])), action[1], action[2]] if len(action) == 3 else
+                [list(map(int, action[0])), action[1], None]
+                for action in game[2]
+            ]
 
             chosen_shapes = []
             if len(game) == 4 and game[3] != "":
@@ -312,29 +313,6 @@ class Parser:
 
 class ParserOldCommands(Parser):
     tutorial_end_command = 'tutorial complete'
-    MS = 1
-    SECOND = 1000 * MS
-    MINUTE = 60 * SECOND
-    MIN_GAME_TIME = 10 * MINUTE
-
-    def _apply_hard_filters(self, player_data):
-        player_data = self.filter_to_started_games(player_data)
-        player_data = self.filter_min_time_games(player_data)
-
-        return player_data
-
-    def filter_min_time_games(self, games):
-        filtered_games = []
-
-        for game in games:
-            start_time = game[game[self.command_type_column] == self.game_start_command].iloc[0][self.time_column]
-            end_time = game.iloc[-1][self.time_column]
-
-            time_delta = end_time - start_time
-            if time_delta.total_seconds() * self.SECOND >= self.MIN_GAME_TIME:
-                filtered_games.append(game)
-
-        return filtered_games
 
 
 if __name__ == '__main__':
