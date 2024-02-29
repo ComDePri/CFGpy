@@ -21,6 +21,7 @@ MEDIAN_EXPLORE_LENGTH_KEY = "median exp steps"
 MEDIAN_EXPLOIT_LENGTH_KEY = "median scav steps"
 LONGEST_PAUSE_KEY = "max dt"
 DEFAULT_FINAL_OUTPUT_FILENAME = "CFG measures.csv"
+MIN_OVERLAP_FOR_SEMANTIC_CONNECTION = 2
 
 # default soft filters
 MANUALLY_EXCLUDED_IDS = ()

@@ -1,41 +1,48 @@
 import numpy as np
 import pandas as pd
 from datetime import datetime
-from itertools import groupby, pairwise
+from itertools import groupby, pairwise, combinations
 from _consts import *
 from _utils import load_json
 from collections.abc import Collection
 from collections import Counter
 from functools import reduce
 from scipy.stats import zscore
+import networkx as nx
+from CFGpy.utils import get_shortest_path_len
 
 
 def get_vanilla_descriptors():
     # TODO
-    return 0, 0
+    return 0, 0, 0, 0, 0
 
 
-def get_step_orig_map(step_counter, alpha=0) -> dict[tuple[int, int], float]:
+def get_orig_map(counter, alpha=0, group_func=None):
     """
-    Returns a mapping from each step its originality value. The originality value of a step denoted (s1, s2) is given by
-    -log10(p) where p is the transition probability P(s2 | s1), estimated over the given sample.
-    :param step_counter: a Counter object with all steps in the sample.
+    Returns a mapping from each object to its Originality, given by -log10(p) where p is the estimated probability of
+    the object in its group.
+    :param counter: a Counter of all objects in the sample.
     :param alpha: pseudocount for Laplace smoothing (see https://en.wikipedia.org/wiki/Additive_smoothing).
-    :return: dict {step: orig}
+    :param group_func: a Callable that returns an object's group. If None (default), objects are not grouped.
+    :return: dict
     """
-    total_steps_from_shape = Counter()
-    for step, count in step_counter.items():
-        total_steps_from_shape[step[0]] += count
-    n_step_beginnings = len(total_steps_from_shape)
+    total = counter.total()
+    group_totals = counter
+    if group_func is not None:
+        group_totals = Counter()
+        for obj, count in counter.items():
+            group_totals[group_func(obj)] += count
+    n_groups = len(group_totals)
 
-    # transform counts to orig values: -log10 of alpha-smoothed probability of the step
-    step_orig_map = {}
-    for step, count in step_counter.items():
-        total = total_steps_from_shape[step[0]]
-        smoothed_step_probability = (count + alpha) / (total + n_step_beginnings * alpha)
-        step_orig_map[step] = -np.log10(smoothed_step_probability)
+    # transform counts to orig values
+    orig_map = {}
+    for obj, count in counter.items():
+        if group_func is not None:
+            total = group_totals[group_func(obj)]
+        smoothed_step_probability = (count + alpha) / (total + n_groups * alpha)
+        orig_map[obj] = -np.log10(smoothed_step_probability)
 
-    return step_orig_map
+    return orig_map
 
 
 def get_steps(shapes_df: pd.DataFrame):
@@ -44,9 +51,14 @@ def get_steps(shapes_df: pd.DataFrame):
     return steps
 
 
+def get_gallery_ids(shapes_df: pd.DataFrame):
+    is_gallery = _get_gallery_mask(shapes_df)
+    gallery_ids = shapes_df.iloc[is_gallery, SHAPE_ID_IDX]
+    return gallery_ids
+
+
 def _get_n_galleries(shapes_df: pd.DataFrame):
-    is_saved_to_gallery = shapes_df.iloc[:, SHAPE_SAVE_TIME_IDX].notna()
-    return sum(is_saved_to_gallery)
+    return sum(_get_gallery_mask(shapes_df))
 
 
 def _get_self_avoidance(shapes_df: pd.DataFrame):
@@ -60,22 +72,44 @@ def _get_self_avoidance(shapes_df: pd.DataFrame):
     return len(unique_shapes) / len(shapes_no_consecutive_duplicates)
 
 
-def _get_frac_unique_steps(steps, all_steps_counter):
-    n_unique_steps = 0
-    for step in steps:
-        if all_steps_counter[step] == 1:
-            n_unique_steps += 1
+def _get_frac_unique(items, all_items_counter):
+    n_unique = 0
+    for item in items:
+        if all_items_counter[item] == 1:
+            n_unique += 1
 
-    return n_unique_steps / len(steps)
+    return n_unique / len(items)
+
+
+def _get_gallery_mask(shapes_df: pd.DataFrame, phase_slices=None):
+    """
+    Returns a mask where true means gallery shape.
+    :param shapes_df: DataFrame with shapes info.
+    :param phase_slices: a list to pairs (start, end) for each phase (explore / exploit). If given, galleries will
+        only be considered if part of that phase. If None (default), galleries considered over the whole game.
+    :return: ndarray with shape (len(shapes_df),) and dtype bool.
+    """
+    if phase_slices is None:
+        phase_slices = [[0, len(shapes_df)]]
+
+    is_gallery_and_in_phase = np.zeros(len(shapes_df), dtype=bool)
+    for start, end in phase_slices:
+        is_gallery_in_slice = shapes_df.iloc[start:end, SHAPE_SAVE_TIME_IDX].notna()
+        is_gallery_and_in_phase[start:end] = is_gallery_in_slice
+
+    return is_gallery_and_in_phase
 
 
 def _get_n_galleries_in_phase(shapes_df: pd.DataFrame, phase_slices):
-    is_gallery_in_phase = []
-    for start, end in phase_slices:
-        is_gallery_in_slice = shapes_df.iloc[start:end, SHAPE_SAVE_TIME_IDX].notna()
-        is_gallery_in_phase.extend(is_gallery_in_slice)
+    return sum(_get_gallery_mask(shapes_df, phase_slices))
 
-    return sum(is_gallery_in_phase)
+
+def _get_last_action_time(shapes_df: pd.DataFrame):
+    last_action_time = shapes_df.iloc[-1, SHAPE_SAVE_TIME_IDX]
+    if np.isnan(last_action_time) or last_action_time is None:  # is None handles cases of 0-gallery games
+        last_action_time = shapes_df.iloc[-1, SHAPE_MOVE_TIME_IDX]
+
+    return last_action_time
 
 
 def _get_time_in_phase(dt, phase_slices):
@@ -87,24 +121,31 @@ def _get_time_in_phase(dt, phase_slices):
 
 
 def _get_phase_efficiency(shapes_df: pd.DataFrame, phase_slices):
+    # TODO: empty step with two identical galleries in a row cause shortest path of 0. how to handle this?
     actual_paths = {}
     for start, end in phase_slices:
         slice_shape_ids = shapes_df.iloc[start:end, SHAPE_ID_IDX]
         slice_is_gallery = shapes_df.iloc[start:end, SHAPE_SAVE_TIME_IDX].notna()
 
-        gallery_start = None
-        steps_between_galleries = 0
+        path_start = None
+        path_len = 0
         for shape_id, is_gallery in zip(slice_shape_ids, slice_is_gallery):
-            steps_between_galleries += 1
+            path_len += 1
             if is_gallery:
-                if gallery_start is not None:
-                    actual_paths[(gallery_start, shape_id)] = steps_between_galleries
+                if path_start is not None:
+                    actual_paths[(path_start, shape_id)] = path_len
 
-                gallery_start = shape_id
-                steps_between_galleries = 0
+                path_start = shape_id
+                path_len = 0
 
-    # TODO: compare to shortest paths
-    return 1  # placeholder which is not 0 so that it can be divided by
+    paths_efficiency = [actual_path / get_shortest_path_len(path_start, path_end)
+                        for (path_start, path_end), actual_path in actual_paths.items()]
+    return np.median(paths_efficiency)
+
+
+def _get_clusters_in_phase(shapes_df: pd.DataFrame, phase_slices):
+    clusters = [tuple(shapes_df.iloc[start:end, SHAPE_ID_IDX]) for start, end in phase_slices]
+    return clusters
 
 
 def _get_all_players_steps(input_data):
@@ -116,11 +157,54 @@ def _get_all_players_steps(input_data):
     return all_steps
 
 
-def _get_sample_descriptors(input_data):
-    sample_step_counter = Counter(_get_all_players_steps(input_data))
-    sample_step_orig_map = get_step_orig_map(sample_step_counter)
+def _get_all_players_galleries(input_data):
+    all_galleries = []
+    for player_data in input_data:
+        gallery_ids = get_gallery_ids(pd.DataFrame(player_data[PARSED_ALL_SHAPES_KEY]))
+        all_galleries.extend(gallery_ids)
 
-    return sample_step_counter, sample_step_orig_map
+    return all_galleries
+
+
+def _get_all_players_exploit_clusters(input_data):
+    all_exploit_clusters = []
+    for player_data in input_data:
+        shapes_df = pd.DataFrame(player_data[PARSED_ALL_SHAPES_KEY])
+        exploit_slices = player_data[EXPLOIT_KEY]
+        exploit_clusters = _get_clusters_in_phase(shapes_df, exploit_slices)
+        all_exploit_clusters.extend(exploit_clusters)
+
+    return all_exploit_clusters
+
+
+def get_GC(input_data):
+    semantic_network = nx.Graph()
+    exploit_clusters = _get_all_players_exploit_clusters(input_data)
+    edges = [(c1, c2) for c1, c2 in combinations(exploit_clusters, 2)
+             if len(set(c1) & set(c2)) >= MIN_OVERLAP_FOR_SEMANTIC_CONNECTION]
+    semantic_network.add_edges_from(edges)
+    GC = max(nx.connected_components(semantic_network), key=len)
+
+    return GC
+
+
+def _is_cluster_in_GC(cluster, GC):
+    for GC_cluster in GC:
+        overlap = len(set(cluster) & set(GC_cluster))
+        if overlap >= MIN_OVERLAP_FOR_SEMANTIC_CONNECTION:
+            return True
+
+    return False
+
+
+def _get_sample_descriptors(input_data):
+    step_counter = Counter(_get_all_players_steps(input_data))
+    step_orig_map = get_orig_map(step_counter, group_func=lambda step: step[0])
+    gallery_counter = Counter(_get_all_players_galleries(input_data))
+    gallery_orig_map = get_orig_map(gallery_counter)
+    GC = get_GC(input_data)
+
+    return step_counter, step_orig_map, gallery_counter, gallery_orig_map, GC
 
 
 def _calc_absolute_measures(preprocessed_data):
@@ -128,21 +212,22 @@ def _calc_absolute_measures(preprocessed_data):
     for player_data in preprocessed_data:
         # supporting data
         shapes_df = pd.DataFrame(player_data[PARSED_ALL_SHAPES_KEY])
-        shapes_df[SHAPE_SAVE_TIME_IDX] = shapes_df[SHAPE_SAVE_TIME_IDX].astype(float)
         explore, exploit = player_data[EXPLORE_KEY], player_data[EXPLOIT_KEY]
         delta_move_times = np.diff(shapes_df.iloc[:, SHAPE_MOVE_TIME_IDX])
+        time_in_explore = _get_time_in_phase(delta_move_times, explore)
+        time_in_exploit = sum(delta_move_times) - time_in_explore
+        explore_lengths = [end - start for start, end in explore]
+        exploit_lengths = [end - start for start, end in exploit]
 
         # reusable measures
-        last_action_time = shapes_df.iloc[-1, SHAPE_SAVE_TIME_IDX]
-        if np.isnan(last_action_time):
-            last_action_time = shapes_df.iloc[-1, SHAPE_MOVE_TIME_IDX]
+        last_action_time = _get_last_action_time(shapes_df)
         n_moves = len(shapes_df)
         n_galleries = _get_n_galleries(shapes_df)
         explore_efficiency = _get_phase_efficiency(shapes_df, explore)
         exploit_efficiency = _get_phase_efficiency(shapes_df, exploit)
 
         absolute_measures.append({
-            MEASURES_ID_KEY: player_data["id"],
+            MEASURES_ID_KEY: player_data[PARSED_PLAYER_ID_KEY],
             MEASURES_START_TIME_KEY: datetime.fromtimestamp(player_data[PARSED_TIME_KEY]).isoformat(),
             GAME_DURATION_KEY: last_action_time,
             N_MOVES_KEY: n_moves,
@@ -151,41 +236,51 @@ def _calc_absolute_measures(preprocessed_data):
             "self avoidance": _get_self_avoidance(shapes_df),
             "#clusters": len(exploit),
             "% galleries in exp": _get_n_galleries_in_phase(shapes_df, explore) / n_galleries,
-            "% time in exp": _get_time_in_phase(delta_move_times, explore) / last_action_time,
+            "% time in exp": time_in_explore / last_action_time,
             "exp efficiency": explore_efficiency,
             "scav efficiency": exploit_efficiency,
             "efficiency ratio": explore_efficiency / exploit_efficiency,
-            MEDIAN_EXPLORE_LENGTH_KEY: 0,
-            MEDIAN_EXPLOIT_LENGTH_KEY: 0,
-            "exp speed": 0,
-            "scav speed": 0,
+            MEDIAN_EXPLORE_LENGTH_KEY: np.median(explore_lengths),
+            MEDIAN_EXPLOIT_LENGTH_KEY: np.median(exploit_lengths),
+            "exp speed": sum(explore_lengths) / time_in_explore,
+            "scav speed": sum(exploit_lengths) / time_in_exploit,
             LONGEST_PAUSE_KEY: max(delta_move_times[3:-4])
         })
 
     return pd.DataFrame(absolute_measures)
 
 
-def _calc_relative_measures(preprocessed_data, step_counter, step_orig_map, label=None):
+def _calc_relative_measures(preprocessed_data, step_counter, step_orig_map, gallery_counter, gallery_orig_map, GC,
+                            label=None):
     label_ext = f" ({label})" if label else ""
 
     relative_measures = []
     for player_data in preprocessed_data:
         shapes_df = pd.DataFrame(player_data[PARSED_ALL_SHAPES_KEY])
+        explore, exploit = player_data[EXPLORE_KEY], player_data[EXPLOIT_KEY]
+
         steps = get_steps(shapes_df)
         step_orig = [step_orig_map[step] for step in steps]
+        is_gallery = _get_gallery_mask(shapes_df)
+        gallery_ids = shapes_df.iloc[is_gallery, SHAPE_ID_IDX]
+        gallery_orig = np.array([gallery_orig_map[shape_id] for shape_id in gallery_ids])
+        is_explore_gallery = _get_gallery_mask(shapes_df, explore)[is_gallery]
+        is_exploit_gallery = ~is_explore_gallery
+        clusters = _get_clusters_in_phase(shapes_df, exploit)
+        n_clusters_in_GC = sum([_is_cluster_in_GC(cluster, GC) for cluster in clusters])
 
         relative_measures.append({
             MEASURES_ID_KEY: player_data[PARSED_PLAYER_ID_KEY],
             f"Step Orig{label_ext}": np.mean(step_orig),
-            f"% Steps Unique{label_ext}": _get_frac_unique_steps(steps, step_counter),
-            f"Gallery Orig{label_ext}": 0,
-            f"Gallery Orig exp{label_ext}": 0,
-            f"Gallery Orig scav{label_ext}": 0,
-            f"% Galleries Unique{label_ext}": 0,
-            f"% Galleries Unique exp{label_ext}": 0,
-            f"% Galleries Unique scav{label_ext}": 0,
-            f"# clusters in GC{label_ext}": 0,
-            f"% clusters in GC{label_ext}": 0,
+            f"% Steps Unique{label_ext}": _get_frac_unique(steps, step_counter),
+            f"Gallery Orig{label_ext}": np.mean(gallery_orig),
+            f"Gallery Orig exp{label_ext}": np.mean(gallery_orig[is_explore_gallery]),
+            f"Gallery Orig scav{label_ext}": np.mean(gallery_orig[is_exploit_gallery]),
+            f"% Galleries Unique{label_ext}": _get_frac_unique(gallery_ids, gallery_counter),
+            f"% Galleries Unique exp{label_ext}": _get_frac_unique(gallery_ids[is_explore_gallery], gallery_counter),
+            f"% Galleries Unique scav{label_ext}": _get_frac_unique(gallery_ids[is_exploit_gallery], gallery_counter),
+            f"# clusters in GC{label_ext}": n_clusters_in_GC,
+            f"% clusters in GC{label_ext}": n_clusters_in_GC / len(exploit),
         })
 
     return pd.DataFrame(relative_measures)
