@@ -47,7 +47,10 @@ def get_orig_map(counter, alpha=0, group_func=None):
 
 def get_steps(shapes_df: pd.DataFrame):
     shape_ids = shapes_df.iloc[:, SHAPE_ID_IDX]
-    steps = list(pairwise(shape_ids))
+    without_empty_moves = [shape_id for shape_id, group in groupby(shape_ids)]
+    # TODO: after empty moves are handled by Preprocessor, previous line is redundant and the next one can just run
+    #  on shape_ids
+    steps = list(pairwise(without_empty_moves))
     return steps
 
 
@@ -55,10 +58,6 @@ def get_gallery_ids(shapes_df: pd.DataFrame):
     is_gallery = _get_gallery_mask(shapes_df)
     gallery_ids = shapes_df.iloc[is_gallery, SHAPE_ID_IDX]
     return gallery_ids
-
-
-def _get_n_galleries(shapes_df: pd.DataFrame):
-    return sum(_get_gallery_mask(shapes_df))
 
 
 def _get_self_avoidance(shapes_df: pd.DataFrame):
@@ -72,13 +71,13 @@ def _get_self_avoidance(shapes_df: pd.DataFrame):
     return len(unique_shapes) / len(shapes_no_consecutive_duplicates)
 
 
-def _get_frac_unique(items, all_items_counter):
+def _get_frac_unique(objects, reference_counter):
     n_unique = 0
-    for item in items:
-        if all_items_counter[item] == 1:
+    for obj in objects:
+        if reference_counter[obj] == 1:
             n_unique += 1
 
-    return n_unique / len(items)
+    return n_unique / len(objects)
 
 
 def _get_gallery_mask(shapes_df: pd.DataFrame, phase_slices=None):
@@ -100,10 +99,6 @@ def _get_gallery_mask(shapes_df: pd.DataFrame, phase_slices=None):
     return is_gallery_and_in_phase
 
 
-def _get_n_galleries_in_phase(shapes_df: pd.DataFrame, phase_slices):
-    return sum(_get_gallery_mask(shapes_df, phase_slices))
-
-
 def _get_last_action_time(shapes_df: pd.DataFrame):
     last_action_time = shapes_df.iloc[-1, SHAPE_SAVE_TIME_IDX]
     if np.isnan(last_action_time) or last_action_time is None:  # is None handles cases of 0-gallery games
@@ -121,7 +116,6 @@ def _get_time_in_phase(dt, phase_slices):
 
 
 def _get_phase_efficiency(shapes_df: pd.DataFrame, phase_slices):
-    # TODO: empty step with two identical galleries in a row cause shortest path of 0. how to handle this?
     actual_paths = {}
     for start, end in phase_slices:
         slice_shape_ids = shapes_df.iloc[start:end, SHAPE_ID_IDX]
@@ -139,7 +133,10 @@ def _get_phase_efficiency(shapes_df: pd.DataFrame, phase_slices):
                 path_len = 0
 
     paths_efficiency = [actual_path / get_shortest_path_len(path_start, path_end)
-                        for (path_start, path_end), actual_path in actual_paths.items()]
+                        for (path_start, path_end), actual_path in actual_paths.items() if path_start != path_end]
+    # TODO: if path_start == path_end, the shortest path length is 0 and we get a zero division error. this only
+    #  happens if the same shape is saved two times in a row, what should be handled as an empty move. when empty moves
+    #  handling is implemented, the condition above should always be True and the if statement can be removed.
     return np.median(paths_efficiency)
 
 
@@ -161,7 +158,8 @@ def _get_all_players_galleries(input_data):
     all_galleries = []
     for player_data in input_data:
         gallery_ids = get_gallery_ids(pd.DataFrame(player_data[PARSED_ALL_SHAPES_KEY]))
-        all_galleries.extend(gallery_ids)
+        unique_gallery_ids = np.unique(gallery_ids)  # TODO: this is to comply with mathematica. why tho?
+        all_galleries.extend(unique_gallery_ids)
 
     return all_galleries
 
@@ -222,7 +220,7 @@ def _calc_absolute_measures(preprocessed_data):
         # reusable measures
         last_action_time = _get_last_action_time(shapes_df)
         n_moves = len(shapes_df)
-        n_galleries = _get_n_galleries(shapes_df)
+        n_galleries = sum(_get_gallery_mask(shapes_df))
         explore_efficiency = _get_phase_efficiency(shapes_df, explore)
         exploit_efficiency = _get_phase_efficiency(shapes_df, exploit)
 
@@ -235,7 +233,7 @@ def _calc_absolute_measures(preprocessed_data):
             "#galleries": n_galleries,
             "self avoidance": _get_self_avoidance(shapes_df),
             "#clusters": len(exploit),
-            "% galleries in exp": _get_n_galleries_in_phase(shapes_df, explore) / n_galleries,
+            "% galleries in exp": sum(_get_gallery_mask(shapes_df, explore)) / n_galleries,
             "% time in exp": time_in_explore / last_action_time,
             "exp efficiency": explore_efficiency,
             "scav efficiency": exploit_efficiency,
@@ -276,7 +274,7 @@ def _calc_relative_measures(preprocessed_data, step_counter, step_orig_map, gall
             f"Gallery Orig{label_ext}": np.mean(gallery_orig),
             f"Gallery Orig exp{label_ext}": np.mean(gallery_orig[is_explore_gallery]),
             f"Gallery Orig scav{label_ext}": np.mean(gallery_orig[is_exploit_gallery]),
-            f"% Galleries Unique{label_ext}": _get_frac_unique(gallery_ids, gallery_counter),
+            f"% Galleries Unique{label_ext}": _get_frac_unique(np.unique(gallery_ids), gallery_counter),
             f"% Galleries Unique exp{label_ext}": _get_frac_unique(gallery_ids[is_explore_gallery], gallery_counter),
             f"% Galleries Unique scav{label_ext}": _get_frac_unique(gallery_ids[is_exploit_gallery], gallery_counter),
             f"# clusters in GC{label_ext}": n_clusters_in_GC,
@@ -333,7 +331,8 @@ class MeasureCalculator:
                            to_dict("records"))
         self.output_df = (self.output_df.
                           sort_values(by=[MEASURES_START_TIME_KEY], ascending=True).
-                          drop_duplicates(subset=[MEASURES_ID_KEY], keep="first"))
+                          drop_duplicates(subset=[MEASURES_ID_KEY], keep="first").
+                          reset_index(drop=True))
 
     def _apply_soft_filters(self):
         """
@@ -345,7 +344,7 @@ class MeasureCalculator:
             is_excluded = reduce(np.logical_or, masks)
 
             self.input_data = pd.DataFrame(self.input_data).loc[~is_excluded].to_dict("records")
-            self.output_df = self.output_df.loc[~is_excluded]
+            self.output_df = self.output_df.loc[~is_excluded].reset_index(drop=True)
 
     def _get_absolute_filters(self):
         """
