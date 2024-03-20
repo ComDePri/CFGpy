@@ -1,21 +1,20 @@
 import numpy as np
 import pandas as pd
 from datetime import datetime
-from data_structs import PreprocessedDataset
-from _consts import *
-from _utils import load_json, is_semantic_connection
+from CFGpy.behavioral.data_structs import PreprocessedDataset
+from CFGpy.behavioral._consts import *
+from CFGpy.behavioral._utils import load_json, is_semantic_connection
 from collections.abc import Collection
 from functools import reduce
 from scipy.stats import zscore
-
-
-def get_vanilla_descriptors():
-    # TODO
-    return 0, 0, 0, 0, 0
+from CFGpy.utils import get_vanilla_descriptors
 
 
 def _get_frac_uniquely_covered(player_objects, objects_not_uniquely_covered):
-    return np.mean([obj not in objects_not_uniquely_covered for obj in set(player_objects)])
+    n_not_uniquely_covered = len(set(player_objects) & set(objects_not_uniquely_covered))
+    frac_not_uniquely_covered = n_not_uniquely_covered / len(set(player_objects))
+    frac_uniquely_covered = 1 - frac_not_uniquely_covered
+    return frac_uniquely_covered
 
 
 def is_cluster_in_GC(cluster, GC):
@@ -50,9 +49,8 @@ class MeasureCalculator:
         self.all_absolute_measures = self._calc_absolute_measures()
         self.output_df = self.all_absolute_measures.copy()
         self._drop_nonfirst_games()
-        # TODO: uncomment once get_vanilla_descriptors is ready:
-        # vanilla_relative_measures = self._calc_relative_measures(get_vanilla_descriptors())
-        # self.output_df = self.output_df.merge(vanilla_relative_measures, on=MEASURES_ID_KEY)
+        vanilla_relative_measures = self._calc_relative_measures(get_vanilla_descriptors())
+        self.output_df = self.output_df.merge(vanilla_relative_measures, on=MEASURES_ID_KEY)
         self._apply_soft_filters()
         sample_relative_measures = self._calc_relative_measures(self.input_data.get_descriptors(), label="sample")
         self.output_df = self.output_df.merge(sample_relative_measures, on=MEASURES_ID_KEY, how="left")

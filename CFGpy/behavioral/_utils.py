@@ -3,7 +3,7 @@ import pandas as pd
 import json
 import re
 from _ctypes import PyObj_FromPtr
-from _consts import *
+from CFGpy.behavioral._consts import *
 
 
 class CFGPipelineException(Exception):

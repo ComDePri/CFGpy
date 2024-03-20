@@ -3,8 +3,8 @@ import pandas as pd
 import json
 import re
 from datetime import datetime, timezone
-from _utils import csv_coords_to_bin_coords, prettify_games_json, CFGPipelineException
-from _consts import *
+from CFGpy.behavioral._utils import csv_coords_to_bin_coords, prettify_games_json, CFGPipelineException
+from CFGpy.behavioral._consts import *
 
 DEFAULT_OUTPUT_FILENAME = "parsed.json"
 

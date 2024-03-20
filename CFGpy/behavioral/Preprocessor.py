@@ -1,5 +1,5 @@
-from _utils import *
-from _consts import *
+from CFGpy.behavioral._utils import *
+from CFGpy.behavioral._consts import *
 from CFGpy.utils import binary_shape_to_id as bin2id
 
 DEFAULT_OUTPUT_FILENAME = "preprocessed.json"
