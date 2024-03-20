@@ -11,12 +11,8 @@ class CFGPipelineException(Exception):
 
 
 def load_json(json_path):
-    if not str.endswith(json_path, ".json"):
-        raise CFGPipelineException("Data expected in json format")
-
     with open(json_path) as json_fp:
         j = json.load(json_fp)
-
     return j
 
 
@@ -120,16 +116,8 @@ def group_by_monotone_decreasing(sequence):
     return monotone_sequences
 
 
-def get_giant_component(clustered_data, min_shared_shapes_for_edges):
-    """
-    getGC[clusteredData,minSharedShapesForEdge] returns the Giant \
-    Component of the sample, which is the biggest connected component of \
-    the network of clusters, where two clusters are connected if they \
-    share minSharedShapesForEdge shapes. Running the Girvan-Newman \
-    algorithm on the GC finds the meaning categories discovered by this \
-    sample.
-    """
-    return
+def is_semantic_connection(cluster1, cluster2):
+    return len(set(cluster1) & set(cluster2)) >= MIN_OVERLAP_FOR_SEMANTIC_CONNECTION
 
 
 #########################
