@@ -5,6 +5,8 @@ from collections import Counter
 import networkx as nx
 from CFGpy.behavioral._consts import *
 from CFGpy.behavioral._utils import is_semantic_connection
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 class ParsedPlayerData:
@@ -139,6 +141,34 @@ class PreprocessedPlayerData(ParsedPlayerData):
         phase_slices = self._phase_name_to_slices(phase_name)
         clusters = [tuple(self.shapes_df.iloc[start:end, SHAPE_ID_IDX]) for start, end in phase_slices]
         return clusters
+
+    def plot_gallery_dt(self):
+        is_gallery = self.get_gallery_mask()
+        gallery_times = self.shapes_df[is_gallery].iloc[:, SHAPE_MOVE_TIME_IDX]
+        gallery_diffs = np.diff(gallery_times, prepend=gallery_times.iloc[0])
+
+        cluster_label = np.empty(len(self.shapes_df), dtype=object)
+        phase_type = np.empty(len(self.shapes_df), dtype=object)
+        for phase_name, phase_slices in zip(("explore", "exploit"), (self.explore_slices, self.exploit_slices)):
+            for i, (start, end) in enumerate(phase_slices):
+                cluster_label[start:end] = f"{phase_name}{i}"
+                phase_type[start:end] = phase_name
+
+        df = pd.DataFrame({"gallery_time": gallery_times, "gallery_diff": gallery_diffs,
+                           "cluster": cluster_label[is_gallery], "phase_type": phase_type[is_gallery]})
+        fig, ax = plt.subplots(figsize=(10, 5))
+        marker_dict = {"explore": "o", "exploit": "X"}
+        sns.lineplot(data=df, ax=ax, x="gallery_time", y="gallery_diff", hue="cluster", style="phase_type",
+                     markers=marker_dict, markersize=10)
+        handles, labels = plt.gca().get_legend_handles_labels()
+        unique_markers = dict(zip(labels, handles))
+        plt.legend((unique_markers["explore"], unique_markers["exploit"]), ("explore", "exploit"))
+        plt.xlabel(r"$t$ (s)", fontsize=14)
+        plt.ylabel(r"$\Delta t$ (s)", fontsize=14)
+        plt.suptitle("Gallery shapes creation time, segmented by clusters", fontsize=16)
+        plt.title(f"Player ID: {self.id}")
+        plt.grid()
+        plt.show()
 
 
 class ParsedDataset:
