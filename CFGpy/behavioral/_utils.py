@@ -61,41 +61,45 @@ def coords_to_bin_coords(coords):
     return shape_id
 
 
-def segment_explore_exploit(actions_list, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT):
-    actions_df = pd.DataFrame(actions_list)
+def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT):
+    shapes_df = pd.DataFrame(shapes)
 
-    gallery_saves = actions_df[2]
+    gallery_saves = shapes_df[SHAPE_SAVE_TIME_IDX]
     gallery_indices = np.flatnonzero(gallery_saves.notna())
-    gallery_times = actions_df.iloc[gallery_indices][2]
-    gallery_diffs = np.diff(gallery_times)
+    gallery_times = shapes_df.iloc[gallery_indices][SHAPE_MOVE_TIME_IDX]
+    gallery_diffs = np.diff(gallery_times, prepend=gallery_times.iloc[0])
 
-    merged_series = []
+    clusters = []
     if gallery_diffs.size:
         all_monotone_series = pd.Series(group_by_monotone_decreasing(gallery_diffs))
         gallery_diffs_peaks = np.array([gallery_diffs[monotone_series[0]] for monotone_series in all_monotone_series])
         twice_monotone_series = group_by_monotone_decreasing(gallery_diffs_peaks)
-        merged_series = [np.concatenate(all_monotone_series[monotone_series].values) for monotone_series in
-                         twice_monotone_series]
+        clusters = [np.concatenate(all_monotone_series[monotone_series].values)
+                    for monotone_series in twice_monotone_series]
 
     exploit_slices = []
     explore_slices = []
     prev_exploit_end = 0
-    for series in merged_series:
-        if series.size >= min_save_for_exploit:
-            exploit_start = gallery_indices[series][0]
-            exploit_end = gallery_indices[series][-1] + 1
+    for cluster in clusters:
+        start = gallery_indices[cluster][0]
+        end = gallery_indices[cluster][-1] + 1
+        if cluster.size >= min_save_for_exploit:
+            exploit_slices.append((int(start), int(end)))
+            if prev_exploit_end != start:
+                explore_slices.append((int(prev_exploit_end), int(start)))
 
-            exploit_slices.append((int(exploit_start), int(exploit_end)))
-            if prev_exploit_end != exploit_start:
-                explore_slices.append((int(prev_exploit_end), int(exploit_start)))
+            prev_exploit_end = end
 
-            prev_exploit_end = exploit_end
+    if not exploit_slices:
+        return [(0, len(shapes_df))], []
 
-    if exploit_slices == []:
-        return [0, actions_df.shape[0]], []
-
-    if exploit_slices[-1][1] != gallery_saves.size:
-        explore_slices.append((exploit_slices[-1][1], len(actions_df)))
+    end = exploit_slices[-1][1]
+    explore_end = explore_slices[-1][1]
+    if end > explore_end:
+        explore_slices.append((end, len(shapes_df)))
+    else:
+        last_explore_slice = (explore_slices[-1][0], len(shapes_df))
+        explore_slices[-1] = last_explore_slice
 
     return explore_slices, exploit_slices
 
