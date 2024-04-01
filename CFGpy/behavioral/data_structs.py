@@ -128,7 +128,14 @@ class PreprocessedPlayerData(ParsedPlayerData):
         return np.median(explore_efficiencies), np.median(exploit_efficiencies)
 
     def get_exploit_clusters(self):
-        clusters = [tuple(self.shapes_df.iloc[start:end, SHAPE_ID_IDX]) for start, end in self.exploit_slices]
+        is_gallery = self.get_gallery_mask()
+        clusters = []
+        for start, end in self.exploit_slices:
+            slice_is_gallery = is_gallery[start:end]
+            slice_shape_ids = self.shapes_df.iloc[start:end, SHAPE_ID_IDX]
+            cluster = tuple(slice_shape_ids[slice_is_gallery])
+            clusters.append(cluster)
+
         return clusters
 
     def plot_gallery_dt(self):
