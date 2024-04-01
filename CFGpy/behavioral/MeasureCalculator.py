@@ -217,6 +217,6 @@ if __name__ == '__main__':
 
     pp = Preprocessor.from_json(args.input_filename)
     preprocessed_data = pp.preprocess()
-    mc = MeasureCalculator(preprocessed_data, manually_excluded_ids=["double"])
+    mc = MeasureCalculator(preprocessed_data)
     mc.calc()
     mc.dump(args.output_filename)
