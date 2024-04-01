@@ -90,15 +90,16 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT):
 
             prev_exploit_end = end
 
+    n_shapes = len(shapes)
     if not exploit_slices:
-        return [(0, len(shapes))], []
+        return [(0, n_shapes)], []
 
     exploit_end = exploit_slices[-1][1]
     explore_end = explore_slices[-1][1]
-    if explore_end < exploit_end < len(shapes):
-        explore_slices.append((exploit_end, len(shapes)))
-    else:
-        last_explore_slice = (explore_slices[-1][0], len(shapes))
+    if explore_end < exploit_end < n_shapes:
+        explore_slices.append((exploit_end, n_shapes))
+    elif exploit_end < explore_end < n_shapes:
+        last_explore_slice = (explore_slices[-1][0], n_shapes)
         explore_slices[-1] = last_explore_slice
 
     return explore_slices, exploit_slices
