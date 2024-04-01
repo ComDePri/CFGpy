@@ -142,9 +142,8 @@ class MeasureCalculator:
             # reusable measures
             last_action_time = player_data.get_last_action_time()
             n_moves = len(player_data)
-            n_galleries = sum(player_data.get_gallery_mask())
-            explore_efficiency = player_data.get_phase_efficiency("explore")
-            exploit_efficiency = player_data.get_phase_efficiency("exploit")
+            n_galleries = sum(is_gallery)
+            explore_efficiency, exploit_efficiency = player_data.get_efficiency()
 
             absolute_measures.append({
                 MEASURES_ID_KEY: player_data.id,
@@ -218,6 +217,6 @@ if __name__ == '__main__':
 
     pp = Preprocessor.from_json(args.input_filename)
     preprocessed_data = pp.preprocess()
-    mc = MeasureCalculator(preprocessed_data)
+    mc = MeasureCalculator(preprocessed_data, manually_excluded_ids=["double"])
     mc.calc()
     mc.dump(args.output_filename)

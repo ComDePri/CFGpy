@@ -113,33 +113,30 @@ class PreprocessedPlayerData(ParsedPlayerData):
 
         raise ValueError("phase_name must be 'explore' or 'exploit'")
 
-    def get_phase_efficiency(self, phase_name):
+    def get_efficiency(self):
         from CFGpy.utils import get_shortest_path_len  # moved here to avoid circular import
 
-        phase_slices = self._phase_name_to_slices(phase_name)
+        shape_indices = [0] + list(np.flatnonzero(self.get_gallery_mask()))
+        actual_path_lengths = np.diff(shape_indices)
+        actual_path_lengths[0] += 1  # TODO: for backwards compatibility, waiting for Yuval's answer to drop this
+        shape_ids = self.shapes_df.iloc[shape_indices, SHAPE_ID_IDX]
+        shortest_path_lengths = [get_shortest_path_len(shape1, shape2) for shape1, shape2 in pairwise(shape_ids)]
+        all_efficiency_values = {idx: shortest_len / actual_len for idx, shortest_len, actual_len
+                                 in zip(shape_indices[1:], shortest_path_lengths, actual_path_lengths)
+                                 if (shortest_len, actual_len) != (1, 1)}
+        # TODO: after empty steps are handled, shortest paths would not be able to be 0 and the condition can be
+        #  simplified to actual_len>1
 
-        actual_paths = {}
-        for start, end in phase_slices:
-            slice_shape_ids = self.shapes_df.iloc[start:end, SHAPE_ID_IDX]
-            slice_is_gallery = self.shapes_df.iloc[start:end, SHAPE_SAVE_TIME_IDX].notna()
+        explore_efficiencies = []
+        exploit_efficiencies = []
+        is_explore = self.get_explore_mask()
+        for idx, efficiency in all_efficiency_values.items():
+            if is_explore[idx]:
+                explore_efficiencies.append(efficiency)
+            else:
+                exploit_efficiencies.append(efficiency)
 
-            path_start = None
-            path_len = 0
-            for shape_id, is_gallery in zip(slice_shape_ids, slice_is_gallery):
-                path_len += 1
-                if is_gallery:
-                    if path_start is not None:
-                        actual_paths[(path_start, shape_id)] = path_len
-
-                    path_start = shape_id
-                    path_len = 0
-
-        paths_efficiency = [actual_path / get_shortest_path_len(path_start, path_end)
-                            for (path_start, path_end), actual_path in actual_paths.items() if path_start != path_end]
-        # TODO: if path_start == path_end, the shortest path length is 0 and we get a zero division error. this only
-        #  happens if the same shape is saved two times in a row, what should be handled as an empty move. when empty moves
-        #  handling is implemented, the condition above should always be True and the if statement can be removed.
-        return np.median(paths_efficiency)
+        return np.median(explore_efficiencies), np.median(exploit_efficiencies)
 
     def get_clusters_in_phase(self, phase_name):
         phase_slices = self._phase_name_to_slices(phase_name)
