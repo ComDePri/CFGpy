@@ -181,7 +181,7 @@ class MeasureCalculator:
             is_gallery = player_data.get_gallery_mask()
             is_explore_given_gallery = player_data.get_explore_mask()[is_gallery]
             is_exploit_given_gallery = ~is_explore_given_gallery
-            exploit_clusters = player_data.get_clusters_in_phase("exploit")
+            exploit_clusters = player_data.get_exploit_clusters()
             n_clusters_in_GC = sum([is_cluster_in_GC(cluster, GC) for cluster in exploit_clusters])
 
             relative_measures.append({

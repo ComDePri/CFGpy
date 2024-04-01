@@ -102,14 +102,6 @@ class PreprocessedPlayerData(ParsedPlayerData):
 
         return time_in_exploit
 
-    def _phase_name_to_slices(self, phase_name):
-        if phase_name == "explore":
-            return self.explore_slices
-        if phase_name == "exploit":
-            return self.exploit_slices
-
-        raise ValueError("phase_name must be 'explore' or 'exploit'")
-
     def get_efficiency(self):
         from CFGpy.utils import get_shortest_path_len  # moved here to avoid circular import
 
@@ -135,9 +127,8 @@ class PreprocessedPlayerData(ParsedPlayerData):
 
         return np.median(explore_efficiencies), np.median(exploit_efficiencies)
 
-    def get_clusters_in_phase(self, phase_name):
-        phase_slices = self._phase_name_to_slices(phase_name)
-        clusters = [tuple(self.shapes_df.iloc[start:end, SHAPE_ID_IDX]) for start, end in phase_slices]
+    def get_exploit_clusters(self):
+        clusters = [tuple(self.shapes_df.iloc[start:end, SHAPE_ID_IDX]) for start, end in self.exploit_slices]
         return clusters
 
     def plot_gallery_dt(self):
@@ -258,7 +249,7 @@ class PreprocessedDataset(ParsedDataset):
     def get_all_exploit_clusters(self):
         all_exploit_clusters = []
         for player_data in self.players_data:
-            exploit_clusters = player_data.get_clusters_in_phase("exploit")
+            exploit_clusters = player_data.get_exploit_clusters()
             all_exploit_clusters.extend(exploit_clusters)
 
         return all_exploit_clusters
