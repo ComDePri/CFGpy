@@ -89,11 +89,8 @@ class PreprocessedPlayerData(ParsedPlayerData):
     def total_explore_time(self):
         time_in_explore = 0
         for start, end in self.explore_slices:
-            try:
-                start_time = self.shapes_df.iloc[start - 1, SHAPE_MOVE_TIME_IDX]  # ending of previous exploit
-                # TODO: should this be the save time instead?
-            except IndexError:
-                start_time = 0
+            start_time = 0 if start == 0 else self.shapes_df.iloc[start - 1, SHAPE_MOVE_TIME_IDX]  # end of prev exploit
+            # TODO: should this be the save time instead?
             end_time = self.shapes_df.iloc[end - 1, SHAPE_MOVE_TIME_IDX]
             time_in_explore += (end_time - start_time)
 
