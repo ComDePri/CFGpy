@@ -87,18 +87,14 @@ class PreprocessedPlayerData(ParsedPlayerData):
         return ~self.get_explore_mask()
 
     def total_explore_time(self):
-        time_in_explore = 0
-        for start, end in self.explore_slices:
-            start_time = 0 if start == 0 else self.shapes_df.iloc[start - 1, SHAPE_MOVE_TIME_IDX]  # end of prev exploit
-            # TODO: should this be the save time instead?
-            end_time = self.shapes_df.iloc[end - 1, SHAPE_MOVE_TIME_IDX]
-            time_in_explore += (end_time - start_time)
-
-        return time_in_explore
+        return self.get_last_action_time() - self.total_exploit_time()
 
     def total_exploit_time(self):
-        total_move_time = self.shapes_df.iloc[-1, SHAPE_MOVE_TIME_IDX]
-        time_in_exploit = total_move_time - self.total_explore_time()
+        time_in_exploit = 0
+        for start, end in self.exploit_slices:
+            start_time = self.shapes_df.iloc[start, SHAPE_MOVE_TIME_IDX]
+            end_time = self.shapes_df.iloc[end - 1, SHAPE_MOVE_TIME_IDX]
+            time_in_exploit += (end_time - start_time)
 
         return time_in_exploit
 
