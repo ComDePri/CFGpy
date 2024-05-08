@@ -2,7 +2,7 @@ import numpy as np
 import os
 import json
 import networkx as nx
-from collections import Counter
+from collections import Counter, defaultdict
 from CFGpy import NAS_PATH
 
 CFG_RESOURCES_PATH = os.path.join(NAS_PATH, "Projects", "CFG")
@@ -15,6 +15,7 @@ VANILLA_GC_PATH = os.path.join(VANILLA_DATA_DIR, "giant_component.json")
 
 ID2COORD = np.load(os.path.join(CFG_RESOURCES_PATH, "grid_coords.npy"))
 SHORTEST_PATHS_DICT_PATH = os.path.join(CFG_RESOURCES_PATH, "shortest_path_len.json")
+N_ALL_SHAPES = len(ID2COORD) - 1  # subtract 1 because ID2COORD[0] is a placeholder
 
 
 def get_vanilla():
@@ -109,7 +110,7 @@ def get_shortest_path_len(shape1, shape2):
     return shortest_path_len
 
 
-def get_orig_map(counter, alpha=0, group_func=None):
+def get_orig_map(counter, alpha=0.5, group_func=None):
     """
     Returns a mapping from each object to its Originality, given by -log10(p) where p is the estimated probability of
     the object in its group.
@@ -133,5 +134,39 @@ def get_orig_map(counter, alpha=0, group_func=None):
             total = group_totals[group_func(obj)]
         smoothed_step_probability = (count + alpha) / (total + n_groups * alpha)
         orig_map[obj] = -np.log10(smoothed_step_probability)
+
+    return orig_map
+
+
+def get_gallery_orig_map(gallery_counter, alpha=0.5):
+    """
+
+    """
+    total = gallery_counter.total()
+    smoothed_0_prob = alpha / (total + N_ALL_SHAPES * alpha)
+    orig_map = defaultdict(lambda: smoothed_0_prob)
+    for shape, count in gallery_counter.items():
+        smoothed_step_probability = (count + alpha) / (total + N_ALL_SHAPES * alpha)
+        orig_map[shape] = -np.log10(smoothed_step_probability)
+
+    return orig_map
+
+
+def get_step_orig_map(step_counter, alpha=0.5):
+    """
+
+    """
+    totals = Counter()
+    for step, count in step_counter.items():
+        totals[step[0]] += count
+
+    def get_smoothed_0_prob():
+        pass
+
+    smoothed_0_prob = alpha / (total + N_ALL_SHAPES * alpha)
+    orig_map = defaultdict(lambda: smoothed_0_prob)
+    for shape, count in step_counter.items():
+        smoothed_step_probability = (count + alpha) / (total + N_ALL_SHAPES * alpha)
+        orig_map[shape] = -np.log10(smoothed_step_probability)
 
     return orig_map

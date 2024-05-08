@@ -66,8 +66,11 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT):
 
     gallery_saves = shapes_df[SHAPE_SAVE_TIME_IDX]
     gallery_indices = np.flatnonzero(gallery_saves.notna())
-    gallery_times = shapes_df.iloc[gallery_indices][SHAPE_MOVE_TIME_IDX]
-    gallery_diffs = np.diff(gallery_times, prepend=gallery_times.iloc[0])
+    gallery_in_times = shapes_df.iloc[gallery_indices][SHAPE_MOVE_TIME_IDX]
+    gallery_out_times = shapes_df.iloc[gallery_indices][SHAPE_MAX_MOVE_TIME_IDX]
+    gallery_diffs = gallery_in_times - gallery_out_times.shift()
+    gallery_diffs.iloc[0] = 0
+    gallery_diffs = gallery_diffs.to_numpy()
 
     clusters = []
     if gallery_diffs.size:
