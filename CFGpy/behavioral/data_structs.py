@@ -136,8 +136,11 @@ class PreprocessedPlayerData(ParsedPlayerData):
 
     def plot_gallery_dt(self):
         is_gallery = self.get_gallery_mask()
-        gallery_times = self.shapes_df[is_gallery].iloc[:, SHAPE_MOVE_TIME_IDX]
-        gallery_diffs = np.diff(gallery_times, prepend=gallery_times.iloc[0])
+        gallery_in_times = self.shapes_df[is_gallery].iloc[:, SHAPE_MOVE_TIME_IDX]
+        gallery_out_times = self.shapes_df[is_gallery].iloc[:, SHAPE_MAX_MOVE_TIME_IDX]
+        gallery_diffs = gallery_in_times - gallery_out_times.shift()
+        gallery_diffs.iloc[0] = 0
+        gallery_diffs = gallery_diffs.to_numpy()
 
         cluster_label = np.empty(len(self.shapes_df), dtype=object)
         phase_type = np.empty(len(self.shapes_df), dtype=object)
@@ -146,7 +149,7 @@ class PreprocessedPlayerData(ParsedPlayerData):
                 cluster_label[start:end] = f"{phase_name}{i}"
                 phase_type[start:end] = phase_name
 
-        df = pd.DataFrame({"gallery_time": gallery_times, "gallery_diff": gallery_diffs,
+        df = pd.DataFrame({"gallery_time": gallery_in_times, "gallery_diff": gallery_diffs,
                            "cluster": cluster_label[is_gallery], "phase_type": phase_type[is_gallery]})
         fig, ax = plt.subplots(figsize=(10, 5))
         marker_dict = {"explore": "o", "exploit": "X"}
