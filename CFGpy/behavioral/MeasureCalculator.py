@@ -7,7 +7,8 @@ from CFGpy.behavioral._utils import load_json, is_semantic_connection
 from collections.abc import Collection
 from functools import reduce
 from scipy.stats import zscore
-from CFGpy.utils import get_vanilla_descriptors
+from CFGpy.utils import get_vanilla_descriptors, step_orig_map_factory, gallery_orig_map_factory
+from tqdm import tqdm
 
 
 def _get_frac_uniquely_covered(player_objects, objects_not_uniquely_covered):
@@ -130,7 +131,8 @@ class MeasureCalculator:
 
     def _calc_absolute_measures(self):
         absolute_measures = []
-        for player_data in self.input_data:
+        print("Calculating absolute measures...")
+        for player_data in tqdm(self.input_data):
             # supporting data
             time_in_explore = player_data.total_explore_time()
             time_in_exploit = player_data.total_exploit_time()
@@ -162,18 +164,23 @@ class MeasureCalculator:
                 MEDIAN_EXPLORE_LENGTH_KEY: np.median(explore_lengths),
                 MEDIAN_EXPLOIT_LENGTH_KEY: np.median(exploit_lengths),
                 "exp speed": sum(explore_lengths) / time_in_explore,
-                "scav speed": sum(exploit_lengths) / time_in_exploit,
+                "scav speed": sum(exploit_lengths) / time_in_exploit if time_in_exploit else None,
                 LONGEST_PAUSE_KEY: player_data.get_max_pause_duration()
             })
 
         return pd.DataFrame(absolute_measures)
 
     def _calc_relative_measures(self, descriptors, label=None):
-        steps_not_uniquely_covered, step_orig_map, galleries_not_uniquely_covered, gallery_orig_map, GC = descriptors
+        steps_not_uniquely_covered, step_counter, galleries_not_uniquely_covered, gallery_counter, GC = descriptors
         label_ext = f" ({label})" if label else ""
 
+        # TODO: use d parameter as discussed with Yuval
+        step_orig_map = step_orig_map_factory(step_counter)
+        gallery_orig_map = gallery_orig_map_factory(gallery_counter)
+
         relative_measures = []
-        for player_data in self.input_data:
+        print(f"Calculating relative{label_ext} measures...")
+        for player_data in tqdm(self.input_data):
             steps = player_data.get_steps()
             step_orig = [step_orig_map[step] for step in steps]
             gallery_ids = player_data.get_gallery_ids()
