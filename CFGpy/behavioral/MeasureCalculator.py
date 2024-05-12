@@ -12,12 +12,13 @@ from tqdm import tqdm
 
 
 def _get_frac_uniquely_covered(player_objects, objects_not_uniquely_covered):
-    n_player_objects = len(player_objects)
-    if not n_player_objects:
+    set_player_objects = set(player_objects)
+    n_unique_player_objects = len(set_player_objects)
+    if not n_unique_player_objects:
         return None
 
-    n_not_uniquely_covered = len(set(player_objects) & set(objects_not_uniquely_covered))
-    frac_not_uniquely_covered = n_not_uniquely_covered / n_player_objects
+    n_not_uniquely_covered = len(set_player_objects & set(objects_not_uniquely_covered))
+    frac_not_uniquely_covered = n_not_uniquely_covered / n_unique_player_objects
     frac_uniquely_covered = 1 - frac_not_uniquely_covered
     return frac_uniquely_covered
 
