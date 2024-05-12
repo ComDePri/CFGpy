@@ -125,12 +125,12 @@ def gallery_orig_map_factory(gallery_counter, alpha=0, d=N_ALL_SHAPES):
     orig_map = defaultdict(lambda: smoothed_0_prob)
     for gallery_shape, count in gallery_counter.items():
         smoothed_prob = (count + alpha) / (N + alpha * d)
-        orig_map[gallery_shape] = smoothed_prob
+        orig_map[gallery_shape] = -np.log10(smoothed_prob)
 
     return orig_map
 
 
-def step_orig_map_factory(step_counter, alpha=0.1, d=N_ALL_SHAPES - 1):
+def step_orig_map_factory(step_counter, alpha=0, d=N_ALL_SHAPES - 1):
     """
     Creates a map from each step (s1, s2) to its Originality, given by -log10(p) where p is the estimated probability of
     s2 given s1.
@@ -154,6 +154,6 @@ def step_orig_map_factory(step_counter, alpha=0.1, d=N_ALL_SHAPES - 1):
     orig_map = DefaultDict(smoothed_0_prob)
     for step, count in step_counter.items():
         smoothed_prob = (count + alpha) / (Ns[step[0]] + alpha * d)
-        orig_map[step] = smoothed_prob
+        orig_map[step] = -np.log10(smoothed_prob)
 
     return orig_map
