@@ -12,8 +12,12 @@ from tqdm import tqdm
 
 
 def _get_frac_uniquely_covered(player_objects, objects_not_uniquely_covered):
+    n_player_objects = len(player_objects)
+    if not n_player_objects:
+        return None
+
     n_not_uniquely_covered = len(set(player_objects) & set(objects_not_uniquely_covered))
-    frac_not_uniquely_covered = n_not_uniquely_covered / len(set(player_objects))
+    frac_not_uniquely_covered = n_not_uniquely_covered / n_player_objects
     frac_uniquely_covered = 1 - frac_not_uniquely_covered
     return frac_uniquely_covered
 
@@ -155,7 +159,7 @@ class MeasureCalculator:
                 "Average Speed": n_moves / last_action_time,
                 "#galleries": n_galleries,
                 "self avoidance": player_data.get_self_avoidance(),
-                "#clusters": len(player_data.exploit_slices),
+                N_CLUSTERS_KEY: len(player_data.exploit_slices),
                 "% galleries in exp": sum(is_gallery & is_explore) / n_galleries,
                 "% time in exp": time_in_explore / last_action_time,
                 "exp efficiency": explore_efficiency,
@@ -190,6 +194,8 @@ class MeasureCalculator:
             is_exploit_given_gallery = ~is_explore_given_gallery
             exploit_clusters = player_data.get_exploit_clusters()
             n_clusters_in_GC = sum([is_cluster_in_GC(cluster, GC) for cluster in exploit_clusters])
+            frac_clusters_in_GC = (n_clusters_in_GC / len(player_data.exploit_slices)
+                                   if player_data.exploit_slices else None)
 
             relative_measures.append({
                 MEASURES_ID_KEY: player_data.id,
@@ -205,7 +211,7 @@ class MeasureCalculator:
                 f"% galleries uniquely covered scav{label_ext}":
                     _get_frac_uniquely_covered(gallery_ids[is_exploit_given_gallery], galleries_not_uniquely_covered),
                 f"# clusters in GC{label_ext}": n_clusters_in_GC,
-                f"% clusters in GC{label_ext}": n_clusters_in_GC / len(player_data.exploit_slices),
+                f"% clusters in GC{label_ext}": frac_clusters_in_GC,
             })
 
         return pd.DataFrame(relative_measures)
