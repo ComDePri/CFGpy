@@ -224,17 +224,13 @@ class ParsedDataset:
         return uniquely_covered_galleries
 
     def get_descriptors(self):
-        from CFGpy.utils import get_orig_map
-
         n_times_step_taken, n_players_took_step = self.step_counter()
         n_times_gallery_saved, n_players_saved_gallery = self.gallery_counter()
 
         steps_not_uniquely_covered = self.get_not_uniquely_covered(n_players_took_step)
-        step_orig_map = get_orig_map(n_times_step_taken, group_func=lambda step: step[0])
         galleries_not_uniquely_covered = self.get_not_uniquely_covered(n_players_saved_gallery)
-        gallery_orig_map = get_orig_map(n_times_gallery_saved)
 
-        return steps_not_uniquely_covered, step_orig_map, galleries_not_uniquely_covered, gallery_orig_map
+        return steps_not_uniquely_covered, n_times_step_taken, galleries_not_uniquely_covered, n_times_gallery_saved
 
 
 class PreprocessedDataset(ParsedDataset):

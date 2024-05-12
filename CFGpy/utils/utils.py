@@ -157,31 +157,3 @@ def step_orig_map_factory(step_counter, alpha=0.1, d=N_ALL_SHAPES - 1):
         orig_map[step] = smoothed_prob
 
     return orig_map
-
-#
-# def get_orig_map(counter, alpha=0, group_func=None):
-#     """
-#     Returns a mapping from each object to its Originality, given by -log10(p) where p is the estimated probability of
-#     the object in its group.
-#     :param counter: a Counter of all objects in the sample.
-#     :param alpha: pseudocount for Laplace smoothing (see https://en.wikipedia.org/wiki/Additive_smoothing).
-#     :param group_func: a Callable that returns an object's group. If None (default), objects are not grouped.
-#     :return: dict
-#     """
-#     total = counter.total()
-#     group_totals = counter
-#     if group_func is not None:
-#         group_totals = Counter()
-#         for obj, count in counter.items():
-#             group_totals[group_func(obj)] += count
-#     n_groups = len(group_totals)
-#
-#     # transform counts to orig values
-#     orig_map = {}
-#     for obj, count in counter.items():
-#         if group_func is not None:
-#             total = group_totals[group_func(obj)]
-#         smoothed_step_probability = (count + alpha) / (total + n_groups * alpha)
-#         orig_map[obj] = -np.log10(smoothed_step_probability)
-#
-#     return orig_map
