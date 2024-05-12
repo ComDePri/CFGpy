@@ -32,8 +32,8 @@ def is_cluster_in_GC(cluster, GC):
 
 class MeasureCalculator:
     def __init__(self, preprocessed_data, manually_excluded_ids: Collection = MANUALLY_EXCLUDED_IDS,
-                 min_n_moves: int = MIN_N_MOVES, min_game_duration: float = MIN_GAME_DURATION_SEC,
-                 max_pause_duration: float = MAX_PAUSE_DURATION_SEC,
+                 min_n_moves: int = MIN_N_MOVES, min_n_clusters: int = MIN_N_CLUSTERS,
+                 min_game_duration: float = MIN_GAME_DURATION_SEC, max_pause_duration: float = MAX_PAUSE_DURATION_SEC,
                  max_zscore_for_outlier: float = MAX_ZSCORE_FOR_OUTLIERS):
         self.input_data = PreprocessedDataset(preprocessed_data)
         self.all_absolute_measures = None
@@ -41,6 +41,7 @@ class MeasureCalculator:
 
         self.manually_excluded_ids = manually_excluded_ids
         self.min_n_moves = min_n_moves
+        self.min_n_clusters = min_n_clusters
         self.min_game_duration = min_game_duration
         self.max_pause_duration = max_pause_duration
         self.max_zscore_for_outlier = max_zscore_for_outlier
@@ -98,8 +99,9 @@ class MeasureCalculator:
         represented by a textual description and a mask with **True for players to exclude**, False for players to keep.
         :return: masks, reasons.
         """
-        reasons = ("Manually excluded id", "Too few moves", "Game too short", "Paused for too long")
+        reasons = ("Manually excluded id", "Did not exploit", "Too few moves", "Game too short", "Paused for too long")
         masks = (self.output_df[MEASURES_ID_KEY].isin(self.manually_excluded_ids),
+                 self.output_df[N_CLUSTERS_KEY] < self.min_n_clusters,
                  self.output_df[N_MOVES_KEY] < self.min_n_moves,
                  self.output_df[GAME_DURATION_KEY] < self.min_game_duration,
                  self.output_df[LONGEST_PAUSE_KEY] > self.max_pause_duration)
