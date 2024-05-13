@@ -109,7 +109,7 @@ def group_by_monotone_decreasing(sequence):
     monotone_sequences = []
     current_sequence = [0]
     for i in range(1, sequence.size):
-        if sequence[i - 1] < sequence[i]:
+        if sequence[i - 1] <= sequence[i]:
             monotone_sequences.append(current_sequence)
             current_sequence = [i]
         else:
