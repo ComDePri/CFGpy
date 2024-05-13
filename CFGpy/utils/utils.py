@@ -2,7 +2,7 @@ import numpy as np
 import os
 import json
 import networkx as nx
-from collections import Counter, defaultdict
+from collections import Counter
 from CFGpy import NAS_PATH
 
 CFG_RESOURCES_PATH = os.path.join(NAS_PATH, "Projects", "CFG")
@@ -15,7 +15,6 @@ VANILLA_GC_PATH = os.path.join(VANILLA_DATA_DIR, "giant_component.json")
 
 ID2COORD = np.load(os.path.join(CFG_RESOURCES_PATH, "grid_coords.npy"))
 SHORTEST_PATHS_DICT_PATH = os.path.join(CFG_RESOURCES_PATH, "shortest_path_len.json")
-N_ALL_SHAPES = len(ID2COORD) - 1  # subtract 1 because ID2COORD[0] is a placeholder
 
 
 def get_vanilla():
