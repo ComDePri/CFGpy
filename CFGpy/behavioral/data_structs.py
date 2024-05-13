@@ -9,6 +9,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
+# TODO: consider: some methods only serve MeasureCalculator, while other are meant as API for end users (e.g.
+#  visualizations). This probably means there's a better way to design these classes
+
 class ParsedPlayerData:
     def __init__(self, player_data):
         self.id = player_data[PARSED_PLAYER_ID_KEY]
@@ -29,7 +32,7 @@ class ParsedPlayerData:
         return last_action_time
 
     def get_max_pause_duration(self):
-        return max(self.delta_move_times[3:-4])
+        return max(self.delta_move_times[3:-3])
 
     def get_steps(self):
         shape_ids = self.shapes_df.iloc[:, SHAPE_ID_IDX]
