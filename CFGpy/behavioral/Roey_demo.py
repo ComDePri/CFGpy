@@ -32,3 +32,4 @@ if __name__ == '__main__':
     player_data = preprocessed_data[0]  # choose player index
     data = PreprocessedPlayerData(player_data)
     data.plot_gallery_dt()
+    data.plot_shapes()

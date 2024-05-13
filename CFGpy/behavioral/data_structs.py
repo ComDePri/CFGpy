@@ -5,6 +5,7 @@ from collections import Counter
 import networkx as nx
 from CFGpy.behavioral._consts import *
 from CFGpy.behavioral._utils import is_semantic_connection
+from CFGpy.utils import plot_shape
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -14,6 +15,7 @@ class ParsedPlayerData:
         self.id = player_data[PARSED_PLAYER_ID_KEY]
         self.start_time = player_data[PARSED_TIME_KEY]
         self.shapes_df = pd.DataFrame(player_data[PARSED_ALL_SHAPES_KEY])
+        self.shapes_df[SHAPE_ID_IDX] = self.shapes_df[SHAPE_ID_IDX].astype(int)
         self.chosen_shapes = player_data[PARSED_CHOSEN_SHAPES_KEY]
 
         self.delta_move_times = np.diff(self.shapes_df.iloc[:, SHAPE_MOVE_TIME_IDX])
@@ -60,6 +62,22 @@ class ParsedPlayerData:
         #  Instead of its len, it would then make sense to use n_moves (defined in self.calc)
 
         return len(unique_shapes) / len(shapes_no_consecutive_duplicates)
+
+    def plot_shapes(self, ncols=10):
+        is_galleries = self.get_gallery_mask()
+        shape_ids = self.shapes_df.iloc[:, SHAPE_ID_IDX]
+
+        nrows = int(np.ceil(len(shape_ids) / ncols))
+        fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols, nrows), dpi=400)
+        plt.subplots_adjust(bottom=0, top=1, left=0, right=1, wspace=0, hspace=0)
+        for i, ax in enumerate(axs.flat):
+            if i < len(shape_ids):
+                # TODO: adjust grid linewidth to be the correct fraction of the bbox width instead of always 3
+                plot_shape(shape_ids[i], ax=ax, is_gallery=is_galleries[i])
+            else:
+                ax.axis("off")
+
+        plt.show()
 
 
 class PreprocessedPlayerData(ParsedPlayerData):
