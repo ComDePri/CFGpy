@@ -137,7 +137,6 @@ def step_orig_map_factory(step_counter, alpha=0, d=N_ALL_SHAPES - 1):
     :param step_counter: a Counter object with the number of times each step was taken in the sample.
     :param alpha: pseudocount for Laplace smoothing (see https://en.wikipedia.org/wiki/Additive_smoothing).
     :param d: number of possible steps from a given shape (notation follows the wiki article linked above).
-    #TODO: decide alpha default value, remember Ns[step[0]] can be 0 so alpha=0 leads to zero division
     :return: dict
     """
     Ns = Counter()
@@ -145,7 +144,10 @@ def step_orig_map_factory(step_counter, alpha=0, d=N_ALL_SHAPES - 1):
         Ns[step[0]] += count
 
     def smoothed_0_prob(step):
-        return alpha / (Ns[step[0]] + alpha * d)
+        N = Ns[step[0]]
+        if N == alpha == 0:
+            return 1 / d
+        return alpha / (N + alpha * d)
 
     class DefaultDict(defaultdict):  # Extends defaultdict to allow default_factory to take an arg
         def __missing__(self, key):
