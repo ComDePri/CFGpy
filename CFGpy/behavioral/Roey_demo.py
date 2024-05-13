@@ -1,6 +1,7 @@
 import pandas as pd
 from CFGpy.behavioral import Downloader, Parser, Preprocessor
 from CFGpy.behavioral.data_structs import PreprocessedPlayerData
+from CFGpy.behavioral._consts import *
 
 
 def __from_raw_data(raw_data):
@@ -31,5 +32,9 @@ if __name__ == '__main__':
 
     player_data = preprocessed_data[0]  # choose player index
     data = PreprocessedPlayerData(player_data)
+
+    exploit_mask = data.get_exploit_mask()
+    exploit_creation_times = data.shapes_df[exploit_mask].iloc[SHAPE_MOVE_TIME_IDX]
+
     data.plot_gallery_dt()
     data.plot_shapes()
