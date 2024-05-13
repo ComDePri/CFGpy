@@ -136,37 +136,3 @@ def get_orig_map(counter, alpha=0.5, group_func=None):
         orig_map[obj] = -np.log10(smoothed_step_probability)
 
     return orig_map
-
-
-def get_gallery_orig_map(gallery_counter, alpha=0.5):
-    """
-
-    """
-    total = gallery_counter.total()
-    smoothed_0_prob = alpha / (total + N_ALL_SHAPES * alpha)
-    orig_map = defaultdict(lambda: smoothed_0_prob)
-    for shape, count in gallery_counter.items():
-        smoothed_step_probability = (count + alpha) / (total + N_ALL_SHAPES * alpha)
-        orig_map[shape] = -np.log10(smoothed_step_probability)
-
-    return orig_map
-
-
-def get_step_orig_map(step_counter, alpha=0.5):
-    """
-
-    """
-    totals = Counter()
-    for step, count in step_counter.items():
-        totals[step[0]] += count
-
-    def get_smoothed_0_prob():
-        pass
-
-    smoothed_0_prob = alpha / (total + N_ALL_SHAPES * alpha)
-    orig_map = defaultdict(lambda: smoothed_0_prob)
-    for shape, count in step_counter.items():
-        smoothed_step_probability = (count + alpha) / (total + N_ALL_SHAPES * alpha)
-        orig_map[shape] = -np.log10(smoothed_step_probability)
-
-    return orig_map
