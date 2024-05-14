@@ -138,44 +138,54 @@ class MeasureCalculator:
 
     def _calc_absolute_measures(self):
         absolute_measures = []
+
+        n_galleries_in_explore = []
+        total_explore_times = []
+        total_exploit_times = []
+        total_explore_lengths = []
+        total_exploit_lengths = []
         print("Calculating absolute measures...")
         for player_data in tqdm(self.input_data):
-            # supporting data
-            time_in_explore = player_data.total_explore_time()
-            time_in_exploit = player_data.total_exploit_time()
+            # pre-calculations
             explore_lengths = [end - start for start, end in player_data.explore_slices]
             exploit_lengths = [end - start for start, end in player_data.exploit_slices]
             is_gallery = player_data.get_gallery_mask()
             is_explore = player_data.get_explore_mask()
 
-            # reusable measures
-            last_action_time = player_data.get_last_action_time()
-            n_moves = len(player_data)
-            n_galleries = sum(is_gallery)
-            explore_efficiency, exploit_efficiency = player_data.get_efficiency()
+            # data collection for later vectorized operations
+            n_galleries_in_explore.append(sum(is_gallery & is_explore))
+            total_explore_times.append(player_data.total_explore_time())
+            total_exploit_times.append(player_data.total_exploit_time())
+            total_explore_lengths.append(sum(explore_lengths))
+            total_exploit_lengths.append(sum(exploit_lengths))
 
+            # player-wise calculations
+            explore_efficiency, exploit_efficiency = player_data.get_efficiency()
             absolute_measures.append({
                 MEASURES_ID_KEY: player_data.id,
                 MEASURES_START_TIME_KEY: datetime.fromtimestamp(player_data.start_time).isoformat(),
-                GAME_DURATION_KEY: last_action_time,
-                N_MOVES_KEY: n_moves,
-                "Average Speed": n_moves / last_action_time,
-                "#galleries": n_galleries,
+                GAME_DURATION_KEY: player_data.get_last_action_time(),
+                N_MOVES_KEY: len(player_data),
+                N_GALLERIES_KEY: sum(is_gallery),
                 "self avoidance": player_data.get_self_avoidance(),
                 N_CLUSTERS_KEY: len(player_data.exploit_slices),
-                "% galleries in exp": sum(is_gallery & is_explore) / n_galleries if n_galleries else None,
-                "% time in exp": time_in_explore / last_action_time,
-                "exp efficiency": explore_efficiency,
-                "scav efficiency": exploit_efficiency,
-                "efficiency ratio": explore_efficiency / exploit_efficiency,
+                EXPLORE_EFFICIENCY_KEY: explore_efficiency,
+                EXPLOIT_EFFICIENCY_KEY: exploit_efficiency,
                 MEDIAN_EXPLORE_LENGTH_KEY: np.median(explore_lengths),
                 MEDIAN_EXPLOIT_LENGTH_KEY: np.median(exploit_lengths),
-                "exp speed": sum(explore_lengths) / time_in_explore,
-                "scav speed": sum(exploit_lengths) / time_in_exploit if time_in_exploit else None,
                 LONGEST_PAUSE_KEY: player_data.get_max_pause_duration()
             })
 
-        return pd.DataFrame(absolute_measures)
+        # vectorized calculations
+        measures_df = pd.DataFrame(absolute_measures)
+        measures_df["Average Speed"] = measures_df[N_MOVES_KEY] / measures_df[GAME_DURATION_KEY]
+        measures_df["% galleries in exp"] = pd.Series(n_galleries_in_explore) / measures_df[N_GALLERIES_KEY]
+        measures_df["% time in exp"] = pd.Series(total_explore_times) / measures_df[GAME_DURATION_KEY]
+        measures_df["efficiency ratio"] = measures_df[EXPLORE_EFFICIENCY_KEY] / measures_df[EXPLOIT_EFFICIENCY_KEY]
+        measures_df["exp speed"] = pd.Series(total_explore_lengths) / pd.Series(total_explore_times)
+        measures_df["scav speed"] = pd.Series(total_exploit_lengths) / pd.Series(total_exploit_times)
+
+        return measures_df
 
     def _calc_relative_measures(self, descriptors, label=None):
         steps_not_uniquely_covered, step_counter, galleries_not_uniquely_covered, gallery_counter, GC = descriptors
