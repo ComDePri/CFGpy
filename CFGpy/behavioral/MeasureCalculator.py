@@ -163,7 +163,7 @@ class MeasureCalculator:
                 "#galleries": n_galleries,
                 "self avoidance": player_data.get_self_avoidance(),
                 N_CLUSTERS_KEY: len(player_data.exploit_slices),
-                "% galleries in exp": sum(is_gallery & is_explore) / n_galleries,
+                "% galleries in exp": sum(is_gallery & is_explore) / n_galleries if n_galleries else None,
                 "% time in exp": time_in_explore / last_action_time,
                 "exp efficiency": explore_efficiency,
                 "scav efficiency": exploit_efficiency,

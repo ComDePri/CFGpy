@@ -17,7 +17,7 @@ class ParsedPlayerData:
         self.id = player_data[PARSED_PLAYER_ID_KEY]
         self.start_time = player_data[PARSED_TIME_KEY]
         self.shapes_df = pd.DataFrame(player_data[PARSED_ALL_SHAPES_KEY])
-        self.chosen_shapes = player_data[PARSED_CHOSEN_SHAPES_KEY]
+        self.chosen_shapes = player_data.get(PARSED_CHOSEN_SHAPES_KEY)
 
         self.delta_move_times = np.diff(self.shapes_df.iloc[:, SHAPE_MOVE_TIME_IDX])
 
@@ -26,13 +26,16 @@ class ParsedPlayerData:
 
     def get_last_action_time(self):
         last_action_time = self.shapes_df.iloc[-1, SHAPE_SAVE_TIME_IDX]
-        if np.isnan(last_action_time) or last_action_time is None:  # is None handles cases of 0-gallery games
+        if last_action_time is None or np.isnan(last_action_time):  # is None handles cases of 0-gallery games
             last_action_time = self.shapes_df.iloc[-1, SHAPE_MOVE_TIME_IDX]
 
         return last_action_time
 
     def get_max_pause_duration(self):
-        return max(self.delta_move_times[3:-3])
+        truncated_deltas = self.delta_move_times[3:-3]  # ignore pauses close to the start or end of the game
+        if len(truncated_deltas):
+            return max(truncated_deltas)
+        return None
 
     def get_steps(self):
         shape_ids = self.shapes_df.iloc[:, SHAPE_ID_IDX]
@@ -104,9 +107,10 @@ class PreprocessedPlayerData(ParsedPlayerData):
     def get_efficiency(self):
         from CFGpy.utils import get_shortest_path_len  # moved here to avoid circular import
 
-        shape_indices = [0] + list(np.flatnonzero(self.get_gallery_mask()))
-        actual_path_lengths = np.diff(shape_indices)
-        actual_path_lengths[0] += 1  # TODO: for backwards compatibility, waiting for Yuval's answer to drop this
+        shape_indices = np.flatnonzero(self.get_gallery_mask())
+        actual_path_lengths = np.diff(shape_indices, prepend=0)
+        if actual_path_lengths.size:
+            actual_path_lengths[0] += 1  # TODO: for backwards compatibility, waiting for Yuval's answer to drop this
         shape_ids = self.shapes_df.iloc[shape_indices, SHAPE_ID_IDX]
         shortest_path_lengths = [get_shortest_path_len(shape1, shape2) for shape1, shape2 in pairwise(shape_ids)]
         all_efficiency_values = {idx: shortest_len / actual_len for idx, shortest_len, actual_len

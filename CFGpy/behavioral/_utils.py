@@ -62,10 +62,15 @@ def coords_to_bin_coords(coords):
 
 
 def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT):
+    n_shapes = len(shapes)
+    no_exploit_return_value = [(0, n_shapes)], []
     shapes_df = pd.DataFrame(shapes)
 
     gallery_saves = shapes_df[SHAPE_SAVE_TIME_IDX]
     gallery_indices = np.flatnonzero(gallery_saves.notna())
+    if not any(gallery_indices):
+        return no_exploit_return_value
+
     gallery_times = shapes_df.iloc[gallery_indices][SHAPE_MOVE_TIME_IDX]
     gallery_diffs = np.diff(gallery_times, prepend=gallery_times.iloc[0])
 
@@ -90,9 +95,8 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT):
 
             prev_exploit_end = end
 
-    n_shapes = len(shapes)
     if not exploit_slices:
-        return [(0, n_shapes)], []
+        return no_exploit_return_value
 
     exploit_end = exploit_slices[-1][1]
     explore_end = explore_slices[-1][1]
