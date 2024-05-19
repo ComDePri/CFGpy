@@ -231,8 +231,8 @@ class ParsedDataset:
 
     @staticmethod
     def get_not_uniquely_covered(counter):
-        uniquely_covered_galleries = [gallery_id for gallery_id, count in counter.items() if count > 1]
-        return uniquely_covered_galleries
+        not_uniquely_covered = [key for key, count in counter.items() if count > 1]
+        return not_uniquely_covered
 
     def get_descriptors(self):
         n_times_step_taken, n_players_took_step = self.step_counter()
