@@ -107,14 +107,18 @@ class PreprocessedPlayerData(ParsedPlayerData):
     def get_efficiency(self):
         from CFGpy.utils import get_shortest_path_len  # moved here to avoid circular import
 
-        shape_indices = np.flatnonzero(self.get_gallery_mask())
-        actual_path_lengths = np.diff(shape_indices, prepend=0)
+        gallery_indices = np.flatnonzero(self.get_gallery_mask())
+        if not gallery_indices.size:
+            return np.nan, np.nan
+
+        actual_path_lengths = np.diff(gallery_indices, prepend=0)
         if actual_path_lengths.size:
-            actual_path_lengths[0] += 1  # TODO: for backwards compatibility, waiting for Yuval's answer to drop this
-        shape_ids = self.shapes_df.iloc[shape_indices, SHAPE_ID_IDX]
-        shortest_path_lengths = [get_shortest_path_len(shape1, shape2) for shape1, shape2 in pairwise(shape_ids)]
+            actual_path_lengths[0] += 1  # TODO: only for testing vs mathematica. delete after testing is done
+        gallery_ids = self.shapes_df.iloc[gallery_indices, SHAPE_ID_IDX]
+        shortest_path_lengths = ([get_shortest_path_len(FIRST_SHAPE_ID, gallery_ids.iloc[0])] +
+                                 [get_shortest_path_len(shape1, shape2) for shape1, shape2 in pairwise(gallery_ids)])
         all_efficiency_values = {idx: shortest_len / actual_len for idx, shortest_len, actual_len
-                                 in zip(shape_indices[1:], shortest_path_lengths, actual_path_lengths)
+                                 in zip(gallery_indices, shortest_path_lengths, actual_path_lengths)
                                  if (shortest_len, actual_len) != (1, 1)}
         # TODO: after empty steps are handled, shortest paths would not be able to be 0 and the condition can be
         #  simplified to actual_len>1

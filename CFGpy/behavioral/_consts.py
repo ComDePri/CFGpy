@@ -13,6 +13,7 @@ EXPLORE_KEY = "explore"
 EXPLOIT_KEY = "exploit"
 
 # measure calculation
+FIRST_SHAPE_ID = 1
 MEASURES_ID_KEY = "ID"
 MEASURES_START_TIME_KEY = "Date/Time"
 N_MOVES_KEY = "Total # moves"
