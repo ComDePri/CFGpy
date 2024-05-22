@@ -46,6 +46,8 @@ class Preprocessor:
             player_data[EXPLORE_KEY] = explore
             player_data[EXPLOIT_KEY] = exploit
 
-    def dump(self, path=DEFAULT_OUTPUT_FILENAME):
+    def dump(self, path=DEFAULT_OUTPUT_FILENAME, pretty=False):
+        json_str = prettify_games_json(self.all_players_data) if pretty else json.dumps(self.all_players_data)
+
         with open(path, "w") as out_file:
-            json.dump(self.all_players_data, out_file)
+            out_file.write(json_str)
