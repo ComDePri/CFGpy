@@ -77,9 +77,10 @@ def test_parser_conversion_to_new_format(test_dir):
     # convert to df and compare by key, for proper float comparison in the start time column:
     test_df = pd.DataFrame(test_parsed)
     converted_df = pd.DataFrame(converted_to_new_format)
-    assert all(test_df["id"] == converted_df["id"])
-    assert all(np.isclose(test_df["absolute start time"], converted_df["absolute start time"]))
-    assert all(test_df["actions"] == converted_df["actions"])
+    from CFGpy.behavioral._consts import PARSED_PLAYER_ID_KEY, PARSED_TIME_KEY, PARSED_ALL_SHAPES_KEY
+    assert all(test_df[PARSED_PLAYER_ID_KEY] == converted_df[PARSED_PLAYER_ID_KEY])
+    assert all(np.isclose(test_df[PARSED_TIME_KEY], converted_df[PARSED_TIME_KEY]))
+    assert all(test_df[PARSED_ALL_SHAPES_KEY] == converted_df[PARSED_ALL_SHAPES_KEY])
     # TODO: after parser handles chosen shapes, compare those too
 
 
@@ -103,11 +104,8 @@ def test_measures_calculator(test_dir):
         preprocessed_data = json.load(test_preprocessed_fp)
     measures_calculator = MeasureCalculator(preprocessed_data)
     measures_calculator.calc()
-    measures_calculator.dump("measures.csv")
+    measures_calculator.dump(f"measures.csv")
 
-    with open(os.path.join(test_dir, TEST_MEASURES_FILENAME), "r") as test_measures_fp:
-        test_measures = test_measures_fp.read()
-    with open("measures.csv", "r") as measures_fp:
-        measures = measures_fp.read()
-
-    assert test_measures == measures
+    test_measures = pd.read_csv(os.path.join(test_dir, TEST_MEASURES_FILENAME))
+    measures = pd.read_csv(f"measures.csv")
+    assert test_measures.equals(measures)
