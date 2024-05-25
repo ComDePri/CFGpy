@@ -2,6 +2,7 @@ from CFGpy.behavioral._utils import *
 from CFGpy.behavioral._consts import *
 from CFGpy.utils import binary_matrix_to_shape_id as bin2id
 from itertools import groupby
+import json
 
 DEFAULT_OUTPUT_FILENAME = "preprocessed.json"
 

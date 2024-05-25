@@ -1,11 +1,15 @@
 import numpy as np
 import pandas as pd
-from itertools import pairwise, groupby, combinations
+from itertools import pairwise
+from itertools import groupby, combinations
 from collections import Counter
 import networkx as nx
 from CFGpy.behavioral._consts import *
 from CFGpy.behavioral._utils import is_semantic_connection
 from CFGpy.utils import plot_shape
+import matplotlib # Todo - added by Aviv to adress: "AttributeError: module 'backend_interagg' has no attribute 'FigureCanvas'. Did you mean: 'FigureCanvasAgg'?"
+matplotlib.use('TkAgg') # Todo - added by Aviv to adress: "AttributeError: module 'backend_interagg' has no attribute 'FigureCanvas'. Did you mean: 'FigureCanvasAgg'?"
+
 import matplotlib.pyplot as plt
 import seaborn as sns
 
