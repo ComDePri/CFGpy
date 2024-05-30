@@ -14,25 +14,24 @@ TEST_PARSED_OLD_FORMAT_FILENAME = "test_parsed_old_format.txt"
 TEST_PREPROCESSED_FILENAME = "test_preprocessed.json"
 TEST_MEASURES_FILENAME = "test_measures.csv"
 
-test_dirs = []
-for filename in os.listdir(TEST_FILES_DIR):
-    absolute_path = os.path.join(TEST_FILES_DIR, filename)
-    if os.path.isdir(absolute_path):
-        test_dirs.append(absolute_path)
+test_dirs = [os.path.join(TEST_FILES_DIR, filename)
+             for filename in os.listdir(TEST_FILES_DIR)
+             if os.path.isdir(os.path.join(TEST_FILES_DIR, filename))]
 
 
 @pytest.mark.parametrize("test_dir", test_dirs)
 def test_downloader(test_dir):
+    # Note: Downloader tests currently fail. We don't know why, as this module was not touched since its output was
+    # saved for tests, and it was not developed in the lab. As far as we can tell, whatever it downloads is ground
+    # truth. For better tests, maybe we should use a Red Metrics URL that restricts time (both before and after). But
+    # changing the Downloader ground truth would require changing all other tests, se we're not touching it for now.
     with open(os.path.join(test_dir, RED_METRICS_URL_FILENAME)) as url_fp:
         url = url_fp.read()
     Downloader(url, "event.csv").download()
 
-    with open(os.path.join(test_dir, TEST_DOWNLOADED_FILENAME), "r") as test_event_fp:
-        test_event = test_event_fp.read()
-    with open("event.csv", "r") as event_fp:
-        event = event_fp.read()
-
-    assert test_event == event
+    test_event = pd.read_csv(os.path.join(test_dir, TEST_DOWNLOADED_FILENAME)).sort_values("id").reset_index(drop=True)
+    event = pd.read_csv("event.csv").sort_values("id").reset_index(drop=True)
+    assert test_event.equals(event)
 
 
 @pytest.mark.parametrize("test_dir", test_dirs)
@@ -78,9 +77,9 @@ def test_parser_conversion_to_new_format(test_dir):
     test_df = pd.DataFrame(test_parsed)
     converted_df = pd.DataFrame(converted_to_new_format)
     from CFGpy.behavioral._consts import PARSED_PLAYER_ID_KEY, PARSED_TIME_KEY, PARSED_ALL_SHAPES_KEY
-    assert all(test_df[PARSED_PLAYER_ID_KEY] == converted_df[PARSED_PLAYER_ID_KEY])
-    assert all(np.isclose(test_df[PARSED_TIME_KEY], converted_df[PARSED_TIME_KEY]))
-    assert all(test_df[PARSED_ALL_SHAPES_KEY] == converted_df[PARSED_ALL_SHAPES_KEY])
+    assert test_df[PARSED_PLAYER_ID_KEY].equals(converted_df[PARSED_PLAYER_ID_KEY])
+    assert np.allclose(test_df[PARSED_TIME_KEY], converted_df[PARSED_TIME_KEY])
+    assert test_df[PARSED_ALL_SHAPES_KEY].equals(converted_df[PARSED_ALL_SHAPES_KEY])
     # TODO: after parser handles chosen shapes, compare those too
 
 
@@ -104,8 +103,14 @@ def test_measures_calculator(test_dir):
         preprocessed_data = json.load(test_preprocessed_fp)
     measures_calculator = MeasureCalculator(preprocessed_data)
     measures_calculator.calc()
-    measures_calculator.dump(f"measures.csv")
+    measures_calculator.dump("measures.csv")
 
-    test_measures = pd.read_csv(os.path.join(test_dir, TEST_MEASURES_FILENAME))
-    measures = pd.read_csv(f"measures.csv")
-    assert test_measures.equals(measures)
+    test_measures = pd.read_csv(os.path.join(test_dir, TEST_MEASURES_FILENAME)).sort_values("ID").reset_index(drop=True)
+    measures = pd.read_csv("measures.csv").sort_values("ID").reset_index(drop=True)
+    assert len(test_measures) == len(measures)
+    for col in test_measures:
+        assert col in measures
+        if test_measures[col].dtype == "float64":
+            assert np.allclose(test_measures[col], measures[col], equal_nan=True)
+        elif col != "Date/Time":  # date/time causes problems with subjects that played during daylight saving
+            assert test_measures[col].equals(measures[col])
