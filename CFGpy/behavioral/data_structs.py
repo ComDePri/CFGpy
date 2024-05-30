@@ -112,8 +112,6 @@ class PreprocessedPlayerData(ParsedPlayerData):
             return np.nan, np.nan
 
         actual_path_lengths = np.diff(gallery_indices, prepend=0)
-        if actual_path_lengths.size:
-            actual_path_lengths[0] += 1  # TODO: only for testing vs mathematica. delete after testing is done
         gallery_ids = self.shapes_df.iloc[gallery_indices, SHAPE_ID_IDX]
         shortest_path_lengths = ([get_shortest_path_len(FIRST_SHAPE_ID, gallery_ids.iloc[0])] +
                                  [get_shortest_path_len(shape1, shape2) for shape1, shape2 in pairwise(gallery_ids)])
