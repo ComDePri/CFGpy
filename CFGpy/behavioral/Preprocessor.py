@@ -4,7 +4,7 @@ from CFGpy.utils import binary_matrix_to_shape_id as bin2id
 from itertools import groupby
 import json
 
-DEFAULT_OUTPUT_FILENAME = "preprocessed.json"
+DEFAULT_OUTPUT_FILENAME = "output/preprocessed.json"
 
 
 class Preprocessor:
@@ -79,3 +79,4 @@ class Preprocessor:
     def dump(self, path=DEFAULT_OUTPUT_FILENAME):
         with open(path, "w") as out_file:
             json.dump(self.all_players_data, out_file)
+        print(f"{DEFAULT_OUTPUT_FILENAME} saved")

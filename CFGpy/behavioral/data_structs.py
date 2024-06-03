@@ -7,9 +7,6 @@ import networkx as nx
 from CFGpy.behavioral._consts import *
 from CFGpy.behavioral._utils import is_semantic_connection
 from CFGpy.utils import plot_shape
-import matplotlib # Todo - added by Aviv to adress: "AttributeError: module 'backend_interagg' has no attribute 'FigureCanvas'. Did you mean: 'FigureCanvasAgg'?"
-matplotlib.use('TkAgg') # Todo - added by Aviv to adress: "AttributeError: module 'backend_interagg' has no attribute 'FigureCanvas'. Did you mean: 'FigureCanvasAgg'?"
-
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -20,7 +17,7 @@ class ParsedPlayerData:
         self.start_time = player_data[PARSED_TIME_KEY]
         self.shapes_df = pd.DataFrame(player_data[PARSED_ALL_SHAPES_KEY])
         self.shapes_df[SHAPE_ID_IDX] = self.shapes_df[SHAPE_ID_IDX].astype(int)
-        self.chosen_shapes = player_data[PARSED_CHOSEN_SHAPES_KEY]
+        # self.chosen_shapes = player_data[PARSED_CHOSEN_SHAPES_KEY]
 
         self.delta_move_times = np.diff(self.shapes_df.iloc[:, SHAPE_MOVE_TIME_IDX])
 
@@ -156,11 +153,16 @@ class PreprocessedPlayerData(ParsedPlayerData):
 
         return clusters
 
-    def plot_gallery_dt(self):
+    def plot_gallery_dt(self, PATH_FROM_REP_ROOT="output/"):
+        # if there is no explore / exploit --> don't plot
+        if self.exploit_slices == [] or self.explore_slices == []:
+            return -1
+
         is_gallery = self.get_gallery_mask()
         gallery_in_times = self.shapes_df[is_gallery].iloc[:, SHAPE_MOVE_TIME_IDX]
         gallery_out_times = self.shapes_df[is_gallery].iloc[:, SHAPE_MAX_MOVE_TIME_IDX]
         gallery_diffs = gallery_in_times - gallery_out_times.shift()
+        # print(self.id) # --> for testing
         gallery_diffs.iloc[0] = 0
         gallery_diffs = gallery_diffs.to_numpy()
 
@@ -179,13 +181,23 @@ class PreprocessedPlayerData(ParsedPlayerData):
                      markers=marker_dict, markersize=10)
         handles, labels = plt.gca().get_legend_handles_labels()
         unique_markers = dict(zip(labels, handles))
+
         plt.legend((unique_markers["explore"], unique_markers["exploit"]), ("explore", "exploit"))
         plt.xlabel(r"$t$ (s)", fontsize=14)
         plt.ylabel(r"$\Delta t$ (s)", fontsize=14)
         plt.suptitle("Gallery shapes creation time, segmented by clusters", fontsize=16)
         plt.title(f"Player ID: {self.id}")
         plt.grid()
-        plt.show()
+
+        # Show
+        # plt.show()
+
+        # Save the plot as an image file
+        imagePath = f"{PATH_FROM_REP_ROOT}GalleryPlayer{self.id}.png"
+        plt.savefig(imagePath)
+        plt.close()
+
+        return imagePath
 
 
 class ParsedDataset:
