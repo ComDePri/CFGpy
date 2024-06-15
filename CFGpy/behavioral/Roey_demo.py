@@ -73,67 +73,53 @@ def add_both_plots_to_ppt(prs, shapesImagePath, plotGalleryImagePath, title):
     title_placeholder = slide.shapes.title
     title_placeholder.text = title
 
-    # Add shapes image
-    left = Inches(0.5)
-    top = Inches(1.5)
-    height = Inches(3)
-    slide.shapes.add_picture(shapesImagePath, left, top, height=height)
-
     # Add gallery plot image
-    left = Inches(5)
+    left = Inches(0.1)
+    top = Inches(2)
+    height = Inches(3)
     slide.shapes.add_picture(plotGalleryImagePath, left, top, height=height)
+
+    # Add shapes image
+    left = Inches(6)
+    slide.shapes.add_picture(shapesImagePath, left, top, height=height)
 
 
 if __name__ == '__main__':
+
+    # Load data from url
+    preprocessed_data = from_url(CSV_URL)
 
     # Load data from csv
     # preprocessed_data = from_file(CSV_FILE_PATH)
 
     # Load processed data from json
-    preprocessed_data = from_json(DEFAULT_OUTPUT_FILENAME)
+    # preprocessed_data = from_json(DEFAULT_OUTPUT_FILENAME)
 
     # Sort by ID
     preprocessed_data = sorted(preprocessed_data, key=lambda x: x["id"])  # sort by subjects' ID
 
     # Create a presentation object
-    prs_shapes = Presentation()
-    prs_gallery = Presentation()
-    # prs = Presentation()
+    prs = Presentation()
 
     # Plot each subject's game OR add to presentation
-    for i in range(len(preprocessed_data)):
-        if not player_data[PARSED_PLAYER_ID_KEY].startswith("9999"):  #skip the non-player data
-
+    for player_data in preprocessed_data:
+        if not player_data[PARSED_PLAYER_ID_KEY].startswith("9999"):  # skip the non-player data
             data = PreprocessedPlayerData(player_data)
 
             shapesImagePath = data.plot_clusters()
-            if shapesImagePath == -1:
-                print(player_data[PARSED_PLAYER_ID_KEY] + ", no exploit phase --> can't create plot")
-
-            else:
-                add_plot_to_ppt(prs_shapes, shapesImagePath, f"PLayer {player_data[PARSED_PLAYER_ID_KEY]}")
-                os.remove(shapesImagePath)  # Clean up the image file
-
             plotGalleryImagePath = data.plot_gallery_dt()
-            if plotGalleryImagePath == -1:
-                print(player_data[PARSED_PLAYER_ID_KEY] + ", missing explore or exploit phase --> can't create plot")
 
-            else:
-                # todo - fix data
-                print(player_data[PARSED_PLAYER_ID_KEY] + ", plot created successfully")
-
-                add_plot_to_ppt(prs_gallery, plotGalleryImagePath)
+            if shapesImagePath != -1 and plotGalleryImagePath != -1:
+                add_both_plots_to_ppt(prs, shapesImagePath, plotGalleryImagePath,
+                                f"Player {player_data[PARSED_PLAYER_ID_KEY]}")
+                os.remove(shapesImagePath)  # Clean up the image file
                 os.remove(plotGalleryImagePath)  # Clean up the image file
+            else:
+                print(f"{player_data[PARSED_PLAYER_ID_KEY]}, missing necessary phases --> can't create plot")
 
-        player_data = preprocessed_data[i]  # choose player index
+    # Save the presentation
+    prs_name = f"{PPT_OUTPUT_PATH}player_presentation.pptx"
+    prs.save(prs_name)
+    print(f"PowerPoint presentation saved as '{prs_name}'")
 
-    # prs_gallery_name = f"{PPT_OUTPUT_PATH}gallery_presentation.pptx"
-    # prs_gallery.save(prs_gallery_name)
-    # print(f"PowerPoint presentation saved as '{prs_gallery_name}'")
 
-    prs_shapes_name = f"{PPT_OUTPUT_PATH}shapes_by_clusters_presentation.pptx"
-    prs_shapes.save(prs_shapes_name)
-    print(f"PowerPoint presentation saved as '{prs_shapes_name}'")
-
-    # exploit_mask = data.get_exploit_mask()
-    # exploit_creation_times = data.shapes_df[exploit_mask].iloc[SHAPE_MOVE_TIME_IDX]
