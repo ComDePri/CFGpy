@@ -17,7 +17,7 @@ CSV_FILE_PATH = "/Users/avivgreenburg/Library/CloudStorage/GoogleDrive-aviv.gree
 ROY_TEST_JASON = "/Users/avivgreenburg/Library/CloudStorage/GoogleDrive-aviv.greenburg@mail.huji.ac.il/\
 My Drive\/שלי/לימודים/Uni_2020-2024/forth_year/lab/CFGpy/CFGpy/behavioral/test_file1.json"
 
-PPT_OUTPUT_PATH = 'output/presentation.pptx'
+PPT_OUTPUT_PATH = 'output/'
 
 def __from_raw_data(raw_data):
     parser = MRIParser(raw_data)
@@ -67,6 +67,22 @@ def add_plot_to_ppt(prs, image_path, title=None):
         title_box = slide.shapes.title
         title_box.text = title
 
+def add_both_plots_to_ppt(prs, shapesImagePath, plotGalleryImagePath, title):
+    slide_layout = prs.slide_layouts[5]  # Choosing a blank slide layout
+    slide = prs.slides.add_slide(slide_layout)
+    title_placeholder = slide.shapes.title
+    title_placeholder.text = title
+
+    # Add shapes image
+    left = Inches(0.5)
+    top = Inches(1.5)
+    height = Inches(3)
+    slide.shapes.add_picture(shapesImagePath, left, top, height=height)
+
+    # Add gallery plot image
+    left = Inches(5)
+    slide.shapes.add_picture(plotGalleryImagePath, left, top, height=height)
+
 
 if __name__ == '__main__':
 
@@ -80,27 +96,44 @@ if __name__ == '__main__':
     preprocessed_data = sorted(preprocessed_data, key=lambda x: x["id"])  # sort by subjects' ID
 
     # Create a presentation object
-    prs = Presentation()
+    prs_shapes = Presentation()
+    prs_gallery = Presentation()
+    # prs = Presentation()
 
     # Plot each subject's game OR add to presentation
     for i in range(len(preprocessed_data)):
+        if not player_data[PARSED_PLAYER_ID_KEY].startswith("9999"):  #skip the non-player data
+
+            data = PreprocessedPlayerData(player_data)
+
+            shapesImagePath = data.plot_clusters()
+            if shapesImagePath == -1:
+                print(player_data[PARSED_PLAYER_ID_KEY] + ", no exploit phase --> can't create plot")
+
+            else:
+                add_plot_to_ppt(prs_shapes, shapesImagePath, f"PLayer {player_data[PARSED_PLAYER_ID_KEY]}")
+                os.remove(shapesImagePath)  # Clean up the image file
+
+            plotGalleryImagePath = data.plot_gallery_dt()
+            if plotGalleryImagePath == -1:
+                print(player_data[PARSED_PLAYER_ID_KEY] + ", missing explore or exploit phase --> can't create plot")
+
+            else:
+                # todo - fix data
+                print(player_data[PARSED_PLAYER_ID_KEY] + ", plot created successfully")
+
+                add_plot_to_ppt(prs_gallery, plotGalleryImagePath)
+                os.remove(plotGalleryImagePath)  # Clean up the image file
+
         player_data = preprocessed_data[i]  # choose player index
-        data = PreprocessedPlayerData(player_data)
-        imagePath = data.plot_gallery_dt()
-        data.plot_shapes()
 
-        if imagePath == -1:
-            print(player_data[PARSED_PLAYER_ID_KEY] + ", missing explore or exploit phase --> can't create plot")
+    # prs_gallery_name = f"{PPT_OUTPUT_PATH}gallery_presentation.pptx"
+    # prs_gallery.save(prs_gallery_name)
+    # print(f"PowerPoint presentation saved as '{prs_gallery_name}'")
 
-        else:
-            # todo - fix data
-            print(player_data[PARSED_PLAYER_ID_KEY] + ", plot created successfully")
-
-            add_plot_to_ppt(prs, imagePath)
-            os.remove(imagePath)  # Clean up the image file
-
-    prs.save(PPT_OUTPUT_PATH)
-    print(f"PowerPoint presentation saved as '{PPT_OUTPUT_PATH}'")
+    prs_shapes_name = f"{PPT_OUTPUT_PATH}shapes_by_clusters_presentation.pptx"
+    prs_shapes.save(prs_shapes_name)
+    print(f"PowerPoint presentation saved as '{prs_shapes_name}'")
 
     # exploit_mask = data.get_exploit_mask()
     # exploit_creation_times = data.shapes_df[exploit_mask].iloc[SHAPE_MOVE_TIME_IDX]

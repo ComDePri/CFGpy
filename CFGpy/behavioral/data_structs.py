@@ -10,6 +10,7 @@ from CFGpy.utils import plot_shape
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+PATH_FROM_REP_ROOT="output/"
 
 class ParsedPlayerData:
     def __init__(self, player_data):
@@ -64,7 +65,7 @@ class ParsedPlayerData:
 
         return len(unique_shapes) / len(shapes_no_consecutive_duplicates)
 
-    def plot_shapes(self, ncols=10):
+    def plot_shapes(self, ncols=10, path=PATH_FROM_REP_ROOT):
         is_galleries = self.get_gallery_mask()
         shape_ids = self.shapes_df.iloc[:, SHAPE_ID_IDX]
 
@@ -78,7 +79,84 @@ class ParsedPlayerData:
             else:
                 ax.axis("off")
 
-        plt.show()
+        # plt.show()
+        imagePath = f"{path}ShapesPlayer{self.id}.png"
+        plt.savefig(imagePath)
+        plt.close()
+
+        return imagePath
+
+    def plot_clusters(self, ncols=10, path=PATH_FROM_REP_ROOT):
+        is_galleries = self.get_gallery_mask()
+        shape_ids = self.shapes_df.iloc[:, SHAPE_ID_IDX]
+
+        # Group gallery shapes by exploit stages
+        exploit_stages = self.exploit_slices
+        clusters = []
+        for start, end in exploit_stages:
+            cluster_ids = self.shapes_df.iloc[start:end][is_galleries[start:end]][SHAPE_ID_IDX].tolist()
+            if cluster_ids:  # only add non-empty clusters
+                clusters.append(cluster_ids)
+
+        # Calculate number of rows needed
+        nrows = sum([int(np.ceil(len(cluster) / ncols)) for cluster in clusters])
+        if nrows < 1:
+            return -1
+
+        fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols, nrows), dpi=400)
+        plt.subplots_adjust(bottom=0, top=1, left=0, right=1, wspace=0, hspace=0)
+
+        ax_iter = iter(axs.flat)
+        for cluster in clusters:
+            for shape_id in cluster:
+                try:
+                    ax = next(ax_iter)
+                    plot_shape(shape_id, ax=ax, is_gallery=False)
+                except StopIteration:
+                    print("Ran out of axes!")
+                    break
+            # Fill the remaining columns in the current row with empty plots
+            for _ in range(len(cluster) % ncols, ncols):
+                try:
+                    ax = next(ax_iter)
+                    ax.axis("off")
+                except StopIteration:
+                    print("Ran out of axes!")
+                    break
+
+
+        # Turn off any remaining unused axes
+        for ax in ax_iter:
+            ax.axis("off")
+
+        imagePath = f"{path}shapes_clusters/ShapesPlayer{self.id}.png"
+        plt.savefig(imagePath)
+        plt.close()
+
+        return imagePath
+
+    # def plot_clusters(self, ncols=10, path=PATH_FROM_REP_ROOT):
+    #     is_galleries = self.get_gallery_mask()
+    #     shape_ids = self.shapes_df.iloc[:, SHAPE_ID_IDX]
+    #
+    #
+    #     nrows = int(np.ceil(len(shape_ids) / ncols))
+    #     fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols, nrows), dpi=400)
+    #     plt.subplots_adjust(bottom=0, top=1, left=0, right=1, wspace=0, hspace=0)
+    #     for i, ax in enumerate(axs.flat):
+    #         if i < len(shape_ids):
+    #             # TODO: adjust grid linewidth to be the correct fraction of the bbox width instead of always 3
+    #             if is_galleries[i]:
+    #                 plot_shape(shape_ids[i], ax=ax, is_gallery=is_galleries[i])
+    #         else:
+    #             ax.axis("off")
+    #
+    #     # plt.show()
+    #     imagePath = f"{path}ShapesPlayer{self.id}.png"
+    #     plt.savefig(imagePath)
+    #     plt.close()
+    #
+    #     return imagePath
 
 
 class PreprocessedPlayerData(ParsedPlayerData):
@@ -153,7 +231,7 @@ class PreprocessedPlayerData(ParsedPlayerData):
 
         return clusters
 
-    def plot_gallery_dt(self, PATH_FROM_REP_ROOT="output/"):
+    def plot_gallery_dt(self, path=PATH_FROM_REP_ROOT):
         # if there is no explore / exploit --> don't plot
         if self.exploit_slices == [] or self.explore_slices == []:
             return -1
@@ -193,7 +271,7 @@ class PreprocessedPlayerData(ParsedPlayerData):
         # plt.show()
 
         # Save the plot as an image file
-        imagePath = f"{PATH_FROM_REP_ROOT}GalleryPlayer{self.id}.png"
+        imagePath = f"{path}GalleryPlayer{self.id}.png"
         plt.savefig(imagePath)
         plt.close()
 
