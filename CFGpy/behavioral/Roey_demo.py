@@ -86,14 +86,14 @@ def add_both_plots_to_ppt(prs, shapesImagePath, plotGalleryImagePath, title):
 
 if __name__ == '__main__':
 
-    # Load data from url
-    preprocessed_data = from_url(CSV_URL)
+    # Load data from url & save new JSON
+    # preprocessed_data = from_url(CSV_URL)
 
     # Load data from csv
     # preprocessed_data = from_file(CSV_FILE_PATH)
 
     # Load processed data from json
-    # preprocessed_data = from_json(DEFAULT_OUTPUT_FILENAME)
+    preprocessed_data = from_json(DEFAULT_OUTPUT_FILENAME)
 
     # Sort by ID
     preprocessed_data = sorted(preprocessed_data, key=lambda x: x["id"])  # sort by subjects' ID

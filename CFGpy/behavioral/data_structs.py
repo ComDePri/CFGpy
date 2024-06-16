@@ -6,7 +6,7 @@ from collections import Counter
 import networkx as nx
 from CFGpy.behavioral._consts import *
 from CFGpy.behavioral._utils import is_semantic_connection
-from CFGpy.utils import plot_shape
+from CFGpy.utils import plot_shape, utils
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -86,44 +86,53 @@ class ParsedPlayerData:
 
         return imagePath
 
-    def plot_clusters(self, ncols=10, path=PATH_FROM_REP_ROOT):
+    def plot_clusters(self, path=PATH_FROM_REP_ROOT):
         is_galleries = self.get_gallery_mask()
         shape_ids = self.shapes_df.iloc[:, SHAPE_ID_IDX]
 
-        # Group gallery shapes by exploit stages
-        exploit_stages = self.exploit_slices
+        # Combine exploit and explore stages with labels
+        stages = [(start, end, 'exploit') for start, end in self.exploit_slices] + \
+                 [(start, end, 'explore') for start, end in self.explore_slices]
+        stages.sort(key=lambda x: x[0])  # Sort by start time
+
+        # Group shapes by stages
         clusters = []
-        for start, end in exploit_stages:
+        for start, end, label in stages:
             cluster_ids = self.shapes_df.iloc[start:end][is_galleries[start:end]][SHAPE_ID_IDX].tolist()
             if cluster_ids:  # only add non-empty clusters
-                clusters.append(cluster_ids)
+                clusters.append((cluster_ids, label))
 
-        # Calculate number of rows needed
-        nrows = sum([int(np.ceil(len(cluster) / ncols)) for cluster in clusters])
-        if nrows < 1:
+        if len(clusters) < 2:
             return -1
+        # Calculate number of rows and cols needed
+        ncols = max(len(cluster[0]) for cluster in clusters)
+        # total_shapes = sum(len(cluster[0]) for cluster in clusters)
+        # nrows = int(np.ceil(total_shapes / ncols))
+        nrows = len(clusters)
 
         fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols, nrows), dpi=400)
         plt.subplots_adjust(bottom=0, top=1, left=0, right=1, wspace=0, hspace=0)
 
         ax_iter = iter(axs.flat)
-        for cluster in clusters:
+        for cluster, label in clusters:
             for shape_id in cluster:
                 try:
                     ax = next(ax_iter)
-                    plot_shape(shape_id, ax=ax, is_gallery=False)
+                    is_exploit = (label == 'exploit')
+                    color = utils.SHAPE_COLOR if is_exploit else 'pink'
+                    plot_shape(shape_id, ax=ax, color=color, is_gallery=False)
                 except StopIteration:
-                    print("Ran out of axes!")
+                    print("Ran out of axes for shapes!")
                     break
             # Fill the remaining columns in the current row with empty plots
-            for _ in range(len(cluster) % ncols, ncols):
-                try:
-                    ax = next(ax_iter)
-                    ax.axis("off")
-                except StopIteration:
-                    print("Ran out of axes!")
-                    break
-
+            if len(cluster) % ncols > 0:
+                for _ in range(len(cluster) % ncols, ncols):
+                    try:
+                        ax = next(ax_iter)
+                        ax.axis("off")
+                    except StopIteration:
+                        print("Ran out of axes for whites!")
+                        break
 
         # Turn off any remaining unused axes
         for ax in ax_iter:
@@ -134,30 +143,6 @@ class ParsedPlayerData:
         plt.close()
 
         return imagePath
-
-    # def plot_clusters(self, ncols=10, path=PATH_FROM_REP_ROOT):
-    #     is_galleries = self.get_gallery_mask()
-    #     shape_ids = self.shapes_df.iloc[:, SHAPE_ID_IDX]
-    #
-    #
-    #     nrows = int(np.ceil(len(shape_ids) / ncols))
-    #     fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols, nrows), dpi=400)
-    #     plt.subplots_adjust(bottom=0, top=1, left=0, right=1, wspace=0, hspace=0)
-    #     for i, ax in enumerate(axs.flat):
-    #         if i < len(shape_ids):
-    #             # TODO: adjust grid linewidth to be the correct fraction of the bbox width instead of always 3
-    #             if is_galleries[i]:
-    #                 plot_shape(shape_ids[i], ax=ax, is_gallery=is_galleries[i])
-    #         else:
-    #             ax.axis("off")
-    #
-    #     # plt.show()
-    #     imagePath = f"{path}ShapesPlayer{self.id}.png"
-    #     plt.savefig(imagePath)
-    #     plt.close()
-    #
-    #     return imagePath
-
 
 class PreprocessedPlayerData(ParsedPlayerData):
     def __init__(self, player_data):

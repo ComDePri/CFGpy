@@ -141,9 +141,10 @@ def get_orig_map(counter, alpha=0.5, group_func=None):
     return orig_map
 
 
-def plot_binary_matrix(binary_matrix, ax=None, is_gallery=False, save_filename=None, title=''):
+def plot_binary_matrix(binary_matrix, ax=None, is_gallery=False, save_filename=None, title='', color=SHAPE_COLOR):
     """
     Plots the binary matrix representation of a shape.
+    :param color: colors of colored squares, default- yellow
     :param binary_matrix: a binary matrix representation of a shape.
     :param ax: plt Axes object. If None, a new one is created and eventually displayed.
     :param is_gallery: True iff this a gallery shape. affects background color.
@@ -164,7 +165,7 @@ def plot_binary_matrix(binary_matrix, ax=None, is_gallery=False, save_filename=N
         dpi = 100
         res = (750 / dpi, 750 / dpi)
         fig, ax = plt.subplots(figsize=res, dpi=dpi)
-    ax.matshow(binary_matrix, cmap=ListedColormap([bg_color, SHAPE_COLOR]))
+    ax.matshow(binary_matrix, cmap=ListedColormap([bg_color, color]))
 
     ax.set_xticklabels([])
     ax.set_yticklabels([])
