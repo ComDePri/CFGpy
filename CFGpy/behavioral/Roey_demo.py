@@ -49,7 +49,7 @@ def from_json(jason_path):
     return preprocessor.preprocess()
 
 
-def add_plot_to_ppt(prs, image_path, title=None):
+def add_one_plot_to_ppt(prs, image_path, title=None):
     # Add a slide with a title and content layout
     slide_layout = prs.slide_layouts[5]  # Choosing a blank slide layout
     slide = prs.slides.add_slide(slide_layout)
@@ -84,6 +84,78 @@ def add_both_plots_to_ppt(prs, shapesImagePath, plotGalleryImagePath, title):
     slide.shapes.add_picture(shapesImagePath, left, top, height=height)
 
 
+def add_error_slide_to_ppt(prs, errors):
+    """
+    Adds a slide with a list of error messages to the presentation.
+    :param prs: Presentation object.
+    :param errors: List of error messages.
+    """
+    slide_layout = prs.slide_layouts[1]  # Choosing a title and content slide layout
+    slide = prs.slides.add_slide(slide_layout)
+
+    # Add title
+    title_box = slide.shapes.title
+    title_box.text = "Errors"
+
+    # Add error messages
+    content_box = slide.placeholders[1]
+    content_box.text = "\n".join(errors)
+
+def create_players_game_presentation(preprocessed_data):
+    # Create a presentation object
+    prs = Presentation()
+    # Collect error messages
+    error_messages = []
+    # Plot each subject's game OR add to presentation
+    for player_data in preprocessed_data:
+
+        if not player_data[PARSED_PLAYER_ID_KEY].startswith("9999"):  # skip the non-player data
+            data = PreprocessedPlayerData(player_data)
+
+            shapesImagePath = data.plot_clusters()
+            plotGalleryImagePath = data.plot_gallery_dt()
+
+            if shapesImagePath != -1 and plotGalleryImagePath != -1:
+                add_both_plots_to_ppt(prs, shapesImagePath, plotGalleryImagePath,
+                                      f"Player {player_data[PARSED_PLAYER_ID_KEY]}")
+                os.remove(shapesImagePath)  # Clean up the image file
+                os.remove(plotGalleryImagePath)  # Clean up the image file
+            else:
+                error_messages.append(
+                    f"{player_data[PARSED_PLAYER_ID_KEY]}, missing necessary phases --> can't create plot")
+
+    # Add a single error slide if there are any errors
+    if error_messages:
+        add_error_slide_to_ppt(prs, error_messages)
+
+    return prs
+
+def create_all_shapes_presentation(preprocessed_data):
+    # Create a presentation object
+    prs = Presentation()
+    # Collect error messages
+    error_messages = []
+    # Plot each subject's game OR add to presentation
+    for player_data in preprocessed_data:
+
+        if not player_data[PARSED_PLAYER_ID_KEY].startswith("9999"):  # skip the non-player data
+            data = PreprocessedPlayerData(player_data)
+
+            shapesImagePath = data.plot_shapes()
+
+            if shapesImagePath != -1:
+                add_one_plot_to_ppt(prs, shapesImagePath, f"Player {player_data[PARSED_PLAYER_ID_KEY]}")
+                os.remove(shapesImagePath)  # Clean up the image file
+            else:
+                error_messages.append(
+                    f"{player_data[PARSED_PLAYER_ID_KEY]}, missing necessary phases --> can't create plot")
+
+    # Add a single error slide if there are any errors
+    if error_messages:
+        add_error_slide_to_ppt(prs, error_messages)
+
+    return prs
+
 if __name__ == '__main__':
 
     # Load data from url & save new JSON
@@ -98,28 +170,21 @@ if __name__ == '__main__':
     # Sort by ID
     preprocessed_data = sorted(preprocessed_data, key=lambda x: x["id"])  # sort by subjects' ID
 
-    # Create a presentation object
-    prs = Presentation()
-
-    # Plot each subject's game OR add to presentation
-    for player_data in preprocessed_data:
-        if not player_data[PARSED_PLAYER_ID_KEY].startswith("9999"):  # skip the non-player data
-            data = PreprocessedPlayerData(player_data)
-
-            shapesImagePath = data.plot_clusters()
-            plotGalleryImagePath = data.plot_gallery_dt()
-
-            if shapesImagePath != -1 and plotGalleryImagePath != -1:
-                add_both_plots_to_ppt(prs, shapesImagePath, plotGalleryImagePath,
-                                f"Player {player_data[PARSED_PLAYER_ID_KEY]}")
-                os.remove(shapesImagePath)  # Clean up the image file
-                os.remove(plotGalleryImagePath)  # Clean up the image file
-            else:
-                print(f"{player_data[PARSED_PLAYER_ID_KEY]}, missing necessary phases --> can't create plot")
-
     # Save the presentation
-    prs_name = f"{PPT_OUTPUT_PATH}player_presentation.pptx"
-    prs.save(prs_name)
-    print(f"PowerPoint presentation saved as '{prs_name}'")
+
+    # create presentation with both plots
+    # prs_game = create_players_game_presentation(preprocessed_data)
+    # prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation.pptx"
+    # prs_game.save(prs_game_name)
+    # print(f"PowerPoint presentation saved as '{prs_game_name}'")
+
+    # create presentation with all shapes plot
+    prs_all_shapes =create_all_shapes_presentation(preprocessed_data)
+    prs_all_shapes_name = f"{PPT_OUTPUT_PATH}all_shapes_presentation.pptx"
+    prs_all_shapes.save(prs_all_shapes_name)
+    print(f"PowerPoint presentation saved as '{prs_all_shapes_name}'")
+
+
+
 
 
