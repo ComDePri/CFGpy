@@ -19,9 +19,11 @@ class Pipeline:
         parsed_data = self.parser.parse()
         self.parser.dump()
 
-        print("Calculating measures...")
+        print("Preprocessing...")
         self.preprocessor = Preprocessor(parsed_data)
         preprocessed_data = self.preprocessor.preprocess()
+
+        print("Calculating measures...")
         self.measure_calculator = MeasureCalculator(preprocessed_data)
         measures_df = self.measure_calculator.calc()
         self.measure_calculator.dump(self.output_filename)

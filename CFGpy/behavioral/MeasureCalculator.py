@@ -232,17 +232,14 @@ class MeasureCalculator:
 
 if __name__ == '__main__':
     import argparse
-    from Preprocessor import Preprocessor
 
     argparser = argparse.ArgumentParser(description="Calculate measures from parsed CFG data")
     argparser.add_argument("-i", "--input", dest="input_filename",
-                           help='Filename of parsed data JSON')
+                           help='Filename of post-parsed data JSON')
     argparser.add_argument("-o", "--output", default=DEFAULT_FINAL_OUTPUT_FILENAME, dest="output_filename",
                            help='Filename of output CSV')
     args = argparser.parse_args()
 
-    pp = Preprocessor.from_json(args.input_filename)
-    preprocessed_data = pp.preprocess()
-    mc = MeasureCalculator(preprocessed_data)
+    mc = MeasureCalculator.from_json(args.input_filename)
     mc.calc()
     mc.dump(args.output_filename)
