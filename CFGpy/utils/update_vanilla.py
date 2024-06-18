@@ -1,5 +1,5 @@
-from CFGpy.behavioral.data_classes import PreprocessedDataset
-from CFGpy.behavioral import Preprocessor
+from CFGpy.behavioral.data_classes import PostparsedDataset
+from CFGpy.behavioral import PostParser
 from utils import get_vanilla, dump_vanilla_descriptors
 
 # combine parsed vanilla data sets:
@@ -8,8 +8,8 @@ from utils import get_vanilla, dump_vanilla_descriptors
 
 # update derived data:
 parsed_vanilla = get_vanilla()
-preprocessed_vanilla = Preprocessor(parsed_vanilla).preprocess()
-vanilla = PreprocessedDataset(preprocessed_vanilla)
+postparsed_vanilla = PostParser(parsed_vanilla).postparse()
+vanilla = PostparsedDataset(postparsed_vanilla)
 
 step_counter, _ = vanilla.step_counter()
 gallery_counter, _ = vanilla.gallery_counter()

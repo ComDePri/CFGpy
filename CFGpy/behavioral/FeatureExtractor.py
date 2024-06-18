@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from datetime import datetime
-from CFGpy.behavioral.data_classes import PreprocessedDataset
+from CFGpy.behavioral.data_classes import PostparsedDataset
 from CFGpy.behavioral._consts import *
 from CFGpy.behavioral._utils import load_json, is_semantic_connection
 from collections.abc import Collection
@@ -36,7 +36,7 @@ class FeatureExtractor:
                  min_n_moves: int = MIN_N_MOVES, min_n_clusters: int = MIN_N_CLUSTERS,
                  min_game_duration: float = MIN_GAME_DURATION_SEC, max_pause_duration: float = MAX_PAUSE_DURATION_SEC,
                  max_zscore_for_outlier: float = MAX_ZSCORE_FOR_OUTLIERS):
-        self.input_data = PreprocessedDataset(preprocessed_data)
+        self.input_data = PostparsedDataset(preprocessed_data)
         self.all_absolute_features = None
         self.output_df = None
 

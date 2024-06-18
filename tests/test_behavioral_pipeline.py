@@ -1,5 +1,5 @@
 import pytest
-from CFGpy.behavioral import Downloader, Parser, Preprocessor, FeatureExtractor
+from CFGpy.behavioral import Downloader, Parser, PostParser, FeatureExtractor
 from CFGpy import NAS_PATH
 import os
 import json
@@ -11,7 +11,7 @@ RED_METRICS_URL_FILENAME = "red_metrics_url.txt"
 TEST_DOWNLOADED_FILENAME = "test_event.csv"
 TEST_PARSED_FILENAME = "test_parsed.json"
 TEST_PARSED_OLD_FORMAT_FILENAME = "test_parsed_old_format.txt"
-TEST_PREPROCESSED_FILENAME = "test_preprocessed.json"
+TEST_POSTPARSED_FILENAME = "test_preprocessed.json"
 TEST_FEATURES_FILENAME = "test_measures.csv"
 
 test_dirs = [os.path.join(TEST_FILES_DIR, filename)
@@ -84,24 +84,24 @@ def test_parser_conversion_to_new_format(test_dir):
 
 
 @pytest.mark.parametrize("test_dir", test_dirs)
-def test_preprocessor(test_dir):
-    preprocessor = Preprocessor.from_json(os.path.join(test_dir, TEST_PARSED_FILENAME))
-    preprocessor.preprocess()
-    preprocessor.dump("preprocessed.json")
+def test_postparser(test_dir):
+    postparser = PostParser.from_json(os.path.join(test_dir, TEST_PARSED_FILENAME))
+    postparser.postparse()
+    postparser.dump("postparsed.json")
 
-    with open(os.path.join(test_dir, TEST_PREPROCESSED_FILENAME), "r") as test_preprocessed_fp:
-        test_preprocessed = test_preprocessed_fp.read()
-    with open("preprocessed.json", "r") as preprocessed_fp:
-        preprocessed = preprocessed_fp.read()
+    with open(os.path.join(test_dir, TEST_POSTPARSED_FILENAME), "r") as test_postparsed_fp:
+        test_postparsed = test_postparsed_fp.read()
+    with open("postparsed.json", "r") as postparsed_fp:
+        postparsed = postparsed_fp.read()
 
-    assert test_preprocessed == preprocessed
+    assert test_postparsed == postparsed
 
 
 @pytest.mark.parametrize("test_dir", test_dirs)
 def test_feature_extractor(test_dir):
-    with open(os.path.join(test_dir, TEST_PREPROCESSED_FILENAME), "r") as test_preprocessed_fp:
-        preprocessed_data = json.load(test_preprocessed_fp)
-    feature_extractor = FeatureExtractor(preprocessed_data)
+    with open(os.path.join(test_dir, TEST_POSTPARSED_FILENAME), "r") as test_postparsed_fp:
+        postparsed_data = json.load(test_postparsed_fp)
+    feature_extractor = FeatureExtractor(postparsed_data)
     feature_extractor.extract()
     feature_extractor.dump("features.csv")
 

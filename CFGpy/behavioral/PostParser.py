@@ -2,10 +2,10 @@ from CFGpy.behavioral._utils import *
 from CFGpy.behavioral._consts import *
 from CFGpy.utils import binary_shape_to_id as bin2id
 
-DEFAULT_OUTPUT_FILENAME = "preprocessed.json"
+DEFAULT_OUTPUT_FILENAME = "postparsed.json"
 
 
-class Preprocessor:
+class PostParser:
     def __init__(self, parsed_data):
         self.all_players_data = parsed_data
 
@@ -13,7 +13,7 @@ class Preprocessor:
     def from_json(cls, path: str):
         return cls(load_json(path))
 
-    def preprocess(self):
+    def postparse(self):
         self.convert_shape_ids()
         self.handle_empty_moves()
         self.add_explore_exploit()
@@ -56,13 +56,13 @@ class Preprocessor:
 if __name__ == '__main__':
     import argparse
 
-    argparser = argparse.ArgumentParser(description="Calculate measures from parsed CFG data")
+    argparser = argparse.ArgumentParser(description="Post-parse CFG data")
     argparser.add_argument("-i", "--input", dest="input_filename",
                            help='Filename of parsed data JSON')
     argparser.add_argument("-o", "--output", default=DEFAULT_FINAL_OUTPUT_FILENAME, dest="output_filename",
                            help='Filename of output JSON')
     args = argparser.parse_args()
 
-    pp = Preprocessor.from_json(args.input_filename)
-    pp.preprocess()
+    pp = PostParser.from_json(args.input_filename)
+    pp.postparse()
     pp.dump(args.output_filename)
