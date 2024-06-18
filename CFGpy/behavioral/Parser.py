@@ -3,7 +3,7 @@ import pandas as pd
 import json
 import re
 from datetime import datetime, timezone
-from CFGpy.behavioral._utils import csv_coords_to_bin_coords, prettify_games_json, CFGPipelineException
+from CFGpy.behavioral._utils import server_coords_to_binary_shape, prettify_games_json, CFGPipelineException
 from CFGpy.behavioral._consts import *
 
 DEFAULT_OUTPUT_FILENAME = "parsed.json"
@@ -80,8 +80,8 @@ class Parser:
         return cls(raw_data, include_in_id, id_columns)
 
     def parse(self):
-        preprocessed_data = self._preprocess_data()
-        grouped_by_unique_id = preprocessed_data.groupby(self.unique_internal_id_column)
+        prepared_data = self._prepare_data()
+        grouped_by_unique_id = prepared_data.groupby(self.unique_internal_id_column)
         hard_filtered_games = grouped_by_unique_id.filter(self._apply_hard_filters)
         self.parsed_data = self._parse_all_player_games(hard_filtered_games)
         return self.parsed_data
@@ -92,7 +92,7 @@ class Parser:
         with open(path, "w") as out_file:
             out_file.write(json_str)
 
-    def _preprocess_data(self):
+    def _prepare_data(self):
         data = self.patchfix_csv_data(self.raw_data)
         data[self.json_column] = data[self.json_column].apply(json.loads)
         all_json_keys = self.get_all_json_keys_from_csv_data(data)
@@ -175,7 +175,7 @@ class Parser:
 
         game_data[self.time_column] = (game_data[self.time_column] - game_start_time).apply(
             lambda time_delta: time_delta.total_seconds())
-        game_data[self.shape_move_column] = game_data[self.shape_move_column].apply(csv_coords_to_bin_coords)
+        game_data[self.shape_move_column] = game_data[self.shape_move_column].apply(server_coords_to_binary_shape)
 
         game_data[self.gallery_save_time_column] = None
 
