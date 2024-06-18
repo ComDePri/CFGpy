@@ -16,20 +16,25 @@ def load_json(json_path):
     return j
 
 
-def csv_coords_to_bin_coords(csv_coords):
-    if csv_coords == "" or csv_coords is np.nan:
+def server_coords_to_binary_shape(coords):
+    """
+    Wraps _server_coords_to_binary_shape to handle edge cases
+    :param coords: as found in raw data from server, in customData.newShape col
+    :return: list of ints if input is valid
+    """
+    if coords == "" or coords is np.nan:
         return None
 
-    if type(csv_coords) is str:
-        csv_coords = json.loads(csv_coords)
+    if type(coords) is str:
+        coords = json.loads(coords)
 
-    if type(csv_coords) is not list:
-        raise TypeError('Received incorrect type as csv_coords, should be str or list, received', type(csv_coords))
+    if type(coords) is not list:
+        raise TypeError('Received incorrect type as csv_coords, should be str or list, received', type(coords))
 
-    return coords_to_bin_coords(csv_coords)
+    return _server_coords_to_binary_shape(coords)
 
 
-def coords_to_bin_coords(coords):
+def _server_coords_to_binary_shape(coords):
     """
     Converts shape coordinates from str as saved on the server to a binary number list representation,
     We get a list of coordinates representing sqaures in a 10x10 matrix, we take each row of the matrix, and encode it as a binary sequence.
@@ -47,7 +52,7 @@ def coords_to_bin_coords(coords):
         o,o,o,o,o,o,o,o,o,o
         o,o,o,o,o,o,o,o,o,o
 
-    :param server_coords_str: as found in raw data from server, in customData.newShape col
+    :param coords: as found in raw data from server, in customData.newShape col
     :return: list of ints
     """
     zero_centered = np.array(coords).T[::-1]
