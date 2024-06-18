@@ -6,6 +6,7 @@ SHAPE_ID_IDX = 0
 SHAPE_MOVE_TIME_IDX = 1
 SHAPE_SAVE_TIME_IDX = 2
 PARSED_CHOSEN_SHAPES_KEY = 'chosen_shapes'
+PRETTIFY_WARNING = "Creating a pretty JSON may take a while! Avoid if the file is very big."
 
 # preprocessing
 MIN_SAVE_FOR_EXPLOIT = 3

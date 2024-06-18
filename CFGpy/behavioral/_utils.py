@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import json
 import re
+import warnings
+from tqdm import tqdm
 from _ctypes import PyObj_FromPtr
 from CFGpy.behavioral._consts import *
 
@@ -138,8 +140,9 @@ def is_semantic_connection(cluster1, cluster2):
 # json formatting utils #
 #########################
 def prettify_games_json(parsed_games):
+    warnings.warn(PRETTIFY_WARNING)
     prettified_games = []
-    for game in parsed_games:
+    for game in tqdm(parsed_games, desc="games"):
         game['actions'] = [NoIndent(action) for action in game['actions']]
         chosen_shapes = game.get(PARSED_CHOSEN_SHAPES_KEY, None)
         if chosen_shapes is not None:
