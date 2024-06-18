@@ -1,4 +1,4 @@
-from CFGpy.behavioral import Downloader, Parser, Preprocessor, MeasureCalculator
+from CFGpy.behavioral import Downloader, Parser, Preprocessor, FeatureExtractor
 from CFGpy.behavioral._consts import DEFAULT_FINAL_OUTPUT_FILENAME
 
 
@@ -8,7 +8,7 @@ class Pipeline:
         self.downloader = Downloader(red_metrics_csv_url)
         self.parser = None
         self.preprocessor = None
-        self.measure_calculator = None
+        self.feature_extractor = None
 
     def run_pipeline(self):
         print("Downloading raw data...")
@@ -24,12 +24,12 @@ class Pipeline:
         preprocessed_data = self.preprocessor.preprocess()
 
         print("Calculating measures...")
-        self.measure_calculator = MeasureCalculator(preprocessed_data)
-        measures_df = self.measure_calculator.calc()
-        self.measure_calculator.dump(self.output_filename)
+        self.feature_extractor = FeatureExtractor(preprocessed_data)
+        features_df = self.feature_extractor.extract()
+        self.feature_extractor.dump(self.output_filename)
         print(f"Results written successfully to {self.output_filename}")
 
-        return measures_df
+        return features_df
 
 
 if __name__ == '__main__':

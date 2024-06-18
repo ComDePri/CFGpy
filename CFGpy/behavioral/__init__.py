@@ -1,5 +1,5 @@
 from .Downloader import Downloader
 from .Parser import Parser
 from .Preprocessor import Preprocessor
-from .MeasureCalculator import MeasureCalculator
+from .FeatureExtractor import FeatureExtractor
 from .Pipeline import Pipeline

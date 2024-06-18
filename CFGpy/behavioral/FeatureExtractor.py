@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from datetime import datetime
-from CFGpy.behavioral.data_structs import PreprocessedDataset
+from CFGpy.behavioral.data_classes import PreprocessedDataset
 from CFGpy.behavioral._consts import *
 from CFGpy.behavioral._utils import load_json, is_semantic_connection
 from collections.abc import Collection
@@ -31,13 +31,13 @@ def is_cluster_in_GC(cluster, GC):
     return False
 
 
-class MeasureCalculator:
+class FeatureExtractor:
     def __init__(self, preprocessed_data, manually_excluded_ids: Collection = MANUALLY_EXCLUDED_IDS,
                  min_n_moves: int = MIN_N_MOVES, min_n_clusters: int = MIN_N_CLUSTERS,
                  min_game_duration: float = MIN_GAME_DURATION_SEC, max_pause_duration: float = MAX_PAUSE_DURATION_SEC,
                  max_zscore_for_outlier: float = MAX_ZSCORE_FOR_OUTLIERS):
         self.input_data = PreprocessedDataset(preprocessed_data)
-        self.all_absolute_measures = None
+        self.all_absolute_features = None
         self.output_df = None
 
         self.manually_excluded_ids = manually_excluded_ids
@@ -46,21 +46,21 @@ class MeasureCalculator:
         self.min_game_duration = min_game_duration
         self.max_pause_duration = max_pause_duration
         self.max_zscore_for_outlier = max_zscore_for_outlier
-        self.exclusions = pd.DataFrame(columns=[MEASURES_ID_KEY, "reason"])
+        self.exclusions = pd.DataFrame(columns=[FEATURES_ID_KEY, "reason"])
 
     @classmethod
     def from_json(cls, path: str):
         return cls(load_json(path))
 
-    def calc(self):
-        self.all_absolute_measures = self._calc_absolute_measures()
-        self.output_df = self.all_absolute_measures.copy()
+    def extract(self):
+        self.all_absolute_features = self._extract_absolute_features()
+        self.output_df = self.all_absolute_features.copy()
         self._drop_nonfirst_games()
-        vanilla_relative_measures = self._calc_relative_measures(get_vanilla_descriptors())
-        self.output_df = self.output_df.merge(vanilla_relative_measures, on=MEASURES_ID_KEY)
+        vanilla_relative_features = self._extract_relative_features(get_vanilla_descriptors())
+        self.output_df = self.output_df.merge(vanilla_relative_features, on=FEATURES_ID_KEY)
         self._apply_soft_filters()
-        sample_relative_measures = self._calc_relative_measures(self.input_data.get_descriptors(), label="sample")
-        self.output_df = self.output_df.merge(sample_relative_measures, on=MEASURES_ID_KEY, how="left")
+        sample_relative_features = self._extract_relative_features(self.input_data.get_descriptors(), label="sample")
+        self.output_df = self.output_df.merge(sample_relative_features, on=FEATURES_ID_KEY, how="left")
 
         return self.output_df
 
@@ -69,8 +69,8 @@ class MeasureCalculator:
         # TODO: document all filtered ids and filtering criteria
         # TODO: write html with dashboards to inspect data quality and some summary stats
 
-    def get_all_absolute_measures(self):
-        return self.all_absolute_measures
+    def get_all_absolute_features(self):
+        return self.all_absolute_features
 
     def _drop_nonfirst_games(self):
         """
@@ -78,8 +78,8 @@ class MeasureCalculator:
         """
         self.input_data.drop_non_first_games()
         self.output_df = (self.output_df.
-                          sort_values(by=[MEASURES_START_TIME_KEY], ascending=True).
-                          drop_duplicates(subset=[MEASURES_ID_KEY], keep="first").
+                          sort_values(by=[FEATURES_START_TIME_KEY], ascending=True).
+                          drop_duplicates(subset=[FEATURES_ID_KEY], keep="first").
                           reset_index(drop=True))
 
     def _apply_soft_filters(self):
@@ -96,12 +96,12 @@ class MeasureCalculator:
 
     def _get_absolute_filters(self):
         """
-        Absolute filters are based on absolute measures, can be applied independently of each other. Each filter is
+        Absolute filters are based on absolute features, can be applied independently of each other. Each filter is
         represented by a textual description and a mask with **True for players to exclude**, False for players to keep.
         :return: masks, reasons.
         """
         reasons = ("Manually excluded id", "Did not exploit", "Too few moves", "Game too short", "Paused for too long")
-        masks = (self.output_df[MEASURES_ID_KEY].isin(self.manually_excluded_ids),
+        masks = (self.output_df[FEATURES_ID_KEY].isin(self.manually_excluded_ids),
                  self.output_df[N_CLUSTERS_KEY] < self.min_n_clusters,
                  self.output_df[N_MOVES_KEY] < self.min_n_moves,
                  self.output_df[GAME_DURATION_KEY] < self.min_game_duration,
@@ -129,22 +129,22 @@ class MeasureCalculator:
         :param reasons: a collection of strings describing exclusion reasons for the masks.
         """
         for is_excluded, reason in zip(masks, reasons):
-            ids_to_exclude = self.output_df.loc[is_excluded, MEASURES_ID_KEY]
+            ids_to_exclude = self.output_df.loc[is_excluded, FEATURES_ID_KEY]
             current_exclusion = pd.DataFrame({
-                MEASURES_ID_KEY: ids_to_exclude,
+                FEATURES_ID_KEY: ids_to_exclude,
                 "reason": [reason] * len(ids_to_exclude)
             })
             pd.concat((self.exclusions, current_exclusion))
 
-    def _calc_absolute_measures(self):
-        absolute_measures = []
+    def _extract_absolute_features(self):
+        absolute_features = []
 
         n_galleries_in_explore = []
         total_explore_times = []
         total_exploit_times = []
         total_explore_lengths = []
         total_exploit_lengths = []
-        print("Calculating absolute measures...")
+        print("Extracting absolute features...")
         for player_data in tqdm(self.input_data):
             # pre-calculations
             explore_lengths = [end - start for start, end in player_data.explore_slices]
@@ -161,9 +161,9 @@ class MeasureCalculator:
 
             # player-wise calculations
             explore_efficiency, exploit_efficiency = player_data.get_efficiency()
-            absolute_measures.append({
-                MEASURES_ID_KEY: player_data.id,
-                MEASURES_START_TIME_KEY: datetime.fromtimestamp(player_data.start_time).isoformat(),
+            absolute_features.append({
+                FEATURES_ID_KEY: player_data.id,
+                FEATURES_START_TIME_KEY: datetime.fromtimestamp(player_data.start_time).isoformat(),
                 GAME_DURATION_KEY: player_data.get_last_action_time(),
                 N_MOVES_KEY: len(player_data),
                 N_GALLERIES_KEY: sum(is_gallery),
@@ -176,18 +176,18 @@ class MeasureCalculator:
                 LONGEST_PAUSE_KEY: player_data.get_max_pause_duration()
             })
 
-        # vectorized calculations
-        measures_df = pd.DataFrame(absolute_measures)
-        measures_df["Average Speed"] = measures_df[N_MOVES_KEY] / measures_df[GAME_DURATION_KEY]
-        measures_df["% galleries in exp"] = pd.Series(n_galleries_in_explore) / measures_df[N_GALLERIES_KEY]
-        measures_df["% time in exp"] = pd.Series(total_explore_times) / measures_df[GAME_DURATION_KEY]
-        measures_df["efficiency ratio"] = measures_df[EXPLORE_EFFICIENCY_KEY] / measures_df[EXPLOIT_EFFICIENCY_KEY]
-        measures_df["exp speed"] = pd.Series(total_explore_lengths) / pd.Series(total_explore_times)
-        measures_df["scav speed"] = pd.Series(total_exploit_lengths) / pd.Series(total_exploit_times)
+        # vectorized operations
+        features_df = pd.DataFrame(absolute_features)
+        features_df["Average Speed"] = features_df[N_MOVES_KEY] / features_df[GAME_DURATION_KEY]
+        features_df["% galleries in exp"] = pd.Series(n_galleries_in_explore) / features_df[N_GALLERIES_KEY]
+        features_df["% time in exp"] = pd.Series(total_explore_times) / features_df[GAME_DURATION_KEY]
+        features_df["efficiency ratio"] = features_df[EXPLORE_EFFICIENCY_KEY] / features_df[EXPLOIT_EFFICIENCY_KEY]
+        features_df["exp speed"] = pd.Series(total_explore_lengths) / pd.Series(total_explore_times)
+        features_df["scav speed"] = pd.Series(total_exploit_lengths) / pd.Series(total_exploit_times)
 
-        return measures_df
+        return features_df
 
-    def _calc_relative_measures(self, descriptors, label=None):
+    def _extract_relative_features(self, descriptors, label=None):
         steps_not_uniquely_covered, step_counter, galleries_not_uniquely_covered, gallery_counter, GC = descriptors
         label_ext = f" ({label})" if label else ""
 
@@ -195,8 +195,8 @@ class MeasureCalculator:
         step_orig_map = step_orig_map_factory(step_counter)
         gallery_orig_map = gallery_orig_map_factory(gallery_counter)
 
-        relative_measures = []
-        print(f"Calculating relative{label_ext} measures...")
+        relative_features = []
+        print(f"Extracting relative{label_ext} features...")
         for player_data in tqdm(self.input_data):
             steps = player_data.get_steps()
             step_orig = [step_orig_map[step] for step in steps]
@@ -210,8 +210,8 @@ class MeasureCalculator:
             frac_clusters_in_GC = (n_clusters_in_GC / len(player_data.exploit_slices)
                                    if player_data.exploit_slices else None)
 
-            relative_measures.append({
-                MEASURES_ID_KEY: player_data.id,
+            relative_features.append({
+                FEATURES_ID_KEY: player_data.id,
                 f"Step Orig{label_ext}": np.mean(step_orig),
                 f"% steps uniquely covered{label_ext}": _get_frac_uniquely_covered(steps, steps_not_uniquely_covered),
                 f"Gallery Orig{label_ext}": np.mean(gallery_orig),
@@ -227,19 +227,19 @@ class MeasureCalculator:
                 f"% clusters in GC{label_ext}": frac_clusters_in_GC,
             })
 
-        return pd.DataFrame(relative_measures)
+        return pd.DataFrame(relative_features)
 
 
 if __name__ == '__main__':
     import argparse
 
-    argparser = argparse.ArgumentParser(description="Calculate measures from parsed CFG data")
+    argparser = argparse.ArgumentParser(description="Extract features from a post-parsed CFG data")
     argparser.add_argument("-i", "--input", dest="input_filename",
                            help='Filename of post-parsed data JSON')
     argparser.add_argument("-o", "--output", default=DEFAULT_FINAL_OUTPUT_FILENAME, dest="output_filename",
                            help='Filename of output CSV')
     args = argparser.parse_args()
 
-    mc = MeasureCalculator.from_json(args.input_filename)
-    mc.calc()
-    mc.dump(args.output_filename)
+    fe = FeatureExtractor.from_json(args.input_filename)
+    fe.extract()
+    fe.dump(args.output_filename)

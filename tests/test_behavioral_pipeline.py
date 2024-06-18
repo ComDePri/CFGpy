@@ -1,5 +1,5 @@
 import pytest
-from CFGpy.behavioral import Downloader, Parser, Preprocessor, MeasureCalculator
+from CFGpy.behavioral import Downloader, Parser, Preprocessor, FeatureExtractor
 from CFGpy import NAS_PATH
 import os
 import json
@@ -12,7 +12,7 @@ TEST_DOWNLOADED_FILENAME = "test_event.csv"
 TEST_PARSED_FILENAME = "test_parsed.json"
 TEST_PARSED_OLD_FORMAT_FILENAME = "test_parsed_old_format.txt"
 TEST_PREPROCESSED_FILENAME = "test_preprocessed.json"
-TEST_MEASURES_FILENAME = "test_measures.csv"
+TEST_FEATURES_FILENAME = "test_measures.csv"
 
 test_dirs = [os.path.join(TEST_FILES_DIR, filename)
              for filename in os.listdir(TEST_FILES_DIR)
@@ -98,19 +98,19 @@ def test_preprocessor(test_dir):
 
 
 @pytest.mark.parametrize("test_dir", test_dirs)
-def test_measures_calculator(test_dir):
+def test_feature_extractor(test_dir):
     with open(os.path.join(test_dir, TEST_PREPROCESSED_FILENAME), "r") as test_preprocessed_fp:
         preprocessed_data = json.load(test_preprocessed_fp)
-    measures_calculator = MeasureCalculator(preprocessed_data)
-    measures_calculator.calc()
-    measures_calculator.dump("measures.csv")
+    feature_extractor = FeatureExtractor(preprocessed_data)
+    feature_extractor.extract()
+    feature_extractor.dump("features.csv")
 
-    test_measures = pd.read_csv(os.path.join(test_dir, TEST_MEASURES_FILENAME)).sort_values("ID").reset_index(drop=True)
-    measures = pd.read_csv("measures.csv").sort_values("ID").reset_index(drop=True)
-    assert len(test_measures) == len(measures)
-    for col in test_measures:
-        assert col in measures
-        if test_measures[col].dtype == "float64":
-            assert np.allclose(test_measures[col], measures[col], equal_nan=True)
+    test_features = pd.read_csv(os.path.join(test_dir, TEST_FEATURES_FILENAME)).sort_values("ID").reset_index(drop=True)
+    features = pd.read_csv("features.csv").sort_values("ID").reset_index(drop=True)
+    assert len(test_features) == len(features)
+    for col in test_features:
+        assert col in features
+        if test_features[col].dtype == "float64":
+            assert np.allclose(test_features[col], features[col], equal_nan=True)
         elif col != "Date/Time":  # date/time causes problems with subjects that played during daylight saving
-            assert test_measures[col].equals(measures[col])
+            assert test_features[col].equals(features[col])
