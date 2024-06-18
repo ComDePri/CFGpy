@@ -81,8 +81,8 @@ class Parser:
 
     def parse(self):
         prepared_data = self._prepare_data()
-        grouped_by_unique_id = prepared_data.groupby(self.unique_internal_id_column)
-        hard_filtered_games = grouped_by_unique_id.filter(self._apply_hard_filters)
+        games_grouped_by_unique_id = prepared_data.groupby(self.unique_internal_id_column)
+        hard_filtered_games = games_grouped_by_unique_id.filter(self._apply_hard_filters)
         self.parsed_data = self._parse_all_player_games(hard_filtered_games)
         return self.parsed_data
 
