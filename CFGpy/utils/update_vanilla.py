@@ -1,4 +1,4 @@
-from CFGpy.behavioral.data_structs import PreprocessedDataset
+from CFGpy.behavioral.data_classes import PreprocessedDataset
 from CFGpy.behavioral import Preprocessor
 from utils import get_vanilla, dump_vanilla_descriptors
 
