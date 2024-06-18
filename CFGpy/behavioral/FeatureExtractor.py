@@ -7,7 +7,7 @@ from CFGpy.behavioral._utils import load_json, is_semantic_connection
 from collections.abc import Collection
 from functools import reduce
 from scipy.stats import zscore
-from CFGpy.utils import get_vanilla_descriptors, step_orig_map_factory, gallery_orig_map_factory
+from CFGpy.utils import get_vanilla_stats, step_orig_map_factory, gallery_orig_map_factory
 from tqdm import tqdm
 
 
@@ -56,10 +56,10 @@ class FeatureExtractor:
         self.all_absolute_features = self._extract_absolute_features()
         self.output_df = self.all_absolute_features.copy()
         self._drop_nonfirst_games()
-        vanilla_relative_features = self._extract_relative_features(get_vanilla_descriptors())
+        vanilla_relative_features = self._extract_relative_features(get_vanilla_stats())
         self.output_df = self.output_df.merge(vanilla_relative_features, on=FEATURES_ID_KEY)
         self._apply_soft_filters()
-        sample_relative_features = self._extract_relative_features(self.input_data.get_descriptors(), label="sample")
+        sample_relative_features = self._extract_relative_features(self.input_data.get_stats(), label="sample")
         self.output_df = self.output_df.merge(sample_relative_features, on=FEATURES_ID_KEY, how="left")
 
         return self.output_df
@@ -187,8 +187,8 @@ class FeatureExtractor:
 
         return features_df
 
-    def _extract_relative_features(self, descriptors, label=None):
-        steps_not_uniquely_covered, step_counter, galleries_not_uniquely_covered, gallery_counter, GC = descriptors
+    def _extract_relative_features(self, stats, label=None):
+        steps_not_uniquely_covered, step_counter, galleries_not_uniquely_covered, gallery_counter, GC = stats
         label_ext = f" ({label})" if label else ""
 
         # TODO: use d parameter as discussed with Yuval

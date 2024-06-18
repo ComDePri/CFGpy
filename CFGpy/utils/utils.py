@@ -33,7 +33,12 @@ def dump_vanilla(vanilla):
         return json.dump(vanilla, vanilla_fp)
 
 
-def get_vanilla_descriptors():
+def get_vanilla_stats():
+    """
+    Returns the necessary information for extraction of features relative to vanilla, as required by
+    behavioral.FeatureExtractor._extract_relative_features.
+    cf. behavioral.data_classes.PostparsedDataset.get_stats
+    """
     with open(VANILLA_STEP_COUNTER_PATH) as step_counter_fp:
         step_counter_dict = json.load(step_counter_fp)
     step_counter = Counter({tuple(json.loads(key)): orig for key, orig in step_counter_dict.items()})
@@ -53,7 +58,7 @@ def get_vanilla_descriptors():
     return covered_steps, step_counter, covered_galleries, gallery_counter, giant_component
 
 
-def dump_vanilla_descriptors(step_counter, gallery_counter, giant_component):
+def dump_vanilla_stats(step_counter, gallery_counter, giant_component):
     # prepare for serialization:
     step_counter = {str(list(step)): orig for step, orig in step_counter.items()}
     giant_component = [list(node) for node in giant_component]

@@ -68,7 +68,7 @@ class ParsedPlayerData:
         return len(unique_shapes) / len(shapes_no_consecutive_duplicates)
 
 
-class PreprocessedPlayerData(ParsedPlayerData):
+class PostparsedPlayerData(ParsedPlayerData):
     def __init__(self, player_data):
         self.explore_slices = player_data[EXPLORE_KEY]
         self.exploit_slices = player_data[EXPLOIT_KEY]
@@ -232,7 +232,14 @@ class ParsedDataset:
         not_uniquely_covered = [key for key, count in counter.items() if count > 1]
         return not_uniquely_covered
 
-    def get_descriptors(self):
+    def get_stats(self):
+        """
+        Returns the necessary information for extraction of features relative to this dataset. Namely:
+         steps_not_uniquely_covered: steps that more than one player took.
+         n_times_step_taken: a mapping from a step to the number of time it was taken.
+         galleries_not_uniquely_covered: shapes that more than one player saved to gallery.
+         n_times_gallery_saved: a mapping from a shape to the number of time it was saved to gallery.
+        """
         n_times_step_taken, n_players_took_step = self.step_counter()
         n_times_gallery_saved, n_players_saved_gallery = self.gallery_counter()
 
@@ -242,7 +249,7 @@ class ParsedDataset:
         return steps_not_uniquely_covered, n_times_step_taken, galleries_not_uniquely_covered, n_times_gallery_saved
 
 
-class PreprocessedDataset(ParsedDataset):
+class PostparsedDataset(ParsedDataset):
     def __init__(self, input_data):
         """
         Expects a list of dicts like the output from Preprocessor.preprocess()
@@ -252,7 +259,7 @@ class PreprocessedDataset(ParsedDataset):
 
     def _reset_state(self, input_data):
         self.input_data = input_data
-        self.players_data = [PreprocessedPlayerData(player_data) for player_data in self.input_data]
+        self.players_data = [PostparsedPlayerData(player_data) for player_data in self.input_data]
 
     def get_all_exploit_clusters(self):
         all_exploit_clusters = []
@@ -272,10 +279,10 @@ class PreprocessedDataset(ParsedDataset):
 
         return GC
 
-    def get_descriptors(self):
+    def get_stats(self):
         """
-        Returns the same descriptors as a ParsedDataset would, plus its GC
+        Returns the same stats as a ParsedDataset would, plus its GC
         :return: 5-tuple
         """
         giant_component = self._calc_giant_component()
-        return super().get_descriptors() + (giant_component,)
+        return super().get_stats() + (giant_component,)
