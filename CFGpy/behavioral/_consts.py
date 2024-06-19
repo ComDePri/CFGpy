@@ -10,6 +10,7 @@ PARSED_CHOSEN_SHAPES_KEY = 'chosen_shapes'
 
 # preprocessing
 MIN_SAVE_FOR_EXPLOIT = 3
+MIN_EFFICIENCY_FOR_EXPLOIT = 0.8 # This should be 0 for regular games, and 0.8 for MRI games
 EXPLORE_KEY = "explore"
 EXPLOIT_KEY = "exploit"
 
