@@ -105,8 +105,9 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, m
         clusters = [np.concatenate(all_monotone_series[monotone_series].values)
                     for monotone_series in twice_monotone_series]
 
-    # Add code to group sequences based on efficiency
-    clusters = group_by_efficiency(clusters, shapes_df, min_efficieny)
+        # Add code to group sequences based on efficiency
+        # TODO: Consider doing this twice: get clusters > add efficiency correction > group based on time > add efficiency correction
+        clusters = group_by_efficiency(clusters, shapes_df, gallery_indices, min_efficieny)
 
     # Initialize lists for exploit and explore slices
     exploit_slices = []
@@ -148,7 +149,7 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, m
     # Return the identified explore and exploit slices
     return explore_slices, exploit_slices
 
-def group_by_efficiency(clusters, shapes_df, min_efficiency):
+def group_by_efficiency(clusters, shapes_df, gallery_indices, min_efficiency):
     """
     Groups sequences based on the criterion that the efficiency measure between 
     the last shape of the first sequence and the first shape of the following sequence 
@@ -164,12 +165,12 @@ def group_by_efficiency(clusters, shapes_df, min_efficiency):
         prev_shape_idx = current_cluster[-1]
         next_shape_idx = clusters[i][0]
         
-        prev_shape_id = shapes_df.iloc[prev_shape_idx, SHAPE_ID_IDX]
-        next_shape_id = shapes_df.iloc[next_shape_idx, SHAPE_ID_IDX]
+        prev_shape_id = shapes_df.iloc[gallery_indices[prev_shape_idx], SHAPE_ID_IDX]
+        next_shape_id = shapes_df.iloc[gallery_indices[next_shape_idx], SHAPE_ID_IDX]
 
         # Calculate the shortest path length between shapes
         shortest_path_len = get_shortest_path_len(prev_shape_id, next_shape_id)
-        actual_path_len = next_shape_idx - prev_shape_idx
+        actual_path_len = gallery_indices[next_shape_idx] - gallery_indices[prev_shape_idx]
 
         # Calculate efficiency
         efficiency = shortest_path_len / actual_path_len

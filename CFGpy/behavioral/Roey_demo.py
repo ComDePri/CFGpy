@@ -12,10 +12,8 @@ from pptx.util import Inches
 CSV_URL = "https://api.creativeforagingtask.com/v1/event.csv?game=4cb46367-7555-\
 42cb-8915-152c3f3efdfb&entityType=event&after=2021-05-23T10:51:00.\
 000Z"  # link Roey sent
-CSV_FILE_PATH = "/Users/avivgreenburg/Library/CloudStorage/GoogleDrive-aviv.greenburg@mail.huji.ac.il/My " \
-                "Drive/שלי/לימודים/Uni_2020-2024/forth_year/lab/event.csv"
-ROY_TEST_JASON = "/Users/avivgreenburg/Library/CloudStorage/GoogleDrive-aviv.greenburg@mail.huji.ac.il/\
-My Drive\/שלי/לימודים/Uni_2020-2024/forth_year/lab/CFGpy/CFGpy/behavioral/test_file1.json"
+CSV_FILE_PATH = "/home/roey/Documents/CFG_data/event.csv"
+ROY_TEST_JASON = "/home/roey/PycharmProjects/CFGpy/CFGpy/behavioral/test_file1.json"
 
 PPT_OUTPUT_PATH = 'output/'
 
@@ -157,9 +155,9 @@ def create_all_shapes_presentation(preprocessed_data):
     return prs
 
 if __name__ == '__main__':
-
+    # NOTE: Change here to one of 3 options for loading the data
     # Load data from url & save new JSON
-    # preprocessed_data = from_url(CSV_URL)
+    #preprocessed_data = from_url(CSV_URL)
 
     # Load data from csv
     # preprocessed_data = from_file(CSV_FILE_PATH)
@@ -173,10 +171,10 @@ if __name__ == '__main__':
     # Save the presentation
 
     # create presentation with both plots
-    # prs_game = create_players_game_presentation(preprocessed_data)
-    # prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation.pptx"
-    # prs_game.save(prs_game_name)
-    # print(f"PowerPoint presentation saved as '{prs_game_name}'")
+    prs_game = create_players_game_presentation(preprocessed_data)
+    prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation.pptx"
+    prs_game.save(prs_game_name)
+    print(f"PowerPoint presentation saved as '{prs_game_name}'")
 
     # create presentation with all shapes plot
     prs_all_shapes =create_all_shapes_presentation(preprocessed_data)
