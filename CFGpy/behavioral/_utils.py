@@ -140,7 +140,7 @@ def prettify_games_json(parsed_games):
     prettified_games = []
     for game in parsed_games:
         game['actions'] = [NoIndent(action) for action in game['actions']]
-        chosen_shapes = game.get(PARSED_CHOSENj_SHAPES_KEY, None)
+        chosen_shapes = game.get(PARSED_CHOSEN_SHAPES_KEY, None)
         if chosen_shapes is not None:
             game[PARSED_CHOSEN_SHAPES_KEY] = [NoIndent(chosen_shape) for chosen_shape in chosen_shapes]
 
