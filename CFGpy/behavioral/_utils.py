@@ -103,11 +103,13 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, m
         all_monotone_series = pd.Series(group_by_monotone_decreasing(gallery_diffs))
 
         # Group clusters based on efficiency (First time)
-        #all_monotone_series = group_by_efficiency(all_monotone_series, shapes_df, gallery_indices, min_efficieny)
+        all_monotone_series_list = [all_monotone_series[i] for i in range(len(all_monotone_series))]
+        all_monotone_series_list = group_by_efficiency(all_monotone_series_list, shapes_df, gallery_indices, min_efficieny)
 
         # Calculate the peaks (first elements) of each monotone sequence
-        gallery_diffs_peaks = np.array([gallery_diffs[monotone_series[0]] for monotone_series in all_monotone_series])
-        
+        #gallery_diffs_peaks = np.array([gallery_diffs[monotone_series[0]] for monotone_series in all_monotone_series])
+        gallery_diffs_peaks = np.array([gallery_diffs[monotone_series[0]] for monotone_series in all_monotone_series_list])
+
         # Group these peaks into further monotone decreasing sequences
         twice_monotone_series = group_by_monotone_decreasing(gallery_diffs_peaks)
 
