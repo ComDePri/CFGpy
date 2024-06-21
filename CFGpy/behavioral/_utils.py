@@ -60,57 +60,134 @@ def coords_to_bin_coords(coords):
     shape_id = [int(d) for d in shape_id_wth_0 if d != 0]
     return shape_id
 
-
-def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT):
+def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, min_efficieny=MIN_EFFICIENCY_FOR_EXPLOIT):
+    # Determine the number of shapes
     n_shapes = len(shapes)
+    
+    # Default return value if no "exploit" clusters are found
     no_exploit_return_value = [(0, n_shapes)], []
+    
+    # Convert shapes data to a pandas DataFrame
     shapes_df = pd.DataFrame(shapes)
 
+    # Extract the save times of shapes
     gallery_saves = shapes_df[SHAPE_SAVE_TIME_IDX]
+    
+    # Find indices where shapes have save times
     gallery_indices = np.flatnonzero(gallery_saves.notna())
+    
+    # Return the default value if no shapes were saved
     if not any(gallery_indices):
         return no_exploit_return_value
 
+    # Get the in and out times of shapes based on save indices
     gallery_in_times = shapes_df.iloc[gallery_indices][SHAPE_MOVE_TIME_IDX]
     gallery_out_times = shapes_df.iloc[gallery_indices][SHAPE_MAX_MOVE_TIME_IDX]
+    
+    # Calculate time differences between consecutive shape movements
     gallery_diffs = gallery_in_times - gallery_out_times.shift()
-    gallery_diffs.iloc[0] = 0
+    gallery_diffs.iloc[0] = 0  # Set the first difference to 0 (no previous shape to compare with)
     gallery_diffs = gallery_diffs.to_numpy()
 
+    # Initialize the list of clusters
     clusters = []
     if gallery_diffs.size:
+        # Group differences into monotone decreasing sequences
         all_monotone_series = pd.Series(group_by_monotone_decreasing(gallery_diffs))
+        
+        # Calculate the peaks (first elements) of each monotone sequence
         gallery_diffs_peaks = np.array([gallery_diffs[monotone_series[0]] for monotone_series in all_monotone_series])
+        
+        # Group these peaks into further monotone decreasing sequences
         twice_monotone_series = group_by_monotone_decreasing(gallery_diffs_peaks)
+        
+        # Form clusters by concatenating the original monotone sequences
         clusters = [np.concatenate(all_monotone_series[monotone_series].values)
                     for monotone_series in twice_monotone_series]
 
+        # Add code to group sequences based on efficiency
+        # TODO: Consider doing this twice: get clusters > add efficiency correction > group based on time > add efficiency correction
+        clusters = group_by_efficiency(clusters, shapes_df, gallery_indices, min_efficieny)
+
+    # Initialize lists for exploit and explore slices
     exploit_slices = []
     explore_slices = []
-    prev_exploit_end = 0
+    prev_exploit_end = 0  # Keep track of the end of the previous exploit cluster
+
+    # Process each cluster
     for cluster in clusters:
-        start = gallery_indices[cluster][0]
-        end = gallery_indices[cluster][-1] + 1
+        start = gallery_indices[cluster][0]  # Start index of the current cluster
+        end = gallery_indices[cluster][-1] + 1  # End index of the current cluster
+
+        # Check if the cluster meets the criteria for "exploit"
         if cluster.size >= min_save_for_exploit:
             exploit_slices.append((int(start), int(end)))
+            
+            # If there is a gap between the previous exploit and the current, mark it as "explore"
             if prev_exploit_end != start:
                 explore_slices.append((int(prev_exploit_end), int(start)))
 
+            # Update the end of the last exploit cluster
             prev_exploit_end = end
 
-    n_shapes = len(shapes)
+    # If no exploit slices were identified, return the default value
     if not exploit_slices:
         return no_exploit_return_value
 
+    # Determine the end indices of the last exploit and explore slices
     exploit_end = exploit_slices[-1][1]
-    explore_end = explore_slices[-1][1]
+    explore_end = explore_slices[-1][1] if explore_slices else 0
+
+    # Handle the case where there are remaining shapes after the last exploit slice
     if explore_end < exploit_end < n_shapes:
         explore_slices.append((exploit_end, n_shapes))
     elif exploit_end < explore_end < n_shapes:
+        # Extend the last explore slice to the end of the shapes
         last_explore_slice = (explore_slices[-1][0], n_shapes)
         explore_slices[-1] = last_explore_slice
 
+    # Return the identified explore and exploit slices
     return explore_slices, exploit_slices
+
+def group_by_efficiency(clusters, shapes_df, gallery_indices, min_efficiency):
+    """
+    Groups sequences based on the criterion that the efficiency measure between 
+    the last shape of the first sequence and the first shape of the following sequence 
+    is greater than 'min_efficiency'.
+    """
+    from CFGpy.utils import get_shortest_path_len  # Moved here to avoid circular import
+    
+    # Create a list to store the new grouped clusters
+    grouped_clusters = []
+    current_cluster = clusters[0]
+
+    for i in range(1, len(clusters)):
+        prev_shape_idx = current_cluster[-1]
+        next_shape_idx = clusters[i][0]
+        
+        prev_shape_id = shapes_df.iloc[gallery_indices[prev_shape_idx], SHAPE_ID_IDX]
+        next_shape_id = shapes_df.iloc[gallery_indices[next_shape_idx], SHAPE_ID_IDX]
+
+        # Calculate the shortest path length between shapes
+        shortest_path_len = get_shortest_path_len(prev_shape_id, next_shape_id)
+        actual_path_len = gallery_indices[next_shape_idx] - gallery_indices[prev_shape_idx]
+
+        # Calculate efficiency
+        efficiency = shortest_path_len / actual_path_len
+
+        # Check if efficiency meets the minimum required efficiency
+        if efficiency >= min_efficiency:
+            # Combine clusters if efficiency is sufficient
+            current_cluster = np.concatenate((current_cluster, clusters[i]))
+        else:
+            # Add current cluster to the grouped clusters list and start a new cluster
+            grouped_clusters.append(current_cluster)
+            current_cluster = clusters[i]
+    
+    # Add the last cluster to the grouped clusters list
+    grouped_clusters.append(current_cluster)
+    
+    return grouped_clusters
 
 
 def group_by_monotone_decreasing(sequence):

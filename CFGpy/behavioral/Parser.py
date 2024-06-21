@@ -101,9 +101,9 @@ class Parser:
             data[key] = data[self.json_column].apply(lambda json_dict: json_dict.get(key))
 
         data[self.shape_move_column] = data[self.shape_move_column].apply(
-            lambda val: sorted(json.loads(val)) if type(val) is str else np.NAN)
+            lambda val: sorted(json.loads(val)) if type(val) is str else np.nan)
         data[self.shape_save_column] = data[self.shape_save_column].apply(
-            lambda val: sorted(json.loads(val)) if type(val) is str else np.NAN)
+            lambda val: sorted(json.loads(val)) if type(val) is str else np.nan)
 
         data = self.merge_id_columns(data)
         data[self.time_column] = pd.to_datetime(data[self.time_column], format=self.parser_date_format)
@@ -122,7 +122,7 @@ class Parser:
         data.loc[switched_column_indices, 'customData.shape'] = data.loc[
             switched_column_indices, 'customData.endPosition']
         data['customData.shape'] = data['customData.shape'].apply(
-            lambda x: json.loads(x) if type(x) is str else []).apply(lambda x: str(x) if len(x) == 10 else np.NaN)
+            lambda x: json.loads(x) if type(x) is str else []).apply(lambda x: str(x) if len(x) == 10 else np.nan)
 
         return data
 
@@ -169,7 +169,7 @@ class Parser:
 
         game_data = game_data[game_data[self.time_column] >= game_start_time]
         game_data = game_data[game_data[self.command_type_column].isin(self.shape_relevant_actions)]
-        first_row = [player_id_field, self.shape_move_command, self.first_shape, np.NAN, game_start_time]
+        first_row = [player_id_field, self.shape_move_command, self.first_shape, np.nan, game_start_time]
         first_row_df = pd.DataFrame([first_row], columns=game_data.columns)
         game_data = pd.concat([first_row_df, game_data], ignore_index=True)
 

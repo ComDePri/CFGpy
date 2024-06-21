@@ -205,6 +205,22 @@ class PreprocessedPlayerData(ParsedPlayerData):
 
         return np.median(explore_efficiencies), np.median(exploit_efficiencies)
 
+
+    def get_efficiency_all(self):
+        from CFGpy.utils import get_shortest_path_len  # moved here to avoid circular import
+
+        shape_indices = [0] + list(np.flatnonzero(self.get_gallery_mask()))
+        actual_path_lengths = np.diff(shape_indices)
+        actual_path_lengths[0] += 1  # TODO: for backwards compatibility, waiting for Yuval's answer to drop this
+        shape_ids = self.shapes_df.iloc[shape_indices, SHAPE_ID_IDX]
+        shortest_path_lengths = [get_shortest_path_len(shape1, shape2) for shape1, shape2 in pairwise(shape_ids)]
+        all_efficiency_values = {idx: shortest_len / actual_len for idx, shortest_len, actual_len
+                                 in zip(shape_indices[1:], shortest_path_lengths, actual_path_lengths)
+                                 if (shortest_len, actual_len) != (1, 1)}
+
+        return all_efficiency_values
+
+
     def get_exploit_clusters(self):
         is_gallery = self.get_gallery_mask()
         clusters = []
@@ -245,7 +261,7 @@ class PreprocessedPlayerData(ParsedPlayerData):
         handles, labels = plt.gca().get_legend_handles_labels()
         unique_markers = dict(zip(labels, handles))
 
-        plt.legend((unique_markers["explore"], unique_markers["exploit"]), ("explore", "exploit"))
+        #ROEY COMMENTED TO AVOID ISSUES WITH GAMES THAT ARE ONLY EXPLOIT WHEN USING EFFICIENY plt.legend((unique_markers["explore"], unique_markers["exploit"]), ("explore", "exploit"))
         plt.xlabel(r"$t$ (s)", fontsize=14)
         plt.ylabel(r"$\Delta t$ (s)", fontsize=14)
         plt.suptitle("Gallery shapes creation time, segmented by clusters", fontsize=16)
