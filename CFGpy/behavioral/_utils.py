@@ -61,6 +61,12 @@ def coords_to_bin_coords(coords):
     return shape_id
 
 def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, min_efficieny=MIN_EFFICIENCY_FOR_EXPLOIT):
+    # The logic here is this:
+    # 1. Group shapes by decreasing save-time differences (difference from previous gallery shape)
+    # 2. Group these clusters based on efficiency (merge consecutive clusters if there is high efficiency between last shape of cluster A and first shape of cluster B)
+    # Repeat steps 1-2 as follows:
+    # 3. Group the resulting clusters based on save-time differences
+    # 4. Group these clusters based on efficiency
     # Determine the number of shapes
     n_shapes = len(shapes)
     
@@ -92,21 +98,26 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, m
     # Initialize the list of clusters
     clusters = []
     if gallery_diffs.size:
+
         # Group differences into monotone decreasing sequences
         all_monotone_series = pd.Series(group_by_monotone_decreasing(gallery_diffs))
-        
+
+        # Group clusters based on efficiency (First time)
+        all_monotone_series_list = [all_monotone_series[i] for i in range(len(all_monotone_series))]
+        all_monotone_series_list = group_by_efficiency(all_monotone_series_list, shapes_df, gallery_indices, min_efficieny)
+
         # Calculate the peaks (first elements) of each monotone sequence
-        gallery_diffs_peaks = np.array([gallery_diffs[monotone_series[0]] for monotone_series in all_monotone_series])
-        
+        #gallery_diffs_peaks = np.array([gallery_diffs[monotone_series[0]] for monotone_series in all_monotone_series])
+        gallery_diffs_peaks = np.array([gallery_diffs[monotone_series[0]] for monotone_series in all_monotone_series_list])
+
         # Group these peaks into further monotone decreasing sequences
         twice_monotone_series = group_by_monotone_decreasing(gallery_diffs_peaks)
-        
+
         # Form clusters by concatenating the original monotone sequences
         clusters = [np.concatenate(all_monotone_series[monotone_series].values)
                     for monotone_series in twice_monotone_series]
 
         # Add code to group sequences based on efficiency
-        # TODO: Consider doing this twice: get clusters > add efficiency correction > group based on time > add efficiency correction
         clusters = group_by_efficiency(clusters, shapes_df, gallery_indices, min_efficieny)
 
     # Initialize lists for exploit and explore slices

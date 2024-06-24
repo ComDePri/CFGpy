@@ -261,7 +261,8 @@ class PreprocessedPlayerData(ParsedPlayerData):
         handles, labels = plt.gca().get_legend_handles_labels()
         unique_markers = dict(zip(labels, handles))
 
-        #ROEY COMMENTED TO AVOID ISSUES WITH GAMES THAT ARE ONLY EXPLOIT WHEN USING EFFICIENY plt.legend((unique_markers["explore"], unique_markers["exploit"]), ("explore", "exploit"))
+        #ROEY COMMENTED TO AVOID ISSUES WITH GAMES THAT ARE ONLY EXPLOIT WHEN USING EFFICIENY
+        #plt.legend((unique_markers["explore"], unique_markers["exploit"]), ("explore", "exploit"))
         plt.xlabel(r"$t$ (s)", fontsize=14)
         plt.ylabel(r"$\Delta t$ (s)", fontsize=14)
         plt.suptitle("Gallery shapes creation time, segmented by clusters", fontsize=16)

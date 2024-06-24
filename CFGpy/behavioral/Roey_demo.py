@@ -172,7 +172,7 @@ if __name__ == '__main__':
 
     # create presentation with both plots
     prs_game = create_players_game_presentation(preprocessed_data)
-    prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation.pptx"
+    prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_twice.pptx"
     prs_game.save(prs_game_name)
     print(f"PowerPoint presentation saved as '{prs_game_name}'")
 
