@@ -2,9 +2,23 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 from CFGpy.behavioral.data_classes import PostparsedDataset
-from CFGpy.behavioral._consts import *
+from CFGpy.behavioral._consts import (FEATURES_ID_KEY, FEATURES_START_TIME_KEY, N_CLUSTERS_KEY, GAME_DURATION_KEY,
+                                      N_MOVES_KEY, LONGEST_PAUSE_KEY, MEDIAN_EXPLORE_LENGTH_KEY, N_GALLERIES_KEY,
+                                      SELF_AVOIDANCE_KEY, EXPLORE_EFFICIENCY_KEY, EXPLOIT_EFFICIENCY_KEY,
+                                      MEDIAN_EXPLOIT_LENGTH_KEY, AVERAGE_SPEED_KEY, FRACTION_GALLERY_IN_EXPLORE_KEY,
+                                      FRACTION_TIME_IN_EXPLORE_KEY, EFFICIENCY_RATIO_KEY, EXPLORE_SPEED_KEY,
+                                      EXPLOIT_SPEED_KEY, DEFAULT_FINAL_OUTPUT_FILENAME, EXCLUSION_REASON_KEY,
+                                      STEP_ORIG_KEY, FRACTION_STEPS_UNIQUELY_COVERED_KEY, GALLERY_ORIG_KEY,
+                                      GALLERY_ORIG_EXPLORE_KEY, GALLERY_ORIG_EXPLOIT_KEY,
+                                      FRACTION_GALLERIES_UNIQUELY_COVERED_KEY, FRACTION_CLUSTERS_IN_GC_KEY,
+                                      FRACTION_GALLERIES_UNIQUELY_COVERED_EXPLORE_KEY,
+                                      FRACTION_GALLERIES_UNIQUELY_COVERED_EXPLOIT_KEY, N_CLUSTERS_IN_GC_KEY,
+                                      ABSOLUTE_MEASURES_MESSAGE, RELATIVE_MEASURES_MESSAGE, EXPLORE_OUTLIER_REASON,
+                                      EXPLOIT_OUTLIER_REASON, NO_EXPLOIT_EXCLUSION_REASON,
+                                      GAME_LENGTH_EXCLUSION_REASON, GAME_DURATION_EXCLUSION_REASON,
+                                      PAUSE_EXCLUSION_REASON, SAMPLE_RELATIVE_FEATURES_LABEL)
+from CFGpy.behavioral import config
 from CFGpy.behavioral._utils import load_json, is_semantic_connection
-from collections.abc import Collection
 from functools import reduce
 from scipy.stats import zscore
 from CFGpy.utils import get_vanilla_stats, step_orig_map_factory, gallery_orig_map_factory
@@ -32,34 +46,26 @@ def is_cluster_in_GC(cluster, GC):
 
 
 class FeatureExtractor:
-    def __init__(self, preprocessed_data, manually_excluded_ids: Collection = MANUALLY_EXCLUDED_IDS,
-                 min_n_moves: int = MIN_N_MOVES, min_n_clusters: int = MIN_N_CLUSTERS,
-                 min_game_duration: float = MIN_GAME_DURATION_SEC, max_pause_duration: float = MAX_PAUSE_DURATION_SEC,
-                 max_zscore_for_outlier: float = MAX_ZSCORE_FOR_OUTLIERS):
+    def __init__(self, preprocessed_data):
         self.input_data = PostparsedDataset(preprocessed_data)
         self.all_absolute_features = None
         self.output_df = None
 
-        self.manually_excluded_ids = manually_excluded_ids
-        self.min_n_moves = min_n_moves
-        self.min_n_clusters = min_n_clusters
-        self.min_game_duration = min_game_duration
-        self.max_pause_duration = max_pause_duration
-        self.max_zscore_for_outlier = max_zscore_for_outlier
-        self.exclusions = pd.DataFrame(columns=[FEATURES_ID_KEY, "reason"])
+        self.exclusions = pd.DataFrame(columns=[FEATURES_ID_KEY, EXCLUSION_REASON_KEY])
 
     @classmethod
     def from_json(cls, path: str):
         return cls(load_json(path))
 
-    def extract(self):
-        self.all_absolute_features = self._extract_absolute_features()
+    def extract(self, verbose=False):
+        self.all_absolute_features = self._extract_absolute_features(verbose)
         self.output_df = self.all_absolute_features.copy()
         self._drop_nonfirst_games()
-        vanilla_relative_features = self._extract_relative_features(get_vanilla_stats())
+        vanilla_relative_features = self._extract_relative_features(get_vanilla_stats(), verbose)
         self.output_df = self.output_df.merge(vanilla_relative_features, on=FEATURES_ID_KEY)
         self._apply_soft_filters()
-        sample_relative_features = self._extract_relative_features(self.input_data.get_stats(), label="sample")
+        sample_relative_features = self._extract_relative_features(self.input_data.get_stats(), verbose=verbose,
+                                                                   label=SAMPLE_RELATIVE_FEATURES_LABEL)
         self.output_df = self.output_df.merge(sample_relative_features, on=FEATURES_ID_KEY, how="left")
 
         return self.output_df
@@ -100,12 +106,13 @@ class FeatureExtractor:
         represented by a textual description and a mask with **True for players to exclude**, False for players to keep.
         :return: masks, reasons.
         """
-        reasons = ("Manually excluded id", "Did not exploit", "Too few moves", "Game too short", "Paused for too long")
-        masks = (self.output_df[FEATURES_ID_KEY].isin(self.manually_excluded_ids),
-                 self.output_df[N_CLUSTERS_KEY] < self.min_n_clusters,
-                 self.output_df[N_MOVES_KEY] < self.min_n_moves,
-                 self.output_df[GAME_DURATION_KEY] < self.min_game_duration,
-                 self.output_df[LONGEST_PAUSE_KEY] > self.max_pause_duration)
+        reasons = (NO_EXPLOIT_EXCLUSION_REASON, NO_EXPLOIT_EXCLUSION_REASON, GAME_LENGTH_EXCLUSION_REASON,
+                   GAME_DURATION_EXCLUSION_REASON, PAUSE_EXCLUSION_REASON)
+        masks = (self.output_df[FEATURES_ID_KEY].isin(config.MANUALLY_EXCLUDED_IDS),
+                 self.output_df[N_CLUSTERS_KEY] < config.MIN_N_CLUSTERS,
+                 self.output_df[N_MOVES_KEY] < config.MIN_N_MOVES,
+                 self.output_df[GAME_DURATION_KEY] < config.MIN_GAME_DURATION_SEC,
+                 self.output_df[LONGEST_PAUSE_KEY] > config.MAX_PAUSE_DURATION_SEC)
 
         return masks, reasons
 
@@ -115,10 +122,10 @@ class FeatureExtractor:
         players to keep.
         :return: masks, reasons.
         """
-        reasons = ("Explore duration outlier", "Exploit duration outlier")
+        reasons = (EXPLORE_OUTLIER_REASON, EXPLOIT_OUTLIER_REASON)
         zscores = self.output_df[[MEDIAN_EXPLORE_LENGTH_KEY, MEDIAN_EXPLOIT_LENGTH_KEY]].apply(zscore)
-        masks = (abs(zscores[MEDIAN_EXPLORE_LENGTH_KEY]) > self.max_zscore_for_outlier,
-                 abs(zscores[MEDIAN_EXPLOIT_LENGTH_KEY]) > self.max_zscore_for_outlier)
+        masks = (abs(zscores[MEDIAN_EXPLORE_LENGTH_KEY]) > config.MAX_ZSCORE_FOR_OUTLIERS,
+                 abs(zscores[MEDIAN_EXPLOIT_LENGTH_KEY]) > config.MAX_ZSCORE_FOR_OUTLIERS)
 
         return masks, reasons
 
@@ -132,20 +139,24 @@ class FeatureExtractor:
             ids_to_exclude = self.output_df.loc[is_excluded, FEATURES_ID_KEY]
             current_exclusion = pd.DataFrame({
                 FEATURES_ID_KEY: ids_to_exclude,
-                "reason": [reason] * len(ids_to_exclude)
+                EXCLUSION_REASON_KEY: [reason] * len(ids_to_exclude)
             })
             pd.concat((self.exclusions, current_exclusion))
 
-    def _extract_absolute_features(self):
-        absolute_features = []
-
+    def _extract_absolute_features(self, verbose=True):
         n_galleries_in_explore = []
         total_explore_times = []
         total_exploit_times = []
         total_explore_lengths = []
         total_exploit_lengths = []
-        print("Extracting absolute features...")
-        for player_data in tqdm(self.input_data):
+
+        iterator = self.input_data
+        if verbose:
+            print(ABSOLUTE_MEASURES_MESSAGE)
+            iterator = tqdm(iterator)
+
+        absolute_features = []
+        for player_data in iterator:
             # pre-calculations
             explore_lengths = [end - start for start, end in player_data.explore_slices]
             exploit_lengths = [end - start for start, end in player_data.exploit_slices]
@@ -167,7 +178,7 @@ class FeatureExtractor:
                 GAME_DURATION_KEY: player_data.get_last_action_time(),
                 N_MOVES_KEY: len(player_data),
                 N_GALLERIES_KEY: sum(is_gallery),
-                "self avoidance": player_data.get_self_avoidance(),
+                SELF_AVOIDANCE_KEY: player_data.get_self_avoidance(),
                 N_CLUSTERS_KEY: len(player_data.exploit_slices),
                 EXPLORE_EFFICIENCY_KEY: explore_efficiency,
                 EXPLOIT_EFFICIENCY_KEY: exploit_efficiency,
@@ -178,16 +189,16 @@ class FeatureExtractor:
 
         # vectorized operations
         features_df = pd.DataFrame(absolute_features)
-        features_df["Average Speed"] = features_df[N_MOVES_KEY] / features_df[GAME_DURATION_KEY]
-        features_df["% galleries in exp"] = pd.Series(n_galleries_in_explore) / features_df[N_GALLERIES_KEY]
-        features_df["% time in exp"] = pd.Series(total_explore_times) / features_df[GAME_DURATION_KEY]
-        features_df["efficiency ratio"] = features_df[EXPLORE_EFFICIENCY_KEY] / features_df[EXPLOIT_EFFICIENCY_KEY]
-        features_df["exp speed"] = pd.Series(total_explore_lengths) / pd.Series(total_explore_times)
-        features_df["scav speed"] = pd.Series(total_exploit_lengths) / pd.Series(total_exploit_times)
+        features_df[AVERAGE_SPEED_KEY] = features_df[N_MOVES_KEY] / features_df[GAME_DURATION_KEY]
+        features_df[FRACTION_GALLERY_IN_EXPLORE_KEY] = pd.Series(n_galleries_in_explore) / features_df[N_GALLERIES_KEY]
+        features_df[FRACTION_TIME_IN_EXPLORE_KEY] = pd.Series(total_explore_times) / features_df[GAME_DURATION_KEY]
+        features_df[EFFICIENCY_RATIO_KEY] = features_df[EXPLORE_EFFICIENCY_KEY] / features_df[EXPLOIT_EFFICIENCY_KEY]
+        features_df[EXPLORE_SPEED_KEY] = pd.Series(total_explore_lengths) / pd.Series(total_explore_times)
+        features_df[EXPLOIT_SPEED_KEY] = pd.Series(total_exploit_lengths) / pd.Series(total_exploit_times)
 
         return features_df
 
-    def _extract_relative_features(self, stats, label=None):
+    def _extract_relative_features(self, stats, label=None, verbose=False):
         steps_not_uniquely_covered, step_counter, galleries_not_uniquely_covered, gallery_counter, GC = stats
         label_ext = f" ({label})" if label else ""
 
@@ -195,9 +206,13 @@ class FeatureExtractor:
         step_orig_map = step_orig_map_factory(step_counter)
         gallery_orig_map = gallery_orig_map_factory(gallery_counter)
 
+        iterator = self.input_data
+        if verbose:
+            print(RELATIVE_MEASURES_MESSAGE.format(label_ext))
+            iterator = tqdm(iterator)
+
         relative_features = []
-        print(f"Extracting relative{label_ext} features...")
-        for player_data in tqdm(self.input_data):
+        for player_data in iterator:
             steps = player_data.get_steps()
             step_orig = [step_orig_map[step] for step in steps]
             gallery_ids = player_data.get_gallery_ids()
@@ -212,19 +227,20 @@ class FeatureExtractor:
 
             relative_features.append({
                 FEATURES_ID_KEY: player_data.id,
-                f"Step Orig{label_ext}": np.mean(step_orig),
-                f"% steps uniquely covered{label_ext}": _get_frac_uniquely_covered(steps, steps_not_uniquely_covered),
-                f"Gallery Orig{label_ext}": np.mean(gallery_orig),
-                f"Gallery Orig exp{label_ext}": np.mean(gallery_orig[is_explore_given_gallery]),
-                f"Gallery Orig scav{label_ext}": np.mean(gallery_orig[is_exploit_given_gallery]),
-                f"% galleries uniquely covered{label_ext}":
+                f"{STEP_ORIG_KEY}{label_ext}": np.mean(step_orig),
+                f"{FRACTION_STEPS_UNIQUELY_COVERED_KEY}{label_ext}":
+                    _get_frac_uniquely_covered(steps, steps_not_uniquely_covered),
+                f"{GALLERY_ORIG_KEY}{label_ext}": np.mean(gallery_orig),
+                f"{GALLERY_ORIG_EXPLORE_KEY}{label_ext}": np.mean(gallery_orig[is_explore_given_gallery]),
+                f"{GALLERY_ORIG_EXPLOIT_KEY}{label_ext}": np.mean(gallery_orig[is_exploit_given_gallery]),
+                f"{FRACTION_GALLERIES_UNIQUELY_COVERED_KEY}{label_ext}":
                     _get_frac_uniquely_covered(gallery_ids, galleries_not_uniquely_covered),
-                f"% galleries uniquely covered exp{label_ext}":
+                f"{FRACTION_GALLERIES_UNIQUELY_COVERED_EXPLORE_KEY}{label_ext}":
                     _get_frac_uniquely_covered(gallery_ids[is_explore_given_gallery], galleries_not_uniquely_covered),
-                f"% galleries uniquely covered scav{label_ext}":
+                f"{FRACTION_GALLERIES_UNIQUELY_COVERED_EXPLOIT_KEY}{label_ext}":
                     _get_frac_uniquely_covered(gallery_ids[is_exploit_given_gallery], galleries_not_uniquely_covered),
-                f"# clusters in GC{label_ext}": n_clusters_in_GC,
-                f"% clusters in GC{label_ext}": frac_clusters_in_GC,
+                f"{N_CLUSTERS_IN_GC_KEY}{label_ext}": n_clusters_in_GC,
+                f"{FRACTION_CLUSTERS_IN_GC_KEY}{label_ext}": frac_clusters_in_GC,
             })
 
         return pd.DataFrame(relative_features)
@@ -241,5 +257,5 @@ if __name__ == '__main__':
     args = argparser.parse_args()
 
     fe = FeatureExtractor.from_json(args.input_filename)
-    fe.extract()
+    fe.extract(verbose=True)
     fe.dump(args.output_filename)

@@ -1,8 +1,9 @@
-from CFGpy.behavioral._utils import *
-from CFGpy.behavioral._consts import *
+from CFGpy.behavioral._utils import load_json, CFGPipelineException, segment_explore_exploit, prettify_games_json
+from CFGpy.behavioral._consts import (PARSED_ALL_SHAPES_KEY, PARSED_PLAYER_ID_KEY, EXPLORE_KEY, EXPLOIT_KEY,
+                                      DEFAULT_FINAL_OUTPUT_FILENAME, INVALID_SHAPE_ERROR, POSTPARSER_OUTPUT_FILENAME)
+from CFGpy.behavioral import config
 from CFGpy.utils import binary_shape_to_id as bin2id
-
-DEFAULT_OUTPUT_FILENAME = "postparsed.json"
+import json
 
 
 class PostParser:
@@ -28,13 +29,11 @@ class PostParser:
             shapes = player_data[PARSED_ALL_SHAPES_KEY]
             for shape in shapes:
                 try:
-                    shape[SHAPE_ID_IDX] = bin2id(shape[SHAPE_ID_IDX])
+                    shape[config.SHAPE_ID_IDX] = bin2id(shape[config.SHAPE_ID_IDX])
                 except ValueError:
                     player_id = player_data[PARSED_PLAYER_ID_KEY]
-                    shape_id = shape[SHAPE_ID_IDX]
-                    msg = f"Encountered invalid shape: {shape_id}\nPlayer id: {player_id}\n" \
-                          "This indicates a bug in the CFG software or in the data parsing"
-                    raise CFGPipelineException(msg)
+                    shape_id = shape[config.SHAPE_ID_IDX]
+                    raise CFGPipelineException(INVALID_SHAPE_ERROR.format(shape_id, player_id))
 
     def handle_empty_moves(self):
         # TODO
@@ -46,7 +45,7 @@ class PostParser:
             player_data[EXPLORE_KEY] = explore
             player_data[EXPLOIT_KEY] = exploit
 
-    def dump(self, path=DEFAULT_OUTPUT_FILENAME, pretty=False):
+    def dump(self, path=POSTPARSER_OUTPUT_FILENAME, pretty=False):
         json_str = prettify_games_json(self.all_players_data) if pretty else json.dumps(self.all_players_data)
 
         with open(path, "w") as out_file:

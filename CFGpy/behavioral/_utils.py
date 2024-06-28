@@ -6,7 +6,9 @@ import warnings
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import seaborn as sns
-from CFGpy.behavioral._consts import *
+from CFGpy.behavioral._consts import (SERVER_COORDS_TYPE_ERROR, EXPLORE_KEY, PRETTIFY_WARNING, PARSED_ALL_SHAPES_KEY,
+                                      PARSED_CHOSEN_SHAPES_KEY, EXPLOIT_KEY)
+from CFGpy.behavioral import config
 from _ctypes import PyObj_FromPtr
 
 
@@ -33,7 +35,7 @@ def server_coords_to_binary_shape(coords):
         coords = json.loads(coords)
 
     if type(coords) is not list:
-        raise TypeError('Received incorrect type as csv_coords, should be str or list, received', type(coords))
+        raise TypeError(SERVER_COORDS_TYPE_ERROR.format(type(coords)))
 
     return _server_coords_to_binary_shape(coords)
 
@@ -70,17 +72,17 @@ def _server_coords_to_binary_shape(coords):
     return shape_id
 
 
-def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT):
+def segment_explore_exploit(shapes, min_save_for_exploit=config.MIN_SAVE_FOR_EXPLOIT):
     n_shapes = len(shapes)
     no_exploit_return_value = [(0, n_shapes)], []
     shapes_df = pd.DataFrame(shapes)
 
-    gallery_saves = shapes_df[SHAPE_SAVE_TIME_IDX]
+    gallery_saves = shapes_df[config.SHAPE_SAVE_TIME_IDX]
     gallery_indices = np.flatnonzero(gallery_saves.notna())
     if not any(gallery_indices):
         return no_exploit_return_value
 
-    gallery_times = shapes_df.iloc[gallery_indices][SHAPE_MOVE_TIME_IDX]
+    gallery_times = shapes_df.iloc[gallery_indices][config.SHAPE_MOVE_TIME_IDX]
     gallery_diffs = np.diff(gallery_times, prepend=gallery_times.iloc[0])
 
     clusters = []
@@ -135,7 +137,7 @@ def group_by_monotone_decreasing(sequence):
 
 
 def is_semantic_connection(cluster1, cluster2):
-    return len(set(cluster1) & set(cluster2)) >= MIN_OVERLAP_FOR_SEMANTIC_CONNECTION
+    return len(set(cluster1) & set(cluster2)) >= config.MIN_OVERLAP_FOR_SEMANTIC_CONNECTION
 
 
 def plot_gallery_dt(postparsed_player_data):
@@ -145,7 +147,7 @@ def plot_gallery_dt(postparsed_player_data):
     having to import that class in this file.
     """
     is_gallery = postparsed_player_data.get_gallery_mask()
-    gallery_times = postparsed_player_data.shapes_df[is_gallery].iloc[:, SHAPE_MOVE_TIME_IDX]
+    gallery_times = postparsed_player_data.shapes_df[is_gallery].iloc[:, config.SHAPE_MOVE_TIME_IDX]
     gallery_diffs = np.diff(gallery_times, prepend=gallery_times.iloc[0])
 
     cluster_label = np.empty(len(postparsed_player_data.shapes_df), dtype=object)
@@ -180,7 +182,7 @@ def prettify_games_json(parsed_games):
     warnings.warn(PRETTIFY_WARNING)
     prettified_games = []
     for game in tqdm(parsed_games, desc="games"):
-        game['actions'] = [NoIndent(action) for action in game['actions']]
+        game[PARSED_ALL_SHAPES_KEY] = [NoIndent(action) for action in game[PARSED_ALL_SHAPES_KEY]]
         chosen_shapes = game.get(PARSED_CHOSEN_SHAPES_KEY, None)
         if chosen_shapes is not None:
             game[PARSED_CHOSEN_SHAPES_KEY] = [NoIndent(chosen_shape) for chosen_shape in chosen_shapes]

@@ -4,89 +4,54 @@ import json
 import re
 from datetime import datetime, timezone
 from CFGpy.behavioral._utils import server_coords_to_binary_shape, prettify_games_json, CFGPipelineException
-from CFGpy.behavioral._consts import *
-
-DEFAULT_OUTPUT_FILENAME = "parsed.json"
+from CFGpy.behavioral._consts import (PARSED_PLAYER_ID_KEY, PARSED_TIME_KEY, PARSED_ALL_SHAPES_KEY,
+                                      PARSED_CHOSEN_SHAPES_KEY, MERGED_ID_KEY, DEFAULT_ID, PARSER_OUTPUT_FILENAME,
+                                      GALLERY_SAVE_TIME_COLUMN)
+from CFGpy.behavioral import config
 
 
 class Parser:
-    parser_date_format = '%Y-%m-%dT%H:%M:%S.%fZ'
     old_date_format_with_placeholder = 'DateObject<{%Y, %m, %d, %H, %M, %S.%f}, "Instant", "Gregorian", 2.>'  # The actual format has '[' instead of '<' but it makes everything easier this way
     datetime_re = '"(DateObject\[\{\d+, \d+, \d+, \d+, \d+, \d+(?:\.\d+)?}, "Instant", "Gregorian", \d+\.\])"'  # Used to remove quotes from game strings
     parse_datetime_re_day = 'DateObject\[\{(\d+), (\d+), (\d+)}, "Day", "Gregorian", \d+\.\]'
     parse_datetime_re_second = 'DateObject\[\{(\d+), (\d+), (\d+), (\d+), (\d+), (\d+)}, "Second", "Gregorian", \d+\.\]'
     parse_datetime_re_millisecond = 'DateObject\[\{(\d+), (\d+), (\d+), (\d+), (\d+), (\d+)(.\d+)?}, "Instant", "Gregorian", \d+\.\]'
-
     datetime_sub_expressions = [
         parse_datetime_re_day,
         parse_datetime_re_second,
         parse_datetime_re_millisecond,
     ]
 
-    id_column_name = 'merged_id'
     parser_relevant_columns = [
-        id_column_name,
-        'type',
-        'customData.newShape',
-        'customData.shape',
-        'userTime',
+        MERGED_ID_KEY,
+        config.EVENT_TYPE,
+        config.RAW_NEW_SHAPE,
+        config.RAW_SHAPE,
+        config.RAW_USER_TIME,
     ]
-    default_id_columns = [
-        'playerExternalId',
-        'userProvidedId',
-        'userId',
-        'prolificId'
-    ]
-    default_id = 'No ID Found'
-
-    unique_internal_id_column = 'playerId'
-    json_column = 'playerCustomData'
-    time_column = 'userTime'
-    shape_move_column = 'customData.newShape'
-    shape_save_column = 'customData.shape'
-    command_type_column = 'type'
-    gallery_save_time_column = 'gallery save time'
-    merged_shape_column = 'merged_shapes_actions'
-
-    game_start_command = 'start'
-    tutorial_start_command = 'starttutorial'
-    tutorial_end_command = 'startsearch'
-    game_ended_command = 'end search'
-    shape_move_command = 'movedblock'
-    gallery_save_command = 'added shape to gallery'
-
-    shape_relevant_actions = [
-        shape_move_command,
-        gallery_save_command,
+    shape_relevant_event_types = [
+        config.SHAPE_MOVE_EVENT_TYPE,
+        config.GALLERY_SAVE_EVENT_TYPE,
     ]
 
-    parsed_game_headers = [shape_move_column, time_column, gallery_save_time_column]
-    first_shape = '[[0,0],[1,0],[2,0],[4,0],[5,0],[6,0],[3,0],[7,0],[8,0],[9,0]]'
-
-    parsed_game_id_key = PARSED_PLAYER_ID_KEY
-    parsed_game_time_key = PARSED_TIME_KEY
-    parsed_game_actions_key = PARSED_ALL_SHAPES_KEY
-    parsed_game_chosen_shapes = PARSED_CHOSEN_SHAPES_KEY
-
-    def __init__(self, raw_data, include_in_id: list = [], id_columns: list = default_id_columns):
+    def __init__(self, raw_data, include_in_id: list = None):
         self.raw_data = raw_data
-        self.include_in_id = include_in_id
-        self.id_columns = id_columns
+        self.include_in_id = include_in_id if include_in_id is not None else []
         self.parsed_data = None
 
     @classmethod
-    def from_file(cls, raw_data_filename: str, include_in_id: list = [], id_columns: list = default_id_columns):
+    def from_file(cls, raw_data_filename: str, include_in_id: list = None):
         raw_data = pd.read_csv(raw_data_filename)
-        return cls(raw_data, include_in_id, id_columns)
+        return cls(raw_data, include_in_id)
 
     def parse(self):
         prepared_data = self._prepare_data()
-        games_grouped_by_unique_id = prepared_data.groupby(self.unique_internal_id_column)
+        games_grouped_by_unique_id = prepared_data.groupby(config.UNIQUE_INTERNAL_ID_COLUMN)
         hard_filtered_games = games_grouped_by_unique_id.filter(self._apply_hard_filters)
         self.parsed_data = self._parse_all_player_games(hard_filtered_games)
         return self.parsed_data
 
-    def dump(self, path=DEFAULT_OUTPUT_FILENAME, pretty=False):
+    def dump(self, path=PARSER_OUTPUT_FILENAME, pretty=False):
         json_str = prettify_games_json(self.parsed_data) if pretty else json.dumps(self.parsed_data)
 
         with open(path, "w") as out_file:
@@ -94,20 +59,21 @@ class Parser:
 
     def _prepare_data(self):
         data = self.patchfix_csv_data(self.raw_data)
-        data[self.json_column] = data[self.json_column].apply(json.loads)
+        data[config.PARSER_JSON_COLUMN] = data[config.PARSER_JSON_COLUMN].apply(json.loads)
         all_json_keys = self.get_all_json_keys_from_csv_data(data)
         for key in all_json_keys:
             # Take the json inside the csv file and turn them into columns
-            data[key] = data[self.json_column].apply(lambda json_dict: json_dict.get(key))
+            data[key] = data[config.PARSER_JSON_COLUMN].apply(lambda json_dict: json_dict.get(key))
 
-        data[self.shape_move_column] = data[self.shape_move_column].apply(
+        data[config.SHAPE_MOVE_COLUMN] = data[config.SHAPE_MOVE_COLUMN].apply(
             lambda val: sorted(json.loads(val)) if type(val) is str else np.NAN)
-        data[self.shape_save_column] = data[self.shape_save_column].apply(
+        data[config.SHAPE_SAVE_COLUMN] = data[config.SHAPE_SAVE_COLUMN].apply(
             lambda val: sorted(json.loads(val)) if type(val) is str else np.NAN)
 
         data = self.merge_id_columns(data)
-        data[self.time_column] = pd.to_datetime(data[self.time_column], format=self.parser_date_format)
-        data = data.sort_values(by=self.time_column).reset_index(drop=True)
+        data[config.PARSER_TIME_COLUMN] = pd.to_datetime(data[config.PARSER_TIME_COLUMN],
+                                                         format=config.PARSER_DATE_FORMAT)
+        data = data.sort_values(by=config.PARSER_TIME_COLUMN).reset_index(drop=True)
 
         return data
 
@@ -127,20 +93,20 @@ class Parser:
         return data
 
     def get_all_json_keys_from_csv_data(self, data):
-        all_json_keys = np.concatenate(data[self.json_column].apply(lambda x: tuple(x.keys())).unique())
+        all_json_keys = np.concatenate(data[config.PARSER_JSON_COLUMN].apply(lambda x: tuple(x.keys())).unique())
 
         return set(all_json_keys)
 
     def merge_id_columns(self, data):
-        data[self.id_column_name] = None
+        data[MERGED_ID_KEY] = None
 
-        for id_column in self.id_columns:
+        for id_column in config.PARSER_ID_COLUMNS:
             if id_column in data.columns:
-                missing_indices = data[self.id_column_name].isna()
-                data.loc[missing_indices, self.id_column_name] = data[id_column].loc[missing_indices].astype(str)
+                missing_indices = data[MERGED_ID_KEY].isna()
+                data.loc[missing_indices, MERGED_ID_KEY] = data[id_column].loc[missing_indices].astype(str)
 
-        missing_indices = data[self.id_column_name].isna()
-        data.loc[missing_indices, self.id_column_name] = self.default_id
+        missing_indices = data[MERGED_ID_KEY].isna()
+        data.loc[missing_indices, MERGED_ID_KEY] = DEFAULT_ID
 
         return data
 
@@ -148,11 +114,11 @@ class Parser:
         return self.is_game_started(game)
 
     def is_game_started(self, game):
-        return game[self.command_type_column].str.contains(self.tutorial_end_command).sum() > 0
+        return game[config.EVENT_TYPE].str.contains(config.TUTORIAL_END_EVENT_TYPE).sum() > 0
 
     def _parse_all_player_games(self, games):
         all_parsed_games = []
-        for _, game in games.groupby(self.unique_internal_id_column):
+        for _, game in games.groupby(config.UNIQUE_INTERNAL_ID_COLUMN):
             parsed_game = self.parse_single_game(game)
             all_parsed_games.append(parsed_game)
 
@@ -162,36 +128,38 @@ class Parser:
         parser_relevant_columns = self.parser_relevant_columns + self.include_in_id
         game_data = game_data[parser_relevant_columns]
 
-        assert len(game_data[self.id_column_name].unique()) == 1
-        player_id_field = game_data[self.id_column_name].iloc[0]
-        game_start_time = game_data[game_data[self.command_type_column] == self.tutorial_end_command].iloc[0][
-            self.time_column]
+        assert len(game_data[MERGED_ID_KEY].unique()) == 1
+        player_id_field = game_data[MERGED_ID_KEY].iloc[0]
+        game_start_time = game_data[game_data[config.EVENT_TYPE] == config.TUTORIAL_END_EVENT_TYPE].iloc[0][
+            config.PARSER_TIME_COLUMN]
 
-        game_data = game_data[game_data[self.time_column] >= game_start_time]
-        game_data = game_data[game_data[self.command_type_column].isin(self.shape_relevant_actions)]
-        first_row = [player_id_field, self.shape_move_command, self.first_shape, np.NAN, game_start_time]
+        game_data = game_data[game_data[config.PARSER_TIME_COLUMN] >= game_start_time]
+        game_data = game_data[game_data[config.EVENT_TYPE].isin(self.shape_relevant_event_types)]
+        first_row = [
+            player_id_field, config.SHAPE_MOVE_EVENT_TYPE, config.FIRST_SHAPE_SERVER_COORDS, np.NAN, game_start_time]
         first_row_df = pd.DataFrame([first_row], columns=game_data.columns)
         game_data = pd.concat([first_row_df, game_data], ignore_index=True)
 
-        game_data[self.time_column] = (game_data[self.time_column] - game_start_time).apply(
+        game_data[config.PARSER_TIME_COLUMN] = (game_data[config.PARSER_TIME_COLUMN] - game_start_time).apply(
             lambda time_delta: time_delta.total_seconds())
-        game_data[self.shape_move_column] = game_data[self.shape_move_column].apply(server_coords_to_binary_shape)
+        game_data[config.SHAPE_MOVE_COLUMN] = game_data[config.SHAPE_MOVE_COLUMN].apply(server_coords_to_binary_shape)
 
-        game_data[self.gallery_save_time_column] = None
+        game_data[GALLERY_SAVE_TIME_COLUMN] = None
 
-        gallery_save_indices = game_data[self.shape_move_column].isna()[game_data[self.shape_move_column].isna()].index
-        game_data.loc[gallery_save_indices - 1, self.gallery_save_time_column] = game_data.loc[
-            gallery_save_indices, self.time_column].values
-        game_data = game_data[game_data[self.command_type_column].isin(
-            [self.shape_move_command])]  # Now that we have the save time in all move rows, we can get rid of save rows
+        gallery_save_indices = game_data[config.SHAPE_MOVE_COLUMN].isna()[
+            game_data[config.SHAPE_MOVE_COLUMN].isna()].index
+        game_data.loc[gallery_save_indices - 1, GALLERY_SAVE_TIME_COLUMN] = game_data.loc[
+            gallery_save_indices, config.PARSER_TIME_COLUMN].values
+        # Now that we have the save time in all move rows, we can get rid of save rows:
+        game_data = game_data[game_data[config.EVENT_TYPE].isin([config.SHAPE_MOVE_EVENT_TYPE])]
 
-        actions = game_data[self.parsed_game_headers]
+        actions = game_data[config.PARSED_GAME_HEADERS]
         if self.include_in_id:
-            player_id_field = [game_data[self.id_column_name].iloc[0]] + self.include_in_id
+            player_id_field = [game_data[MERGED_ID_KEY].iloc[0]] + self.include_in_id
         parsed_game = {
-            self.parsed_game_id_key: player_id_field,
-            self.parsed_game_time_key: game_start_time.timestamp(),
-            self.parsed_game_actions_key: actions.values.tolist(),
+            PARSED_PLAYER_ID_KEY: player_id_field,
+            PARSED_TIME_KEY: game_start_time.timestamp(),
+            PARSED_ALL_SHAPES_KEY: actions.values.tolist(),
         }
 
         return parsed_game
@@ -200,9 +168,9 @@ class Parser:
     def translate_parsed_results_to_mathematica(cls, json_format):
         games_in_old_format = []
         for entry in json_format:
-            player_id = entry[cls.parsed_game_id_key]
-            player_start_time = entry[cls.parsed_game_time_key]
-            player_actions = entry[cls.parsed_game_actions_key]
+            player_id = entry[PARSED_PLAYER_ID_KEY]
+            player_start_time = entry[PARSED_TIME_KEY]
+            player_actions = entry[PARSED_ALL_SHAPES_KEY]
 
             old_format_actions = [
                 [list(map(str, action[0])), action[1]] if action[2] is None else [list(map(str, action[0])), action[1],
@@ -265,10 +233,10 @@ class Parser:
                     chosen_shapes = [chosen_shapes]
 
             json_format_game = {
-                cls.parsed_game_id_key: game_id,
-                cls.parsed_game_time_key: absolute_start_time,
-                cls.parsed_game_chosen_shapes: chosen_shapes,
-                cls.parsed_game_actions_key: actions,
+                PARSED_PLAYER_ID_KEY: game_id,
+                PARSED_TIME_KEY: absolute_start_time,
+                PARSED_CHOSEN_SHAPES_KEY: chosen_shapes,
+                PARSED_ALL_SHAPES_KEY: actions,
             }
 
             json_format_games.append(json_format_game)
@@ -311,17 +279,13 @@ class Parser:
                                    game_string)
 
 
-class ParserOldCommands(Parser):
-    tutorial_end_command = 'tutorial complete'
-
-
 if __name__ == '__main__':
     import argparse
 
     argparser = argparse.ArgumentParser(description="Parse raw CFG data")
     argparser.add_argument("-i", "--input", dest="input_filename",
                            help='Filename of raw data CSV')
-    argparser.add_argument("-o", "--output", default=DEFAULT_OUTPUT_FILENAME, dest="output_filename",
+    argparser.add_argument("-o", "--output", default=PARSER_OUTPUT_FILENAME, dest="output_filename",
                            help='Filename of output CSV')
     args = argparser.parse_args()
 
