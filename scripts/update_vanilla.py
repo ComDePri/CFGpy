@@ -1,6 +1,6 @@
 from CFGpy.behavioral.data_classes import PostparsedDataset
 from CFGpy.behavioral import PostParser
-from utils import get_vanilla, dump_vanilla_stats
+from CFGpy.utils import get_vanilla, dump_vanilla_stats
 
 # combine parsed vanilla data sets:
 # TODO: combine them and call utils.dump_vanilla
