@@ -61,7 +61,7 @@ class FeatureExtractor:
         self.all_absolute_features = self._extract_absolute_features(verbose)
         self.output_df = self.all_absolute_features.copy()
         self._drop_nonfirst_games()
-        vanilla_relative_features = self._extract_relative_features(get_vanilla_stats(), verbose)
+        vanilla_relative_features = self._extract_relative_features(get_vanilla_stats(), verbose=verbose)
         self.output_df = self.output_df.merge(vanilla_relative_features, on=FEATURES_ID_KEY)
         self._apply_soft_filters()
         sample_relative_features = self._extract_relative_features(self.input_data.get_stats(), verbose=verbose,
