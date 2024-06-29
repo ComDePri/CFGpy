@@ -72,7 +72,7 @@ def _server_coords_to_binary_shape(coords):
     return shape_id
 
 
-def segment_explore_exploit(shapes, min_save_for_exploit=config.MIN_SAVE_FOR_EXPLOIT):
+def segment_explore_exploit(shapes):
     n_shapes = len(shapes)
     no_exploit_return_value = [(0, n_shapes)], []
     shapes_df = pd.DataFrame(shapes)
@@ -99,7 +99,7 @@ def segment_explore_exploit(shapes, min_save_for_exploit=config.MIN_SAVE_FOR_EXP
     for cluster in clusters:
         start = gallery_indices[cluster][0]
         end = gallery_indices[cluster][-1] + 1
-        if cluster.size >= min_save_for_exploit:
+        if cluster.size >= config.MIN_SAVE_FOR_EXPLOIT:
             exploit_slices.append((int(start), int(end)))
             if prev_exploit_end != start:
                 explore_slices.append((int(prev_exploit_end), int(start)))
