@@ -10,9 +10,9 @@ class Pipeline:
         self.postparser = None
         self.feature_extractor = None
 
-    def run_pipeline(self):
+    def run_pipeline(self, verbose=True):
         print("Downloading raw data...")
-        raw_data = self.downloader.download()
+        raw_data = self.downloader.download(verbose)
 
         print("Parsing...")
         self.parser = Parser(raw_data)
@@ -25,7 +25,7 @@ class Pipeline:
 
         print("Calculating measures...")
         self.feature_extractor = FeatureExtractor(postparsed_data)
-        features_df = self.feature_extractor.extract()
+        features_df = self.feature_extractor.extract(verbose)
         self.feature_extractor.dump(self.output_filename)
         print(f"Results written successfully to {self.output_filename}")
 

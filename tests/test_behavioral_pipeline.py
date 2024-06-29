@@ -21,13 +21,10 @@ test_dirs = [os.path.join(TEST_FILES_DIR, filename)
 
 @pytest.mark.parametrize("test_dir", test_dirs)
 def test_downloader(test_dir):
-    # Note: Downloader tests currently fail. We don't know why, as this module was not touched since its output was
-    # saved for tests, and it was not developed in the lab. As far as we can tell, whatever it downloads is ground
-    # truth. For better tests, maybe we should use a Red Metrics URL that restricts time (both before and after). But
-    # changing the Downloader ground truth would require changing all other tests, se we're not touching it for now.
+    # See https://github.com/ComDePri/CFGpy/issues/13
     with open(os.path.join(test_dir, RED_METRICS_URL_FILENAME)) as url_fp:
         url = url_fp.read()
-    Downloader(url, "event.csv").download()
+    Downloader(url, "event.csv").download(verbose=True)
 
     test_event = pd.read_csv(os.path.join(test_dir, TEST_DOWNLOADED_FILENAME)).sort_values("id").reset_index(drop=True)
     event = pd.read_csv("event.csv").sort_values("id").reset_index(drop=True)
@@ -102,7 +99,7 @@ def test_feature_extractor(test_dir):
     with open(os.path.join(test_dir, TEST_POSTPARSED_FILENAME), "r") as test_postparsed_fp:
         postparsed_data = json.load(test_postparsed_fp)
     feature_extractor = FeatureExtractor(postparsed_data)
-    feature_extractor.extract()
+    feature_extractor.extract(verbose=True)
     feature_extractor.dump("features.csv")
 
     test_features = pd.read_csv(os.path.join(test_dir, TEST_FEATURES_FILENAME)).sort_values("ID").reset_index(drop=True)

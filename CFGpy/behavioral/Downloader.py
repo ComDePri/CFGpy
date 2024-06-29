@@ -18,10 +18,10 @@ class Downloader:
         self.required_net_request = []
         self.extra_fields = set()
 
-    def download(self):
-        input_json = self.get_events()
-        output_json = self.create_output(input_json)
-        self.write_csv(output_json)
+    def download(self, verbose=False):
+        input_json = self.get_events(verbose)
+        output_json = self.create_output(input_json, verbose)
+        self.write_csv(output_json, verbose)
 
         return pd.read_csv(self.output_filename)  # why not return output_json? see to-do in create_output
 
@@ -35,14 +35,18 @@ class Downloader:
 
         return csv_url.replace("/event.csv", "/event.json")
 
-    def get_events(self):
-        print("Download events...")
+    def get_events(self, verbose=False):
+        if verbose:
+            print("Download events...")
         input_json = []
         page_count = int(requests.get(self.json_url, {"page": 1, "perPage": EVENTS_PER_PAGE}).headers['x-page-count'])
         # TODO: see if a similar request can give the total events number and avoid downloading if the output file
         #  exists with the correct length
 
-        for page in tqdm(range(1, page_count + 1), desc="pages"):
+        page_iterator = range(1, page_count + 1)
+        if verbose:
+            page_iterator = tqdm(page_iterator, desc="pages")
+        for page in page_iterator:
             r = requests.get(self.json_url, {"page": page, "perPage": EVENTS_PER_PAGE})
             page_json = r.json()
             input_json = input_json + page_json
@@ -63,7 +67,7 @@ class Downloader:
 
         return player
 
-    def create_output(self, input_json):
+    def create_output(self, input_json, verbose=False):
         # TODO: this is not really creating the final output, since write_csv() does more work to format it. The logic
         #  from write_csv may be implemented here to create an equivalent pandas DataFrame, and then write_csv can be
         #  replaced by calling to_csv on that DataFrame. This will also make the return statement in self.download
@@ -72,8 +76,12 @@ class Downloader:
 
         output_json = []
 
-        print("\nHandling events...")
-        for event in tqdm(input_json, desc="events"):
+        event_iterator = input_json
+        if verbose:
+            print("\nHandling events...")
+            event_iterator = tqdm(event_iterator, desc="events")
+
+        for event in event_iterator:
             # Filter out common fields
             output_json_record = {k: v for (k, v) in event.items() if k in self.common_fields}
 
@@ -104,7 +112,7 @@ class Downloader:
 
         return output_json
 
-    def write_csv(self, output_json):
+    def write_csv(self, output_json, verbose=False):
         """
         Writes the CSV while ensuring existence and oder of all fields defined in self.field_order
         """
@@ -118,7 +126,8 @@ class Downloader:
             for output_json_record in output_json:
                 output_file_writer.writerow(output_json_record)
 
-        print(f"Wrote CSV to {self.output_filename}")
+        if verbose:
+            print(f"Wrote CSV to {self.output_filename}")
 
     def get_net_requested_players(self):
         """
