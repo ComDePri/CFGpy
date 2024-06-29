@@ -69,8 +69,8 @@ GAME_LENGTH_EXCLUSION_REASON = "Game length too short"
 GAME_DURATION_EXCLUSION_REASON = "Game duration too short"
 PAUSE_EXCLUSION_REASON = "Paused for too long"
 
-ABSOLUTE_MEASURES_MESSAGE = "Extracting absolute features..."
-RELATIVE_MEASURES_MESSAGE = "Extracting relative{} features..."
+ABSOLUTE_FEATURES_MESSAGE = "Extracting absolute features..."
+RELATIVE_FEATURES_MESSAGE = "Extracting relative{} features..."
 DEFAULT_FINAL_OUTPUT_FILENAME = "CFG measures.csv"
 
 # utils

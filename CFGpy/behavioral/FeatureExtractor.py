@@ -13,7 +13,7 @@ from CFGpy.behavioral._consts import (FEATURES_ID_KEY, FEATURES_START_TIME_KEY, 
                                       FRACTION_GALLERIES_UNIQUELY_COVERED_KEY, FRACTION_CLUSTERS_IN_GC_KEY,
                                       FRACTION_GALLERIES_UNIQUELY_COVERED_EXPLORE_KEY,
                                       FRACTION_GALLERIES_UNIQUELY_COVERED_EXPLOIT_KEY, N_CLUSTERS_IN_GC_KEY,
-                                      ABSOLUTE_MEASURES_MESSAGE, RELATIVE_MEASURES_MESSAGE, EXPLORE_OUTLIER_REASON,
+                                      ABSOLUTE_FEATURES_MESSAGE, RELATIVE_FEATURES_MESSAGE, EXPLORE_OUTLIER_REASON,
                                       EXPLOIT_OUTLIER_REASON, NO_EXPLOIT_EXCLUSION_REASON,
                                       GAME_LENGTH_EXCLUSION_REASON, GAME_DURATION_EXCLUSION_REASON,
                                       PAUSE_EXCLUSION_REASON, SAMPLE_RELATIVE_FEATURES_LABEL)
@@ -152,7 +152,7 @@ class FeatureExtractor:
 
         iterator = self.input_data
         if verbose:
-            print(ABSOLUTE_MEASURES_MESSAGE)
+            print(ABSOLUTE_FEATURES_MESSAGE)
             iterator = tqdm(iterator)
 
         absolute_features = []
@@ -208,7 +208,7 @@ class FeatureExtractor:
 
         iterator = self.input_data
         if verbose:
-            print(RELATIVE_MEASURES_MESSAGE.format(label_ext))
+            print(RELATIVE_FEATURES_MESSAGE.format(label_ext))
             iterator = tqdm(iterator)
 
         relative_features = []
