@@ -11,8 +11,8 @@ RED_METRICS_URL_FILENAME = "red_metrics_url.txt"
 TEST_DOWNLOADED_FILENAME = "test_event.csv"
 TEST_PARSED_FILENAME = "test_parsed.json"
 TEST_PARSED_OLD_FORMAT_FILENAME = "test_parsed_old_format.txt"
-TEST_POSTPARSED_FILENAME = "test_preprocessed.json"
-TEST_FEATURES_FILENAME = "test_measures.csv"
+TEST_POSTPARSED_FILENAME = "test_postparsed.json"
+TEST_FEATURES_FILENAME = "test_features.csv"
 
 test_dirs = [os.path.join(TEST_FILES_DIR, filename)
              for filename in os.listdir(TEST_FILES_DIR)
