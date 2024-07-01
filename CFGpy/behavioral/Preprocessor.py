@@ -20,8 +20,8 @@ class Preprocessor:
         self.handle_empty_moves()
         self.add_explore_exploit()
 
-        # remove 'bad players'
-        self.remove_bad_games()
+        # # remove 'bad players'
+        # self.remove_bad_games()
 
         return self.all_players_data
 
