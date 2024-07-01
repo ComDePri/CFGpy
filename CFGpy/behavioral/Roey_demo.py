@@ -174,7 +174,7 @@ if __name__ == '__main__':
     # Save the presentation
 
     # create presentation with both plots
-    plot_by_delta_t = False # Chane this from False --> True: for choosing weather it'll create presentation by delta_t or steps
+    plot_by_delta_t = False # change this from False --> True: for choosing weather it'll create presentation by delta_t or steps
     prs_game = create_players_game_presentation(preprocessed_data, delta_t=plot_by_delta_t)
     if not plot_by_delta_t:
         prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_twice_steps.pptx"
