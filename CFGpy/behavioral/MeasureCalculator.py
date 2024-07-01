@@ -204,19 +204,54 @@ class MeasureCalculator:
         return pd.DataFrame(relative_measures)
 
 
+
 if __name__ == '__main__':
     import argparse
     from Preprocessor import Preprocessor
 
-    argparser = argparse.ArgumentParser(description="Calculate measures from parsed CFG data")
-    argparser.add_argument("-i", "--input", dest="input_filename",
-                           help='Filename of parsed data JSON')
-    argparser.add_argument("-o", "--output", default=DEFAULT_FINAL_OUTPUT_FILENAME, dest="output_filename",
-                           help='Filename of output CSV')
-    args = argparser.parse_args()
+    OUTPUT_FOLDER = "/Users/avivgreenburg/Library/CloudStorage/GoogleDrive-aviv.greenburg@mail.huji.ac.il/My Drive/שלי/לימודים/Uni_2020-2024/forth_year/lab/CFGpy/CFGpy/behavioral/output"
+    JASON ="/Users/avivgreenburg/Library/CloudStorage/GoogleDrive-aviv.greenburg@mail.huji.ac.il/My Drive/שלי/לימודים/Uni_2020-2024/forth_year/lab/CFGpy/CFGpy/behavioral/output/preprocessed.json"
+    # argparser = argparse.ArgumentParser(description="Calculate measures from parsed CFG data")
+    # argparser.add_argument("-i", "--input", dest="input_filename",
+    #                        help='Filename of parsed data JSON')
+    # argparser.add_argument("-o", "--output", default=DEFAULT_FINAL_OUTPUT_FILENAME, dest="output_filename",
+    #                        help='Filename of output CSV')
+    # args = argparser.parse_args()
+    #
+    # pp = Preprocessor.from_json(args.input_filename)
 
-    pp = Preprocessor.from_json(args.input_filename)
+    pp = Preprocessor.from_json(JASON)
+
     preprocessed_data = pp.preprocess()
     mc = MeasureCalculator(preprocessed_data)
     mc.calc()
-    mc.dump(args.output_filename)
+    # mc.dump(args.output_filename)
+
+    def save_median_lengths_to_csv(measure_calculator, path):
+        """
+        Outputs a CSV file with each participant in a separate line and two columns:
+        one for MEDIAN_EXPLORE_LENGTH_KEY value and another for MEDIAN_EXPLOIT_LENGTH_KEY value.
+        """
+        median_lengths_df = measure_calculator.output_df[[MEASURES_ID_KEY, MEDIAN_EXPLORE_LENGTH_KEY, MEDIAN_EXPLOIT_LENGTH_KEY]]
+        median_lengths_df.to_csv(path, index=False)
+
+
+    save_median_lengths_to_csv(mc, f'{OUTPUT_FOLDER}/median_lengths.csv')
+
+
+# if __name__ == '__main__':
+#     import argparse
+#     from Preprocessor import Preprocessor
+#
+#     argparser = argparse.ArgumentParser(description="Calculate measures from parsed CFG data")
+#     argparser.add_argument("-i", "--input", dest="input_filename",
+#                            help='Filename of parsed data JSON')
+#     argparser.add_argument("-o", "--output", default=DEFAULT_FINAL_OUTPUT_FILENAME, dest="output_filename",
+#                            help='Filename of output CSV')
+#     args = argparser.parse_args()
+#
+#     pp = Preprocessor.from_json(args.input_filename)
+#     preprocessed_data = pp.preprocess()
+#     mc = MeasureCalculator(preprocessed_data)
+#     mc.calc()
+#     mc.dump(args.output_filename)

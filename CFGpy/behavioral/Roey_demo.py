@@ -99,7 +99,7 @@ def add_error_slide_to_ppt(prs, errors):
     content_box = slide.placeholders[1]
     content_box.text = "\n".join(errors)
 
-def create_players_game_presentation(preprocessed_data):
+def create_players_game_presentation(preprocessed_data, delta_t=True):
     # Create a presentation object
     prs = Presentation()
     # Collect error messages
@@ -111,7 +111,10 @@ def create_players_game_presentation(preprocessed_data):
             data = PreprocessedPlayerData(player_data)
 
             shapesImagePath = data.plot_clusters()
-            plotGalleryImagePath = data.plot_gallery_dt()
+            if delta_t:
+                plotGalleryImagePath = data.plot_gallery_dt()
+            else:
+                plotGalleryImagePath = data.plot_gallery_steps()
 
             if shapesImagePath != -1 and plotGalleryImagePath != -1:
                 add_both_plots_to_ppt(prs, shapesImagePath, plotGalleryImagePath,
@@ -171,8 +174,13 @@ if __name__ == '__main__':
     # Save the presentation
 
     # create presentation with both plots
-    prs_game = create_players_game_presentation(preprocessed_data)
-    prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_twice.pptx"
+    delta_t = True
+    prs_game = create_players_game_presentation(preprocessed_data, delta_t=delta_t)
+    if not delta_t:
+        prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_twice_steps.pptx"
+    else:
+        prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_twice_delta_t.pptx"
+
     prs_game.save(prs_game_name)
     print(f"PowerPoint presentation saved as '{prs_game_name}'")
 

@@ -279,6 +279,53 @@ class PreprocessedPlayerData(ParsedPlayerData):
 
         return imagePath
 
+    def plot_gallery_steps(self, path=PATH_FROM_REP_ROOT):
+        # if there is no explore / exploit --> don't plot
+        if self.exploit_slices == [] or self.explore_slices == []:
+            return -1
+
+        is_gallery = self.get_gallery_mask()
+        gallery_step_idx = self.shapes_df[is_gallery].iloc[:, SHAPE_ID_IDX]
+        gallery_diffs = gallery_step_idx.diff().fillna(0).to_numpy()
+
+        cluster_label = np.empty(len(self.shapes_df), dtype=object)
+        phase_type = np.empty(len(self.shapes_df), dtype=object)
+        for phase_name, phase_slices in zip(("explore", "exploit"), (self.explore_slices, self.exploit_slices)):
+            for i, (start, end) in enumerate(phase_slices):
+                cluster_label[start:end] = f"{phase_name}{i}"
+                phase_type[start:end] = phase_name
+
+        df = pd.DataFrame({
+            "gallery_steps": gallery_step_idx,
+            "gallery_diff": gallery_diffs,
+            "cluster": cluster_label[is_gallery],
+            "phase_type": phase_type[is_gallery]
+        })
+
+        fig, ax = plt.subplots(figsize=(10, 5))
+        marker_dict = {"explore": "o", "exploit": "X"}
+        sns.lineplot(data=df, ax=ax, x="gallery_time", y="gallery_diff", hue="cluster", style="phase_type",
+                     markers=marker_dict, markersize=10)
+        handles, labels = plt.gca().get_legend_handles_labels()
+        unique_markers = dict(zip(labels, handles))
+
+        #ROEY COMMENTED TO AVOID ISSUES WITH GAMES THAT ARE ONLY EXPLOIT WHEN USING EFFICIENY
+        #plt.legend((unique_markers["explore"], unique_markers["exploit"]), ("explore", "exploit"))
+        plt.xlabel(r"$t$ (s)", fontsize=14)
+        plt.ylabel("#steps diff", fontsize=14)
+        plt.suptitle("Gallery shapes creation time, segmented by clusters", fontsize=16)
+        plt.title(f"Player ID: {self.id}")
+        plt.grid()
+
+        # Show
+        # plt.show()
+
+        # Save the plot as an image file
+        imagePath = f"{path}GalleryPlayer{self.id}.png"
+        plt.savefig(imagePath)
+        plt.close()
+
+        return imagePath
 
 class ParsedDataset:
     def __init__(self, input_data):

@@ -19,7 +19,19 @@ class Preprocessor:
         self.convert_shape_ids()
         self.handle_empty_moves()
         self.add_explore_exploit()
+
+        # remove 'bad players'
+        self.remove_bad_games()
+
         return self.all_players_data
+
+    def remove_bad_games(self):
+        # remove players with no explore / exploit phase
+        for player_data in self.all_players_data:
+            if player_data.exploit_slices == [] or player_data.explore_slices == []:
+                # remove player from players data
+                print(f"Player {player_data[PARSED_PLAYER_ID_KEY]}: no exploit / explore, removing player data.")
+                self.all_players_data.remove(player_data)
 
     def convert_shape_ids(self):
         """
