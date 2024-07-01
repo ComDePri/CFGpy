@@ -174,9 +174,9 @@ if __name__ == '__main__':
     # Save the presentation
 
     # create presentation with both plots
-    delta_t = True
-    prs_game = create_players_game_presentation(preprocessed_data, delta_t=delta_t)
-    if not delta_t:
+    plot_by_delta_t = False # chane this from False --> True: for choosing weather it'll create presentation by delta_t or steps
+    prs_game = create_players_game_presentation(preprocessed_data, delta_t=plot_by_delta_t)
+    if not plot_by_delta_t:
         prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_twice_steps.pptx"
     else:
         prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_twice_delta_t.pptx"
@@ -185,10 +185,10 @@ if __name__ == '__main__':
     print(f"PowerPoint presentation saved as '{prs_game_name}'")
 
     # create presentation with all shapes plot
-    prs_all_shapes =create_all_shapes_presentation(preprocessed_data)
-    prs_all_shapes_name = f"{PPT_OUTPUT_PATH}all_shapes_presentation.pptx"
-    prs_all_shapes.save(prs_all_shapes_name)
-    print(f"PowerPoint presentation saved as '{prs_all_shapes_name}'")
+    # prs_all_shapes =create_all_shapes_presentation(preprocessed_data)
+    # prs_all_shapes_name = f"{PPT_OUTPUT_PATH}all_shapes_presentation.pptx"
+    # prs_all_shapes.save(prs_all_shapes_name)
+    # print(f"PowerPoint presentation saved as '{prs_all_shapes_name}'")
 
 
 
