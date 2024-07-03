@@ -114,7 +114,7 @@ def create_players_game_presentation(preprocessed_data, delta_t=True):
             if delta_t:
                 plotGalleryImagePath = data.plot_gallery_dt()
             else:
-                plotGalleryImagePath = data.plot_gallery_steps()
+                plotGalleryImagePath = data.plot_gallery_steps_over_dt() #TODO: Consider adding a flag for plot_gallery_steps
 
             if shapesImagePath != -1 and plotGalleryImagePath != -1:
                 add_both_plots_to_ppt(prs, shapesImagePath, plotGalleryImagePath,
@@ -177,9 +177,9 @@ if __name__ == '__main__':
     plot_by_delta_t = False # change this from False --> True: for choosing weather it'll create presentation by delta_t or steps
     prs_game = create_players_game_presentation(preprocessed_data, delta_t=plot_by_delta_t)
     if not plot_by_delta_t:
-        prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_twice_steps.pptx"
+        prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_time_per_step10.pptx"
     else:
-        prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_twice_delta_t.pptx"
+        prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_delta_t.pptx"
 
     prs_game.save(prs_game_name)
     print(f"PowerPoint presentation saved as '{prs_game_name}'")

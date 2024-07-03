@@ -330,6 +330,88 @@ class PreprocessedPlayerData(ParsedPlayerData):
 
         return imagePath
 
+    def plot_gallery_steps_over_dt(self, path=PATH_FROM_REP_ROOT):
+        # if there is no explore / exploit --> don't plot
+        if self.exploit_slices == [] or self.explore_slices == []:
+            return -1
+
+        is_gallery = self.get_gallery_mask()
+        # Get the steps difference between consecutive gallery shapes
+        gallery_step_idx = self.shapes_df[is_gallery].index
+        gallery_steps_diffs = gallery_step_idx.diff().fillna(0).to_numpy()
+
+        # Get the time difference between consecutive gallery shapes
+        gallery_in_times = self.shapes_df[is_gallery].iloc[:, SHAPE_MOVE_TIME_IDX]
+        gallery_out_times = self.shapes_df[is_gallery].iloc[:, SHAPE_MAX_MOVE_TIME_IDX]
+        gallery_time_diffs = gallery_in_times - gallery_out_times.shift()
+        # print(self.id) # --> for testing
+        gallery_time_diffs.iloc[0] = 0
+        gallery_time_diffs = gallery_time_diffs.to_numpy()
+
+        cluster_label = np.empty(len(self.shapes_df), dtype=object)
+        phase_type = np.empty(len(self.shapes_df), dtype=object)
+        for phase_name, phase_slices in zip(("explore", "exploit"), (self.explore_slices, self.exploit_slices)):
+            for i, (start, end) in enumerate(phase_slices):
+                cluster_label[start:end] = f"{phase_name}{i}"
+                phase_type[start:end] = phase_name
+
+        df = pd.DataFrame({
+            "gallery_time": gallery_in_times,
+            "gallery_diff": np.nan_to_num(gallery_time_diffs/gallery_steps_diffs),
+            "cluster": cluster_label[is_gallery],
+            "phase_type": phase_type[is_gallery]
+        })
+
+        fig, ax = plt.subplots(figsize=(10, 5))
+        marker_dict = {"explore": "o", "exploit": "X"}
+        sns.lineplot(data=df, ax=ax, x="gallery_time", y="gallery_diff", hue="cluster", style="phase_type",
+                     markers=marker_dict, markersize=10)
+
+        # Calculate the median value of gallery_diff
+        median_value = df['gallery_diff'].median()
+        # Add a horizontal line at the median value
+        ax.axhline(y=median_value, color='black', linestyle='--', label=f'Median: {median_value:.2f}')
+
+        #handles, labels = plt.gca().get_legend_handles_labels()
+        #unique_markers = dict(zip(labels, handles))
+        #ROEY COMMENTED TO AVOID ISSUES WITH GAMES THAT ARE ONLY EXPLOIT WHEN USING EFFICIENY
+        #plt.legend((unique_markers["explore"], unique_markers["exploit"]), ("explore", "exploit"))
+        # Getting the legend handles and labels
+        handles, labels = plt.gca().get_legend_handles_labels()
+        unique_markers = dict(zip(labels, handles))
+
+        # Collect the markers and labels that exist
+        legend_handles = []
+        legend_labels = []
+
+        if "explore" in unique_markers:
+            legend_handles.append(unique_markers["explore"])
+            legend_labels.append("explore")
+        if "exploit" in unique_markers:
+            legend_handles.append(unique_markers["exploit"])
+            legend_labels.append("exploit")
+
+        # Add the median line to the legend if it's not already there
+        median_label = f'Median: {median_value:.2f}'
+        if median_label not in legend_labels:
+            legend_handles.append(ax.get_lines()[-1])
+            legend_labels.append(median_label)
+
+        plt.xlabel("time", fontsize=14)
+        plt.ylabel("time per step", fontsize=14)
+        plt.suptitle("Gallery shapes creation time, segmented by clusters", fontsize=16)
+        plt.title(f"Player ID: {self.id}")
+        plt.grid()
+
+        # Show
+        # plt.show()
+
+        # Save the plot as an image file
+        imagePath = f"{path}GalleryPlayer{self.id}.png"
+        plt.savefig(imagePath)
+        plt.close()
+
+        return imagePath
 class ParsedDataset:
     def __init__(self, input_data):
         self.input_data = []

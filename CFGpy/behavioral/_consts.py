@@ -11,6 +11,7 @@ PARSED_CHOSEN_SHAPES_KEY = 'chosen_shapes'
 # preprocessing
 MIN_SAVE_FOR_EXPLOIT = 3
 MIN_EFFICIENCY_FOR_EXPLOIT = 0.8 # This should be 0 for regular games, and 0.8 for MRI games
+MAX_TIME_PER_STEP_FOR_EFFICIENCY_MERGE = 10 # If a merge based on efficiency includes two shapes for which the average time per step is more than 10 seconds, the merge will be cancled
 EXPLORE_KEY = "explore"
 EXPLOIT_KEY = "exploit"
 
