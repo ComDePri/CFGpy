@@ -60,7 +60,7 @@ def coords_to_bin_coords(coords):
     shape_id = [int(d) for d in shape_id_wth_0 if d != 0]
     return shape_id
 
-def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, min_efficieny=MIN_EFFICIENCY_FOR_EXPLOIT, max_time_per_step=MAX_TIME_PER_STEP_FOR_EFFICIENCY_MERGE):
+def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, min_efficieny=MIN_EFFICIENCY_FOR_EXPLOIT, max_pace=MAX_PACE_FOR_MERGE):
     # The logic here is this:
     # 1. Group shapes by decreasing save-time differences (difference from previous gallery shape)
     # 2. Group these clusters based on efficiency (merge consecutive clusters if there is high efficiency between last shape of cluster A and first shape of cluster B)
@@ -95,12 +95,18 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, m
     gallery_diffs.iloc[0] = 0  # Set the first difference to 0 (no previous shape to compare with)
     gallery_diffs = gallery_diffs.to_numpy()
 
+    # Get the pace, the mean step time between consecutive gallery shapes (in seconds per step)
+    # TODO: is this really the way to go? Do we need to make sure we use in-steps and out-steps? I don't think so. If a change required 1 step but actually do to duplicate shapes took 4 steps, then we would like efficiency to capture this. If we include the duplicate steps in the calculation, the pace will be a faster one (there is less time for each step) and this won't count as a very slow transition that will undo the efficiency.
+    gallery_steps_diffs = gallery_indices - np.roll(gallery_indices,1)
+    gallery_steps_diffs[0] = 0  # Set the first difference to 0 (no previous shape to compare with)
+    gallery_pace = np.nan_to_num(gallery_diffs/gallery_steps_diffs)
+
     # Initialize the list of clusters
     clusters = []
     if gallery_diffs.size:
 
         # Group differences into monotone decreasing sequences
-        all_monotone_series = pd.Series(group_by_monotone_decreasing(gallery_diffs))
+        all_monotone_series = pd.Series(group_by_monotone_decreasing(gallery_diffs,gallery_pace))
 
         group_by_efficiency_twice = False
         if group_by_efficiency_twice:
@@ -112,16 +118,18 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, m
         else:
             # Calculate the peaks (first elements) of each monotone sequence
             gallery_diffs_peaks = np.array([gallery_diffs[monotone_series[0]] for monotone_series in all_monotone_series])
+            # Get the relevant pace measures for controlling the merge of clusters based on first peaks in time-difference
+            gallery_pace_first_shapes = np.array([gallery_pace[monotone_series[0]] for monotone_series in all_monotone_series])
 
         # Group these peaks into further monotone decreasing sequences
-        twice_monotone_series = group_by_monotone_decreasing(gallery_diffs_peaks)
+        twice_monotone_series = group_by_monotone_decreasing(gallery_diffs_peaks, gallery_pace_first_shapes)
 
         # Form clusters by concatenating the original monotone sequences
         clusters = [np.concatenate(all_monotone_series[monotone_series].values)
                     for monotone_series in twice_monotone_series]
 
         # Add code to group sequences based on efficiency
-        clusters = group_by_efficiency(clusters, shapes_df, gallery_indices, min_efficieny, max_time_per_step)
+        clusters = group_by_efficiency(clusters, shapes_df, gallery_indices, min_efficieny, max_pace)
 
     # Initialize lists for exploit and explore slices
     exploit_slices = []
@@ -163,7 +171,7 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, m
     # Return the identified explore and exploit slices
     return explore_slices, exploit_slices
 
-def group_by_efficiency(clusters, shapes_df, gallery_indices, min_efficiency, max_time_per_step):
+def group_by_efficiency(clusters, shapes_df, gallery_indices, min_efficiency, max_pace):
     """
     Groups sequences based on the criterion that the efficiency measure between 
     the last shape of the first sequence and the first shape of the following sequence 
@@ -197,11 +205,11 @@ def group_by_efficiency(clusters, shapes_df, gallery_indices, min_efficiency, ma
         # Calculate the steps difference between them
         steps_diff = gallery_indices[next_shape_idx] - gallery_indices[prev_shape_idx]
         # Calculate the average time per step between the two shapes
-        time_per_step = time_diff / steps_diff
+        pace = time_diff / steps_diff
 
 
         # Check if efficiency meets the minimum required efficiency
-        if (efficiency >= min_efficiency) and (time_per_step < max_time_per_step):
+        if (efficiency >= min_efficiency) and (pace < max_pace):
             # Combine clusters if efficiency is sufficient
             current_cluster = np.concatenate((current_cluster, clusters[i]))
         else:
@@ -215,14 +223,18 @@ def group_by_efficiency(clusters, shapes_df, gallery_indices, min_efficiency, ma
     return grouped_clusters
 
 
-def group_by_monotone_decreasing(sequence):
+def group_by_monotone_decreasing(sequence, pace, max_pace=MAX_PACE_FOR_MERGE):
+    # pace is the same length as "sequence" but it includes that pace (time per step) between each gallery shape and the previous one
     monotone_sequences = []
     current_sequence = [0]
     for i in range(1, sequence.size):
-        if sequence[i - 1] < sequence[i]:
+        if sequence[i - 1] < sequence[i]: # If the current shape breaks the monotone sequence
             monotone_sequences.append(current_sequence)
             current_sequence = [i]
-        else:
+        elif pace[i] > max_pace: # If the current shape continues a monotone sequence, make sure it survives the pace criterion
+            monotone_sequences.append(current_sequence)
+            current_sequence = [i]
+        else: # This shape will be a sequence of its own, as it does not
             current_sequence.append(i)
 
     if current_sequence not in monotone_sequences:

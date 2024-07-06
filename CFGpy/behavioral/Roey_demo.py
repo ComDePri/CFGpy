@@ -163,7 +163,7 @@ if __name__ == '__main__':
     #preprocessed_data = from_url(CSV_URL)
 
     # Load data from csv
-    # preprocessed_data = from_file(CSV_FILE_PATH)
+    #preprocessed_data = from_file(CSV_FILE_PATH)
 
     # Load processed data from json
     preprocessed_data = from_json(DEFAULT_OUTPUT_FILENAME)
@@ -177,7 +177,7 @@ if __name__ == '__main__':
     plot_by_delta_t = False # change this from False --> True: for choosing weather it'll create presentation by delta_t or steps
     prs_game = create_players_game_presentation(preprocessed_data, delta_t=plot_by_delta_t)
     if not plot_by_delta_t:
-        prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_time_per_step10.pptx"
+        prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_pace10allsteps.pptx"
     else:
         prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_delta_t.pptx"
 
