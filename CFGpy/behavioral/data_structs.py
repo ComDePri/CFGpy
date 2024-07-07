@@ -27,7 +27,7 @@ class ParsedPlayerData:
 
     def get_last_action_time(self):
         last_action_time = self.shapes_df.iloc[-1, SHAPE_SAVE_TIME_IDX]
-        if np.isnan(last_action_time) or last_action_time is None:  # is None handles cases of 0-gallery games
+        if last_action_time is None or np.isnan(last_action_time):  # is None handles cases of 0-gallery games
             last_action_time = self.shapes_df.iloc[-1, SHAPE_MOVE_TIME_IDX]
 
         return last_action_time

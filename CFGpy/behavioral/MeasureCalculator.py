@@ -223,6 +223,7 @@ if __name__ == '__main__':
     pp = Preprocessor.from_json(JASON)
 
     preprocessed_data = pp.preprocess()
+    pp.remove_bad_games_after_preprocess()
     mc = MeasureCalculator(preprocessed_data)
     mc.calc()
     # mc.dump(args.output_filename)
