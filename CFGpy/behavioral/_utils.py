@@ -60,7 +60,7 @@ def coords_to_bin_coords(coords):
     shape_id = [int(d) for d in shape_id_wth_0 if d != 0]
     return shape_id
 
-def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, min_efficieny=MIN_EFFICIENCY_FOR_EXPLOIT, max_pace=MAX_PACE_FOR_MERGE):
+def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, min_efficieny=MIN_EFFICIENCY_FOR_EXPLOIT, max_pace=MAX_PACE_FOR_MERGE, use_pace_criterion=True):
     # The logic here is this:
     # 1. Group shapes by decreasing save-time differences (difference from previous gallery shape)
     # 2. Group these clusters based on efficiency (merge consecutive clusters if there is high efficiency between last shape of cluster A and first shape of cluster B)
@@ -69,19 +69,20 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, m
     # 4. Group these clusters based on efficiency
     # Determine the number of shapes
     n_shapes = len(shapes)
-    
+
     # Default return value if no "exploit" clusters are found
     no_exploit_return_value = [(0, n_shapes)], []
-    
+    if use_pace_criterion:
+        no_exploit_return_value = [(0, n_shapes)], [], np.nan, np.nan
     # Convert shapes data to a pandas DataFrame
     shapes_df = pd.DataFrame(shapes)
 
     # Extract the save times of shapes
     gallery_saves = shapes_df[SHAPE_SAVE_TIME_IDX]
-    
+
     # Find indices where shapes have save times
     gallery_indices = np.flatnonzero(gallery_saves.notna())
-    
+
     # Return the default value if no shapes were saved
     if not any(gallery_indices):
         return no_exploit_return_value
@@ -89,7 +90,7 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, m
     # Get the in and out times of shapes based on save indices
     gallery_in_times = shapes_df.iloc[gallery_indices][SHAPE_MOVE_TIME_IDX]
     gallery_out_times = shapes_df.iloc[gallery_indices][SHAPE_MAX_MOVE_TIME_IDX]
-    
+
     # Calculate time differences between consecutive shape movements
     gallery_diffs = gallery_in_times - gallery_out_times.shift()
     gallery_diffs.iloc[0] = 0  # Set the first difference to 0 (no previous shape to compare with)
@@ -105,8 +106,31 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, m
     clusters = []
     if gallery_diffs.size:
 
+        if use_pace_criterion:
+            # ** Experimental - define subject sepcific threshold with tobust medians **
+            # Get gallery shapes based on the original algorithm
+            min_efficieny = 1.1 # This is for not using efficiency at all at this point
+            use_pace_criterion_for_first_run = False
+            max_pace_for_first_run = 10000
+            explore, exploit = segment_explore_exploit(shapes, min_save_for_exploit, min_efficieny, max_pace_for_first_run, use_pace_criterion_for_first_run)
+
+            # Get indices of gallery shapes within each exploit segment, ignoring the first of each exploit segment
+            exploit_indices = get_exploit_indices_excluding_first_per_segment(exploit, gallery_indices)
+
+            if len(exploit_indices)==0:
+                robust_median_value = np.nan
+                max_pace = np.nan
+            else:
+                robust_median_value, robust_mad_value = robust_median(gallery_pace[exploit_indices])
+                max_pace = robust_median_value + 6 * robust_mad_value
+        else:
+            max_pace = 10000 # This is basically like ignoring the pace critetion
+
+
+
+
         # Group differences into monotone decreasing sequences
-        all_monotone_series = pd.Series(group_by_monotone_decreasing(gallery_diffs,gallery_pace))
+        all_monotone_series = pd.Series(group_by_monotone_decreasing(gallery_diffs, gallery_pace))
 
         group_by_efficiency_twice = False
         if group_by_efficiency_twice:
@@ -144,7 +168,7 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, m
         # Check if the cluster meets the criteria for "exploit"
         if cluster.size >= min_save_for_exploit:
             exploit_slices.append((int(start), int(end)))
-            
+
             # If there is a gap between the previous exploit and the current, mark this gap as "explore"
             if prev_exploit_end != start:
                 explore_slices.append((int(prev_exploit_end), int(start)))
@@ -169,7 +193,10 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, m
         explore_slices[-1] = last_explore_slice
 
     # Return the identified explore and exploit slices
-    return explore_slices, exploit_slices
+    if use_pace_criterion:
+        return explore_slices, exploit_slices, robust_median_value, max_pace
+    else:
+        return explore_slices, exploit_slices
 
 def group_by_efficiency(clusters, shapes_df, gallery_indices, min_efficiency, max_pace):
     """
@@ -311,3 +338,53 @@ class CustomIndentEncoder(json.JSONEncoder):
                 '"{}"'.format(format_spec.format(id)), json_obj_repr)
 
         return json_repr
+
+def median_absolute_deviation(data, median):
+    return np.median(np.abs(data - median))
+
+def is_outlier(data, median, mad):
+    return np.abs(data - median) > (6 * mad)
+def robust_median(data):
+    data = np.array(data)
+    median = np.median(data)
+    mad = median_absolute_deviation(data, median)
+
+    while True:
+        mask = ~is_outlier(data, median, mad)
+        if np.all(mask):
+            break
+        data = data[mask]
+        median = np.median(data)
+        mad = median_absolute_deviation(data, median)
+
+    mask = ~is_outlier(data, median, mad)
+    print(data)
+    return median, mad
+
+
+def get_exploit_indices_excluding_first_per_segment(exploit, gallery_indices):
+    # This function loops over all exploit segment in "exploit" and returns the indices of the gallery shapes that are
+    # part of exploit segments. In also removes the first exploit shape in each segment. This is because we want to
+    # use those gallery shapes for calculating the median pace in exploit, and we assume that the pace from explore to
+    # the first exploit shape might be different from  the pace strictly within an exploit segment.
+
+    # Convert gallery_indices to a numpy array for easier indexing
+    gallery_indices = np.array(gallery_indices)
+
+    all_indices = []
+
+    for (start, end) in exploit:
+        # Identify indices within the range
+        within_range_indices = np.where((gallery_indices >= start) & (gallery_indices <= end))[0]
+
+        # If there are indices in the range, remove the first one
+        if len(within_range_indices) > 0:
+            within_range_indices = within_range_indices[1:]
+
+        # Add the remaining indices to the all_indices list
+        all_indices.extend(within_range_indices)
+
+    # Flatten the list of indices (if not already flat)
+    all_indices = np.array(all_indices).flatten()
+
+    return all_indices

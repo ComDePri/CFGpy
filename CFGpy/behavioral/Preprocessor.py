@@ -96,9 +96,15 @@ class Preprocessor:
 
     def add_explore_exploit(self):
         for player_data in self.all_players_data:
-            explore, exploit = segment_explore_exploit(player_data[PARSED_ALL_SHAPES_KEY])
+            if player_data["id"] == "999999":
+                continue
+            explore, exploit, robust_median_value, robust_threshold_value = segment_explore_exploit(player_data[PARSED_ALL_SHAPES_KEY])
             player_data[EXPLORE_KEY] = explore
             player_data[EXPLOIT_KEY] = exploit
+
+            # Add the robust median pace in exploit and the threshold for identifying slow pace (median+6*mad)
+            player_data['robust_median_exploit_pace'] = robust_median_value
+            player_data['robust_threshold_exploit_pace'] = robust_threshold_value
 
     def dump(self, path=DEFAULT_OUTPUT_FILENAME):
         with open(path, "w") as out_file:
