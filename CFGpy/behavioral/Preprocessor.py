@@ -34,17 +34,6 @@ class Preprocessor:
                 print(f"Player {player_data[PARSED_PLAYER_ID_KEY]}: no exploit / explore, before preprocess, removing player data.")
                 self.all_players_data.remove(player_data)
 
-    def remove_bad_games_after_preprocess(self):
-        # suggestion to add --->
-        # remove players with no explore / exploit phase
-        for player_data in self.all_players_data:
-            if player_data[EXPLOIT_KEY] == [] or player_data[EXPLORE_KEY] == [] or player_data[PARSED_PLAYER_ID_KEY].startswith('9999'):
-                # remove player from players data
-                print(f"Player {player_data[PARSED_PLAYER_ID_KEY]}: no exploit / explore, after preprocess, removing player data.")
-                self.all_players_data.remove(player_data)
-
-
-
     def convert_shape_ids(self):
         """
         Converts shape ids from their graphical representations to serial numbers.
