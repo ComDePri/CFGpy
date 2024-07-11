@@ -61,7 +61,7 @@ class Preprocessor:
                          .groupby("group_id", as_index=False)
                          .agg({SHAPE_ID_IDX: lambda x: x.iloc[0],
                                SHAPE_MOVE_TIME_IDX: lambda x: x.iloc[0],
-                               SHAPE_SAVE_TIME_IDX: lambda x: x.iloc[0],
+                               SHAPE_SAVE_TIME_IDX: np.nanmin,
                                SHAPE_MAX_MOVE_TIME_IDX: lambda x: x.iloc[-1]})
                          .drop(columns="group_id"))
             shapes = (shapes_df
