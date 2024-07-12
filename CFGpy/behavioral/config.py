@@ -81,7 +81,8 @@ PARSER_ID_COLUMNS = (
     'userId',
     'prolificId'
 )
-PARSER_DATE_FORMAT = '%Y-%m-%dT%H:%M:%S.%fZ'
+# PARSER_DATE_FORMAT = '%Y-%m-%dT%H:%M:%S.%fZ'  # for RedMetrics1
+PARSER_DATE_FORMAT = '%Y-%m-%dT%H:%M:%S%z'  # for RedMetrics2
 PARSER_TIME_COLUMN = RAW_USER_TIME
 PARSER_JSON_COLUMN = RAW_PLAYER_CUSTOM_DATA
 SHAPE_MOVE_COLUMN = RAW_NEW_SHAPE
