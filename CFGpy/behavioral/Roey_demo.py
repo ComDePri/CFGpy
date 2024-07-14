@@ -177,7 +177,7 @@ if __name__ == '__main__':
     plot_by_delta_t = False # change this from False --> True: for choosing weather it'll create presentation by delta_t or steps
     prs_game = create_players_game_presentation(preprocessed_data, delta_t=plot_by_delta_t)
     if not plot_by_delta_t:
-        prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_paceSpecific_5mad_rmvEmptyTimeAllSteps.pptx"
+        prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_paceSpecific_5mad_rmvEmptyTimeAllSteps_.pptx"
     else:
         prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_paceSpecific_5mad_rmvEmptyTimeAllSteps_delta_t.pptx"
 
