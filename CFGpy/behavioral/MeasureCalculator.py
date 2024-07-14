@@ -235,7 +235,7 @@ if __name__ == '__main__':
     save_median_lengths_to_csv(mc, f'{OUTPUT_FOLDER}/median_lengths.csv')
 
 
-### PREVIOUS ### j
+### PREVIOUS ###
 # if __name__ == '__main__':
 #     import argparse
 #     from Preprocessor import Preprocessor
