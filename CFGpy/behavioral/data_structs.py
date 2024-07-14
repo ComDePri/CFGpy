@@ -22,6 +22,10 @@ class ParsedPlayerData:
 
         self.delta_move_times = np.diff(self.shapes_df.iloc[:, SHAPE_MOVE_TIME_IDX])
 
+        # Roey's additions for the subject-specific pace threshold
+        self.robust_median_exploit_pace = player_data['robust_median_exploit_pace']
+        self.robust_threshold_exploit_pace = player_data['robust_threshold_exploit_pace']
+
     def __len__(self):
         return len(self.shapes_df)
 
@@ -245,6 +249,18 @@ class PreprocessedPlayerData(ParsedPlayerData):
         gallery_diffs.iloc[0] = 0
         gallery_diffs = gallery_diffs.to_numpy()
 
+        remove_empty_steps_time = True # &&&
+        if remove_empty_steps_time:
+            gallery_indices =  np.where(is_gallery)[0].tolist()
+            empty_steps_time = self.shapes_df.iloc[:, SHAPE_MAX_MOVE_TIME_IDX] - self.shapes_df.iloc[:, SHAPE_MOVE_TIME_IDX]
+            gallery_diffs_fixed = gallery_diffs
+            for gI, gallery_idx in enumerate(gallery_indices[:-1]):  # [:-1] makes sure we exclude the last element
+                start_idx = gallery_idx + 1
+                end_idx = gallery_indices[gI + 1] - 1
+                gallery_diffs_fixed[gI + 1] = gallery_diffs[gI + 1] - sum(empty_steps_time[start_idx:end_idx])
+            gallery_diffs = gallery_diffs_fixed
+
+
         cluster_label = np.empty(len(self.shapes_df), dtype=object)
         phase_type = np.empty(len(self.shapes_df), dtype=object)
         for phase_name, phase_slices in zip(("explore", "exploit"), (self.explore_slices, self.exploit_slices)):
@@ -266,6 +282,12 @@ class PreprocessedPlayerData(ParsedPlayerData):
 
         #ROEY COMMENTED TO AVOID ISSUES WITH GAMES THAT ARE ONLY EXPLOIT WHEN USING EFFICIENY
         #plt.legend((unique_markers["explore"], unique_markers["exploit"]), ("explore", "exploit"))
+
+        for ax in plt.gcf().get_axes():  # Get the current figure and all its axes
+            legend = ax.get_legend()  # Get the legend from the current axis
+            if legend:  # If there is a legend
+                legend.remove()  # Remove the legend
+
         plt.xlabel(r"$t$ (s)", fontsize=14)
         plt.ylabel(r"$\Delta t$ (s)", fontsize=14)
         plt.suptitle("Gallery shapes creation time, segmented by clusters", fontsize=16)
@@ -313,7 +335,7 @@ class PreprocessedPlayerData(ParsedPlayerData):
         unique_markers = dict(zip(labels, handles))
 
         #ROEY COMMENTED TO AVOID ISSUES WITH GAMES THAT ARE ONLY EXPLOIT WHEN USING EFFICIENY
-        #plt.legend((unique_markers["explore"], unique_markers["exploit"]), ("explore", "exploit"))
+        plt.legend((unique_markers["explore"], unique_markers["exploit"]), ("explore", "exploit"))
         plt.xlabel("total number of steps", fontsize=14)
         plt.ylabel("steps difference", fontsize=14)
         plt.suptitle("Gallery shapes creation time, segmented by clusters", fontsize=16)
@@ -348,6 +370,17 @@ class PreprocessedPlayerData(ParsedPlayerData):
         gallery_time_diffs.iloc[0] = 0
         gallery_time_diffs = gallery_time_diffs.to_numpy()
 
+        remove_empty_steps_time = True # &&&
+        if remove_empty_steps_time:
+            gallery_indices =  np.where(is_gallery)[0].tolist()
+            empty_steps_time = self.shapes_df.iloc[:, SHAPE_MAX_MOVE_TIME_IDX] - self.shapes_df.iloc[:, SHAPE_MOVE_TIME_IDX]
+            gallery_diffs_fixed = gallery_time_diffs
+            for gI, gallery_idx in enumerate(gallery_indices[:-1]):  # [:-1] makes sure we exclude the last element
+                start_idx = gallery_idx + 1
+                end_idx = gallery_indices[gI + 1] - 1
+                gallery_diffs_fixed[gI + 1] = gallery_time_diffs[gI + 1] - sum(empty_steps_time[start_idx:end_idx])
+            gallery_time_diffs = gallery_diffs_fixed
+
         cluster_label = np.empty(len(self.shapes_df), dtype=object)
         phase_type = np.empty(len(self.shapes_df), dtype=object)
         for phase_name, phase_slices in zip(("explore", "exploit"), (self.explore_slices, self.exploit_slices)):
@@ -368,34 +401,45 @@ class PreprocessedPlayerData(ParsedPlayerData):
                      markers=marker_dict, markersize=10)
 
         # Calculate the median value of gallery_diff
-        median_value = df['gallery_diff'].median()
+        # median_value = df['gallery_diff'].median()
+        median_value = self.robust_median_exploit_pace
+        threshold_value = self.robust_threshold_exploit_pace
         # Add a horizontal line at the median value
-        ax.axhline(y=median_value, color='black', linestyle='--', label=f'Median: {median_value:.2f}')
+        ax.axhline(y=median_value, color='black', linestyle='-', label=f'Median: {median_value:.2f}')
+        ax.axhline(y=threshold_value, color='black', linestyle='--', label=f'Thresh: {threshold_value:.2f}')
+
 
         #handles, labels = plt.gca().get_legend_handles_labels()
         #unique_markers = dict(zip(labels, handles))
         #ROEY COMMENTED TO AVOID ISSUES WITH GAMES THAT ARE ONLY EXPLOIT WHEN USING EFFICIENY
         #plt.legend((unique_markers["explore"], unique_markers["exploit"]), ("explore", "exploit"))
+
         # Getting the legend handles and labels
-        handles, labels = plt.gca().get_legend_handles_labels()
-        unique_markers = dict(zip(labels, handles))
+        ###handles, labels = plt.gca().get_legend_handles_labels()
+        ###unique_markers = dict(zip(labels, handles))
 
-        # Collect the markers and labels that exist
-        legend_handles = []
-        legend_labels = []
+        #### Collect the markers and labels that exist
+        ###legend_handles = []
+        ###legend_labels = []
 
-        if "explore" in unique_markers:
-            legend_handles.append(unique_markers["explore"])
-            legend_labels.append("explore")
-        if "exploit" in unique_markers:
-            legend_handles.append(unique_markers["exploit"])
-            legend_labels.append("exploit")
+        ###if "explore" in unique_markers:
+        ###    legend_handles.append(unique_markers["explore"])
+        ###    legend_labels.append("explore")
+        ###if "exploit" in unique_markers:
+        ###    legend_handles.append(unique_markers["exploit"])
+        ###    legend_labels.append("exploit")
 
         # Add the median line to the legend if it's not already there
-        median_label = f'Median: {median_value:.2f}'
-        if median_label not in legend_labels:
-            legend_handles.append(ax.get_lines()[-1])
-            legend_labels.append(median_label)
+        ###median_label = f'Median: {median_value:.2f}'
+        ###if median_label not in legend_labels:
+        ###    legend_handles.append(ax.get_lines()[-1])
+        ###    legend_labels.append(median_label)
+
+        for ax in plt.gcf().get_axes():  # Get the current figure and all its axes
+            legend = ax.get_legend()  # Get the legend from the current axis
+            if legend:  # If there is a legend
+                legend.remove()  # Remove the legend
+
 
         plt.xlabel("time", fontsize=14)
         plt.ylabel("time per step", fontsize=14)

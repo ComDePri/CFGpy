@@ -204,25 +204,21 @@ class MeasureCalculator:
         return pd.DataFrame(relative_measures)
 
 
-
+### AVIV ###
 if __name__ == '__main__':
     import argparse
     from Preprocessor import Preprocessor
 
-    OUTPUT_FOLDER = "/Users/avivgreenburg/Library/CloudStorage/GoogleDrive-aviv.greenburg@mail.huji.ac.il/My Drive/שלי/לימודים/Uni_2020-2024/forth_year/lab/CFGpy/CFGpy/behavioral/output"
-    JASON ="/Users/avivgreenburg/Library/CloudStorage/GoogleDrive-aviv.greenburg@mail.huji.ac.il/My Drive/שלי/לימודים/Uni_2020-2024/forth_year/lab/CFGpy/CFGpy/behavioral/output/preprocessed.json"
-    # argparser = argparse.ArgumentParser(description="Calculate measures from parsed CFG data")
-    # argparser.add_argument("-i", "--input", dest="input_filename",
-    #                        help='Filename of parsed data JSON')
-    # argparser.add_argument("-o", "--output", default=DEFAULT_FINAL_OUTPUT_FILENAME, dest="output_filename",
-    #                        help='Filename of output CSV')
-    # args = argparser.parse_args()
-    #
-    # pp = Preprocessor.from_json(args.input_filename)
+    # change this to mach locally
+    PERSONAL_PATH_TO_FOLDER = "/Users/avivgreenburg/Library/CloudStorage/GoogleDrive-aviv.greenburg@mail.huji.ac.il/My Drive/שלי/לימודים/Uni_2020-2024/forth_year/lab/"
+
+    OUTPUT_FOLDER = PERSONAL_PATH_TO_FOLDER+"CFGpy/CFGpy/behavioral/output"
+    JASON = PERSONAL_PATH_TO_FOLDER+"CFGpy/CFGpy/behavioral/output/preprocessed.json"
 
     pp = Preprocessor.from_json(JASON)
 
     preprocessed_data = pp.preprocess()
+    pp.remove_bad_games()
     mc = MeasureCalculator(preprocessed_data)
     mc.calc()
     # mc.dump(args.output_filename)
@@ -239,6 +235,7 @@ if __name__ == '__main__':
     save_median_lengths_to_csv(mc, f'{OUTPUT_FOLDER}/median_lengths.csv')
 
 
+### PREVIOUS ###
 # if __name__ == '__main__':
 #     import argparse
 #     from Preprocessor import Preprocessor

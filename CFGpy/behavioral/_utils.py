@@ -96,6 +96,18 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, m
     gallery_diffs.iloc[0] = 0  # Set the first difference to 0 (no previous shape to compare with)
     gallery_diffs = gallery_diffs.to_numpy()
 
+    # Fix the gallery_diffs by removing time spent on "empty steps" (steps that leave the shape unchanged)
+    # Reduce the time spent on "empty steps" between each pair of gallery shapes
+    remove_empty_steps_time = True
+    if remove_empty_steps_time:
+        empty_steps_time = shapes_df.iloc[:, SHAPE_MAX_MOVE_TIME_IDX] - shapes_df.iloc[:, SHAPE_MOVE_TIME_IDX]
+        gallery_diffs_fixed = gallery_diffs
+        for gI, gallery_idx in enumerate(gallery_indices[:-1]): # [:-1] makes sure we exclude the last element
+            start_idx = gallery_idx + 1
+            end_idx = gallery_indices[gI+1] - 1
+            gallery_diffs_fixed[gI+1] = gallery_diffs[gI+1] - sum(empty_steps_time[start_idx:end_idx])
+        gallery_diffs = gallery_diffs_fixed
+
     # Get the pace, the mean step time between consecutive gallery shapes (in seconds per step)
     # TODO: is this really the way to go? Do we need to make sure we use in-steps and out-steps? I don't think so. If a change required 1 step but actually do to duplicate shapes took 4 steps, then we would like efficiency to capture this. If we include the duplicate steps in the calculation, the pace will be a faster one (there is less time for each step) and this won't count as a very slow transition that will undo the efficiency.
     gallery_steps_diffs = gallery_indices - np.roll(gallery_indices,1)
@@ -109,20 +121,20 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, m
         if use_pace_criterion:
             # ** Experimental - define subject sepcific threshold with tobust medians **
             # Get gallery shapes based on the original algorithm
-            min_efficieny = 1.1 # This is for not using efficiency at all at this point
+            min_efficieny_for_first_run = 1.1 # This is for not using efficiency at all at this point
             use_pace_criterion_for_first_run = False
             max_pace_for_first_run = 10000
-            explore, exploit = segment_explore_exploit(shapes, min_save_for_exploit, min_efficieny, max_pace_for_first_run, use_pace_criterion_for_first_run)
+            explore, exploit = segment_explore_exploit(shapes, min_save_for_exploit, min_efficieny_for_first_run, max_pace_for_first_run, use_pace_criterion_for_first_run)
 
             # Get indices of gallery shapes within each exploit segment, ignoring the first of each exploit segment
             exploit_indices = get_exploit_indices_excluding_first_per_segment(exploit, gallery_indices)
 
-            if len(exploit_indices)==0:
+            if len(exploit_indices) == 0:
                 robust_median_value = np.nan
                 max_pace = np.nan
             else:
                 robust_median_value, robust_mad_value = robust_median(gallery_pace[exploit_indices])
-                max_pace = robust_median_value + 6 * robust_mad_value
+                max_pace = robust_median_value + 5 * robust_mad_value
         else:
             max_pace = 10000 # This is basically like ignoring the pace critetion
 
@@ -130,7 +142,8 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, m
 
 
         # Group differences into monotone decreasing sequences
-        all_monotone_series = pd.Series(group_by_monotone_decreasing(gallery_diffs, gallery_pace))
+
+        all_monotone_series = pd.Series(group_by_monotone_decreasing(gallery_diffs, gallery_pace, max_pace))
 
         group_by_efficiency_twice = False
         if group_by_efficiency_twice:
@@ -146,7 +159,7 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, m
             gallery_pace_first_shapes = np.array([gallery_pace[monotone_series[0]] for monotone_series in all_monotone_series])
 
         # Group these peaks into further monotone decreasing sequences
-        twice_monotone_series = group_by_monotone_decreasing(gallery_diffs_peaks, gallery_pace_first_shapes)
+        twice_monotone_series = group_by_monotone_decreasing(gallery_diffs_peaks, gallery_pace_first_shapes, max_pace)
 
         # Form clusters by concatenating the original monotone sequences
         clusters = [np.concatenate(all_monotone_series[monotone_series].values)
@@ -210,6 +223,9 @@ def group_by_efficiency(clusters, shapes_df, gallery_indices, min_efficiency, ma
     grouped_clusters = []
     current_cluster = clusters[0]
 
+    # Calculate time spent on "empty steps" in each (not necessarily gallery) shape (remove_empty_steps_time)
+    empty_steps_time = shapes_df.iloc[:, SHAPE_MAX_MOVE_TIME_IDX] - shapes_df.iloc[:, SHAPE_MOVE_TIME_IDX]
+
     for i in range(1, len(clusters)):
         prev_shape_idx = current_cluster[-1]
         next_shape_idx = clusters[i][0]
@@ -229,6 +245,12 @@ def group_by_efficiency(clusters, shapes_df, gallery_indices, min_efficiency, ma
         next_shape_gallery_in_times = shapes_df.iloc[gallery_indices[next_shape_idx]][SHAPE_MOVE_TIME_IDX]
         # Calculate time differences between consecutive shape movements
         time_diff = next_shape_gallery_in_times - prev_shape_gallery_out_time
+
+        # Reduce the time spent on "empty steps" between each pair of gallery shapes (remove_empty_steps_time)
+        start_idx = gallery_indices[prev_shape_idx] + 1
+        end_idx = gallery_indices[next_shape_idx] - 1
+        time_diff = time_diff - sum(empty_steps_time[start_idx:end_idx])
+
         # Calculate the steps difference between them
         steps_diff = gallery_indices[next_shape_idx] - gallery_indices[prev_shape_idx]
         # Calculate the average time per step between the two shapes
@@ -343,7 +365,7 @@ def median_absolute_deviation(data, median):
     return np.median(np.abs(data - median))
 
 def is_outlier(data, median, mad):
-    return np.abs(data - median) > (6 * mad)
+    return np.abs(data - median) > (5 * mad)
 def robust_median(data):
     data = np.array(data)
     median = np.median(data)
@@ -388,3 +410,4 @@ def get_exploit_indices_excluding_first_per_segment(exploit, gallery_indices):
     all_indices = np.array(all_indices).flatten()
 
     return all_indices
+
