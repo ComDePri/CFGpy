@@ -4,7 +4,7 @@ import pandas as pd
 from CFGpy.behavioral import Downloader, Parser, Preprocessor
 from CFGpy.behavioral.MRIParser import MRIParser
 from CFGpy.behavioral.Preprocessor import DEFAULT_OUTPUT_FILENAME
-from CFGpy.behavioral.data_structs import PreprocessedPlayerData
+from CFGpy.behavioral.data_structs import PreprocessedPlayerData, PATH_FROM_REP_ROOT
 from CFGpy.behavioral._consts import *
 from pptx import Presentation
 from pptx.util import Inches
@@ -100,6 +100,34 @@ def add_error_slide_to_ppt(prs, errors):
     content_box = slide.placeholders[1]
     content_box.text = "\n".join(errors)
 
+
+def create_players_cluster_times_csv(preprocessed_data, output_folder=PATH_FROM_REP_ROOT+"clusters_times_csvs/"):
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    for player_data in preprocessed_data:
+        if not player_data[PARSED_PLAYER_ID_KEY].startswith("9999"):  # skip the non-player data
+            data = PreprocessedPlayerData(player_data)
+
+            explore_times, exploit_times = data.get_cluster_times()
+
+            player_id = player_data[PARSED_PLAYER_ID_KEY]
+            csv_file_path = os.path.join(output_folder, f"Player_{player_id}_cluster_times.csv")
+
+            # Create DataFrame for explore times
+            explore_df = pd.DataFrame(explore_times, columns=["gallery_out_time", "gallery_in_time"])
+            explore_df["phase"] = "explore"
+
+            # Create DataFrame for exploit times
+            exploit_df = pd.DataFrame(exploit_times, columns=["gallery_out_time", "gallery_in_time"])
+            exploit_df["phase"] = "exploit"
+
+            # Combine both DataFrames
+            cluster_times_df = pd.concat([explore_df, exploit_df], ignore_index=True)
+
+            # Save DataFrame to CSV
+            cluster_times_df.to_csv(csv_file_path, index=False)
+
 def create_players_game_presentation(preprocessed_data, delta_t=True):
     # Create a presentation object
     prs = Presentation()
@@ -179,21 +207,26 @@ if __name__ == '__main__':
     # Sort by ID
     preprocessed_data = sorted(preprocessed_data, key=lambda x: x["id"])  # sort by subjects' ID
 
-    # Save the presentation
+    def create_presentation_with_all_shapes_plot():
+        prs_all_shapes =create_all_shapes_presentation(preprocessed_data)
+        prs_all_shapes_name = f"{PPT_OUTPUT_PATH}all_shapes_presentation.pptx"
+        prs_all_shapes.save(prs_all_shapes_name)
+        print(f"PowerPoint presentation saved as '{prs_all_shapes_name}'")
 
-    # create presentation with both plots
-    plot_by_delta_t = False # change this from False --> True: for choosing weather it'll create presentation by delta_t or steps
-    prs_game = create_players_game_presentation(preprocessed_data, delta_t=plot_by_delta_t)
-    if not plot_by_delta_t:
-        prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_paceSpecific_5mad_rmvEmptyTimeAllSteps.pptx"
-    else:
-        prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_paceSpecific_5mad_rmvEmptyTimeAllSteps_delta_t.pptx"
+    def create_presentation_with_both_plots():
+        plot_by_delta_t = False # change this from False --> True: for choosing weather it'll create presentation by delta_t or steps
+        prs_game = create_players_game_presentation(preprocessed_data, delta_t=plot_by_delta_t)
+        if not plot_by_delta_t:
+            prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_paceSpecific_5mad_rmvEmptyTimeAllSteps.pptx"
+        else:
+            prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_paceSpecific_5mad_rmvEmptyTimeAllSteps_delta_t.pptx"
 
-    prs_game.save(prs_game_name)
-    print(f"PowerPoint presentation saved as '{prs_game_name}'")
+        prs_game.save(prs_game_name)
+        print(f"PowerPoint presentation saved as '{prs_game_name}'")
 
-    # create presentation with all shapes plot
-    # prs_all_shapes =create_all_shapes_presentation(preprocessed_data)
-    # prs_all_shapes_name = f"{PPT_OUTPUT_PATH}all_shapes_presentation.pptx"
-    # prs_all_shapes.save(prs_all_shapes_name)
-    # print(f"PowerPoint presentation saved as '{prs_all_shapes_name}'")
+    def create_players_cluster_times():
+        output_folder = PATH_FROM_REP_ROOT+"clusters_times_csvs/"
+        create_players_cluster_times_csv(preprocessed_data, output_folder)
+        print(f"csv's with players cluster saved in folder: '{output_folder}'")
+
+    create_players_cluster_times()

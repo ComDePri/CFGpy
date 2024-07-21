@@ -236,6 +236,24 @@ class PreprocessedPlayerData(ParsedPlayerData):
 
         return clusters
 
+    def get_clusters_times(self):
+        explore_clusters_times = []
+
+    def get_cluster_times(self):
+
+        def get_times_for_slices(slices):
+            cluster_times = []
+            for start, end in slices:
+                first_out_time = self.shapes_df.iloc[start, self.shapes_df.columns.get_loc(SHAPE_MAX_MOVE_TIME_IDX)]
+                last_in_time = self.shapes_df.iloc[end - 1, self.shapes_df.columns.get_loc(SHAPE_MOVE_TIME_IDX)]
+                cluster_times.append([first_out_time, last_in_time])
+            return cluster_times
+
+        explore_times = get_times_for_slices(self.explore_slices)
+        exploit_times = get_times_for_slices(self.exploit_slices)
+
+        return explore_times, exploit_times
+
     def plot_gallery_dt(self, path=PATH_FROM_REP_ROOT):
         # if there is no explore / exploit --> don't plot
         if self.exploit_slices == [] or self.explore_slices == []:

@@ -1,0 +1,12 @@
+gallery_out_time,gallery_in_time,phase
+0.0,112.236,explore
+161.78,184.725,explore
+210.252,242.128,explore
+292.741,343.18,explore
+373.173,387.692,explore
+416.396,823.956,explore
+119.461,155.062,exploit
+186.621,202.597,exploit
+244.319,289.792,exploit
+346.048,360.1,exploit
+389.541,409.357,exploit

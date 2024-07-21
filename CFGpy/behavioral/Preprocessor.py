@@ -33,7 +33,7 @@ class Preprocessor:
                     (EXPLORE_KEY in player_data and player_data[EXPLORE_KEY] == []) or \
                     (PARSED_PLAYER_ID_KEY in player_data and player_data[PARSED_PLAYER_ID_KEY].startswith('9999')):
                 # remove player from players data
-                print(f"Player {player_data[PARSED_PLAYER_ID_KEY]}: no exploit / explore, before preprocess, removing player data.")
+                # print(f"Player {player_data[PARSED_PLAYER_ID_KEY]}: no exploit / explore, before preprocess, removing player data.")
                 self.all_players_data.remove(player_data)
 
     def convert_shape_ids(self):
