@@ -29,7 +29,9 @@ class Preprocessor:
         # suggestion to add --->
         # remove players with no explore / exploit phase
         for player_data in self.all_players_data:
-            if player_data[EXPLOIT_KEY] == [] or player_data[EXPLORE_KEY] == [] or player_data[PARSED_PLAYER_ID_KEY].startswith('9999'):
+            if (EXPLOIT_KEY in player_data and player_data[EXPLOIT_KEY] == []) or \
+                    (EXPLORE_KEY in player_data and player_data[EXPLORE_KEY] == []) or \
+                    (PARSED_PLAYER_ID_KEY in player_data and player_data[PARSED_PLAYER_ID_KEY].startswith('9999')):
                 # remove player from players data
                 print(f"Player {player_data[PARSED_PLAYER_ID_KEY]}: no exploit / explore, before preprocess, removing player data.")
                 self.all_players_data.remove(player_data)
@@ -43,7 +45,8 @@ class Preprocessor:
             shapes = player_data[PARSED_ALL_SHAPES_KEY]
             for shape in shapes:
                 try:
-                    shape[SHAPE_ID_IDX] = bin2id(shape[SHAPE_ID_IDX])
+                    if not isinstance(shape[SHAPE_ID_IDX], int): # This allows running the processor on processed json files
+                        shape[SHAPE_ID_IDX] = bin2id(shape[SHAPE_ID_IDX])
                 except ValueError:
                     player_id = player_data[PARSED_PLAYER_ID_KEY]
                     shape_id = shape[SHAPE_ID_IDX]

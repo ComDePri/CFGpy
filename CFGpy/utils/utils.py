@@ -11,8 +11,10 @@ CFG_RESOURCES_PATH = os.path.join(NAS_PATH, "Projects", "CFG")
 
 VANILLA_DATA_DIR = os.path.join(CFG_RESOURCES_PATH, "vanilla_data")
 VANILLA_PATH = os.path.join(VANILLA_DATA_DIR, "vanilla.json")
-VANILLA_STEP_ORIG_PATH = os.path.join(VANILLA_DATA_DIR, "step_orig.json")
-VANILLA_GALLERY_ORIG_PATH = os.path.join(VANILLA_DATA_DIR, "gallery_orig.json")
+#VANILLA_STEP_ORIG_PATH = os.path.join(VANILLA_DATA_DIR, "step_orig.json")
+#VANILLA_GALLERY_ORIG_PATH = os.path.join(VANILLA_DATA_DIR, "gallery_orig.json")
+VANILLA_STEP_ORIG_PATH = os.path.join(VANILLA_DATA_DIR, "step_counter.json")
+VANILLA_GALLERY_ORIG_PATH = os.path.join(VANILLA_DATA_DIR, "gallery_counter.json")
 VANILLA_GC_PATH = os.path.join(VANILLA_DATA_DIR, "giant_component.json")
 
 ID2COORD = np.load(os.path.join(CFG_RESOURCES_PATH, "grid_coords.npy"))

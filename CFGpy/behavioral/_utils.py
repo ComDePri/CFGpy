@@ -60,7 +60,7 @@ def coords_to_bin_coords(coords):
     shape_id = [int(d) for d in shape_id_wth_0 if d != 0]
     return shape_id
 
-def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, min_efficieny=MIN_EFFICIENCY_FOR_EXPLOIT, max_pace=MAX_PACE_FOR_MERGE, use_pace_criterion=True):
+def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, min_efficieny=MIN_EFFICIENCY_FOR_EXPLOIT, max_pace=MAX_PACE_FOR_MERGE, use_pace_criterion=USE_PACE_CRITERION):
     # The logic here is this:
     # 1. Group shapes by decreasing save-time differences (difference from previous gallery shape)
     # 2. Group these clusters based on efficiency (merge consecutive clusters if there is high efficiency between last shape of cluster A and first shape of cluster B)
@@ -71,7 +71,7 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, m
     n_shapes = len(shapes)
 
     # Default return value if no "exploit" clusters are found
-    no_exploit_return_value = [(0, n_shapes)], []
+    no_exploit_return_value = [(0, n_shapes)], [], np.nan, np.nan # TODO: Roey, remove the np.nan's and make sure we only try to extract the other outputs when using the pace criterion
     if use_pace_criterion:
         no_exploit_return_value = [(0, n_shapes)], [], np.nan, np.nan
     # Convert shapes data to a pandas DataFrame
@@ -98,7 +98,7 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, m
 
     # Fix the gallery_diffs by removing time spent on "empty steps" (steps that leave the shape unchanged)
     # Reduce the time spent on "empty steps" between each pair of gallery shapes
-    remove_empty_steps_time = True
+    remove_empty_steps_time = REMOVE_EMPTY_TIME_STEPS # True
     if remove_empty_steps_time:
         empty_steps_time = shapes_df.iloc[:, SHAPE_MAX_MOVE_TIME_IDX] - shapes_df.iloc[:, SHAPE_MOVE_TIME_IDX]
         gallery_diffs_fixed = gallery_diffs
@@ -124,7 +124,7 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, m
             min_efficieny_for_first_run = 1.1 # This is for not using efficiency at all at this point
             use_pace_criterion_for_first_run = False
             max_pace_for_first_run = 10000
-            explore, exploit = segment_explore_exploit(shapes, min_save_for_exploit, min_efficieny_for_first_run, max_pace_for_first_run, use_pace_criterion_for_first_run)
+            explore, exploit, robust_median_dummy, max_pace_dummy = segment_explore_exploit(shapes, min_save_for_exploit, min_efficieny_for_first_run, max_pace_for_first_run, use_pace_criterion_for_first_run)
 
             # Get indices of gallery shapes within each exploit segment, ignoring the first of each exploit segment
             exploit_indices = get_exploit_indices_excluding_first_per_segment(exploit, gallery_indices)
@@ -136,6 +136,8 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, m
                 robust_median_value, robust_mad_value = robust_median(gallery_pace[exploit_indices])
                 max_pace = robust_median_value + 5 * robust_mad_value
         else:
+            robust_median_value = np.nan
+            robust_mad_value = np.nan
             max_pace = 10000 # This is basically like ignoring the pace critetion
 
 
@@ -209,7 +211,7 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, m
     if use_pace_criterion:
         return explore_slices, exploit_slices, robust_median_value, max_pace
     else:
-        return explore_slices, exploit_slices
+        return explore_slices, exploit_slices, np.nan, np.nan
 
 def group_by_efficiency(clusters, shapes_df, gallery_indices, min_efficiency, max_pace):
     """

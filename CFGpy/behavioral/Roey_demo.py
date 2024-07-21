@@ -8,6 +8,7 @@ from CFGpy.behavioral.data_structs import PreprocessedPlayerData
 from CFGpy.behavioral._consts import *
 from pptx import Presentation
 from pptx.util import Inches
+import json # Roey added for saving the vanilla after more preprocessing
 
 CSV_URL = "https://api.creativeforagingtask.com/v1/event.csv?game=4cb46367-7555-\
 42cb-8915-152c3f3efdfb&entityType=event&after=2021-05-23T10:51:00.\
@@ -159,6 +160,13 @@ def create_all_shapes_presentation(preprocessed_data):
 
 if __name__ == '__main__':
     # NOTE: Change here to one of 3 options for loading the data
+
+    # Load vanilla to preprocess it with the MRI algorithm and dump it into a new json file
+    #preprocessed_data = from_json("/Volumes/HartLabNAS/Projects/CFG/vanilla_data/vanilla.json")
+    #path = "/Volumes/HartLabNAS/Projects/CFG/vanilla_data/vanilla_rmvEmptySteps_efficiency08_pace.json"
+    #with open(path, "w") as out_file:
+    #    json.dump(preprocessed_data, out_file)
+
     # Load data from url & save new JSON
     #preprocessed_data = from_url(CSV_URL)
 
@@ -177,7 +185,7 @@ if __name__ == '__main__':
     plot_by_delta_t = False # change this from False --> True: for choosing weather it'll create presentation by delta_t or steps
     prs_game = create_players_game_presentation(preprocessed_data, delta_t=plot_by_delta_t)
     if not plot_by_delta_t:
-        prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_paceSpecific_5mad_rmvEmptyTimeAllSteps_.pptx"
+        prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_paceSpecific_5mad_rmvEmptyTimeAllSteps.pptx"
     else:
         prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_paceSpecific_5mad_rmvEmptyTimeAllSteps_delta_t.pptx"
 
@@ -189,8 +197,3 @@ if __name__ == '__main__':
     # prs_all_shapes_name = f"{PPT_OUTPUT_PATH}all_shapes_presentation.pptx"
     # prs_all_shapes.save(prs_all_shapes_name)
     # print(f"PowerPoint presentation saved as '{prs_all_shapes_name}'")
-
-
-
-
-

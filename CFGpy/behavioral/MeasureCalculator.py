@@ -8,6 +8,8 @@ from collections.abc import Collection
 from functools import reduce
 from scipy.stats import zscore
 from CFGpy.utils import get_vanilla_descriptors
+from CFGpy.behavioral.Preprocessor import DEFAULT_OUTPUT_FILENAME
+
 
 
 def _get_frac_uniquely_covered(player_objects, objects_not_uniquely_covered):
@@ -49,6 +51,7 @@ class MeasureCalculator:
         self.all_absolute_measures = self._calc_absolute_measures()
         self.output_df = self.all_absolute_measures.copy()
         self._drop_nonfirst_games()
+        return self.output_df # Roey added to extract median steps until we fix the error below.
         vanilla_relative_measures = self._calc_relative_measures(get_vanilla_descriptors())
         self.output_df = self.output_df.merge(vanilla_relative_measures, on=MEASURES_ID_KEY)
         self._apply_soft_filters()
@@ -205,6 +208,10 @@ class MeasureCalculator:
 
 
 ### AVIV ###
+def from_json(jason_path):
+    preprocessor = Preprocessor.from_json(jason_path)
+    return preprocessor.preprocess()
+
 if __name__ == '__main__':
     import argparse
     from Preprocessor import Preprocessor
@@ -212,10 +219,11 @@ if __name__ == '__main__':
     # change this to mach locally
     PERSONAL_PATH_TO_FOLDER = "/Users/avivgreenburg/Library/CloudStorage/GoogleDrive-aviv.greenburg@mail.huji.ac.il/My Drive/שלי/לימודים/Uni_2020-2024/forth_year/lab/"
 
-    OUTPUT_FOLDER = PERSONAL_PATH_TO_FOLDER+"CFGpy/CFGpy/behavioral/output"
-    JASON = PERSONAL_PATH_TO_FOLDER+"CFGpy/CFGpy/behavioral/output/preprocessed.json"
-
-    pp = Preprocessor.from_json(JASON)
+    #OUTPUT_FOLDER = PERSONAL_PATH_TO_FOLDER+"CFGpy/CFGpy/behavioral/output"
+    #JASON = PERSONAL_PATH_TO_FOLDER+"CFGpy/CFGpy/behavioral/output/preprocessed.json"
+    #pp = Preprocessor.from_json(JASON)
+    pp = Preprocessor.from_json(DEFAULT_OUTPUT_FILENAME)
+    OUTPUT_FOLDER = 'output/'
 
     preprocessed_data = pp.preprocess()
     pp.remove_bad_games()
@@ -234,6 +242,10 @@ if __name__ == '__main__':
 
     save_median_lengths_to_csv(mc, f'{OUTPUT_FOLDER}/median_lengths.csv')
 
+
+    def from_json(jason_path):
+        preprocessor = Preprocessor.from_json(jason_path)
+        return preprocessor.preprocess()
 
 ### PREVIOUS ###
 # if __name__ == '__main__':
