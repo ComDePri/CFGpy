@@ -3,8 +3,7 @@ gallery_out_time,gallery_in_time,phase
 159.013,199.656,explore
 244.102,255.54,explore
 304.19,316.537,explore
-366.989,369.533,explore
-397.714,408.6,explore
+366.989,408.6,explore
 502.82,518.421,explore
 557.31,584.142,explore
 631.116,643.076,explore
@@ -15,7 +14,6 @@ gallery_out_time,gallery_in_time,phase
 202.589,238.002,exploit
 258.272,296.728,exploit
 320.186,363.34,exploit
-374.118,392.652,exploit
 410.684,499.092,exploit
 522.708,554.255,exploit
 586.472,626.22,exploit

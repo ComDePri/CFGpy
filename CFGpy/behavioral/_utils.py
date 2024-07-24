@@ -95,6 +95,7 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, m
     gallery_diffs = gallery_in_times - gallery_out_times.shift()
     gallery_diffs.iloc[0] = 0  # Set the first difference to 0 (no previous shape to compare with)
     gallery_diffs = gallery_diffs.to_numpy()
+    #np.random.shuffle(gallery_diffs) # ROEY: Shuffle the gallery time differences, to make sure we don't get correlated explore/exploit times
 
     # Fix the gallery_diffs by removing time spent on "empty steps" (steps that leave the shape unchanged)
     # Reduce the time spent on "empty steps" between each pair of gallery shapes
@@ -260,7 +261,7 @@ def group_by_efficiency(clusters, shapes_df, gallery_indices, min_efficiency, ma
 
 
         # Check if efficiency meets the minimum required efficiency
-        if (efficiency >= min_efficiency) and (pace < max_pace):
+        if (efficiency >= min_efficiency) and (pace < max_pace): # and (efficiency < 1):
             # Combine clusters if efficiency is sufficient
             current_cluster = np.concatenate((current_cluster, clusters[i]))
         else:

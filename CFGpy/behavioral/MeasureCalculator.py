@@ -240,7 +240,7 @@ if __name__ == '__main__':
         median_lengths_df.to_csv(path, index=False)
 
 
-    save_median_lengths_to_csv(mc, f'{OUTPUT_FOLDER}/median_lengths.csv')
+    save_median_lengths_to_csv(mc, f'{OUTPUT_FOLDER}/median_lengths_efficiency08_to_09999.csv')
 
 
     def from_json(jason_path):

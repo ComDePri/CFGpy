@@ -190,10 +190,10 @@ if __name__ == '__main__':
     # NOTE: Change here to one of 3 options for loading the data
 
     # Load vanilla to preprocess it with the MRI algorithm and dump it into a new json file
-    #preprocessed_data = from_json("/Volumes/HartLabNAS/Projects/CFG/vanilla_data/vanilla.json")
-    #path = "/Volumes/HartLabNAS/Projects/CFG/vanilla_data/vanilla_rmvEmptySteps_efficiency08_pace.json"
-    #with open(path, "w") as out_file:
-    #    json.dump(preprocessed_data, out_file)
+    preprocessed_data = from_json("/Volumes/HartLabNAS/Projects/CFG/vanilla_data/vanilla.json")
+    path = "/Volumes/HartLabNAS/Projects/CFG/vanilla_data/vanilla_shuffled_noMRIFix.json"
+    with open(path, "w") as out_file:
+        json.dump(preprocessed_data, out_file)
 
     # Load data from url & save new JSON
     #preprocessed_data = from_url(CSV_URL)
@@ -214,12 +214,12 @@ if __name__ == '__main__':
         print(f"PowerPoint presentation saved as '{prs_all_shapes_name}'")
 
     def create_presentation_with_both_plots():
-        plot_by_delta_t = False # change this from False --> True: for choosing weather it'll create presentation by delta_t or steps
+        plot_by_delta_t = True # change this from False --> True: for choosing weather it'll create presentation by delta_t or steps
         prs_game = create_players_game_presentation(preprocessed_data, delta_t=plot_by_delta_t)
         if not plot_by_delta_t:
-            prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_paceSpecific_5mad_rmvEmptyTimeAllSteps.pptx"
+            prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_paceSpecific_5mad_rmvEmptyTimeAllSteps_efficiencyLessThan1DELETE.pptx"
         else:
-            prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_paceSpecific_5mad_rmvEmptyTimeAllSteps_delta_t.pptx"
+            prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_paceSpecific_5mad_rmvEmptyTimeAllSteps_efficiencyLessThan1_delta_tDELETE.pptx"
 
         prs_game.save(prs_game_name)
         print(f"PowerPoint presentation saved as '{prs_game_name}'")
@@ -229,4 +229,6 @@ if __name__ == '__main__':
         create_players_cluster_times_csv(preprocessed_data, output_folder)
         print(f"csv's with players cluster saved in folder: '{output_folder}'")
 
-    create_players_cluster_times()
+
+    create_presentation_with_both_plots()
+    #create_players_cluster_times()
