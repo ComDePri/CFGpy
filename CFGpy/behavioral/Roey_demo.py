@@ -109,24 +109,50 @@ def create_players_cluster_times_csv(preprocessed_data, output_folder=PATH_FROM_
         if not player_data[PARSED_PLAYER_ID_KEY].startswith("9999"):  # skip the non-player data
             data = PreprocessedPlayerData(player_data)
 
-            explore_times, exploit_times = data.get_cluster_times()
+            # explore_times, exploit_times = data.get_cluster_times()
+            #
+            player_id = player_data[PARSED_PLAYER_ID_KEY]
+            csv_file_path = os.path.join(output_folder, f"Player_{player_id}_cluster_times.csv")
+
+            # Save DataFrame to CSV
+            data.clusters_times_to_csv(csv_file_path)
+            #
+            # def create_data_frame(phase, cluster_times, columns=("start", "end")):
+            #     start, end = columns[0], columns[1]
+            #     df = pd.DataFrame(cluster_times, columns=[start,end])
+            #     df["phase"] = phase
+            #     return df
+            #
+            # explore_df = create_data_frame(EXPLORE_KEY, explore_times)
+            # exploit_df = create_data_frame(EXPLOIT_KEY, exploit_times)
+            #
+            # # # Create DataFrame for explore times
+            # # explore_df = pd.DataFrame(explore_times, columns=["gallery_out_time", "gallery_in_time"])
+            # # explore_df["phase"] = EXPLORE_KEY
+            # #
+            # # # Create DataFrame for exploit times
+            # # exploit_df = pd.DataFrame(exploit_times, columns=["gallery_out_time", "gallery_in_time"])
+            # # exploit_df["phase"] = EXPLOIT_KEY
+            #
+            # # Combine both DataFrames
+            # cluster_times_df = pd.concat([explore_df, exploit_df], ignore_index=True)
+            #
+            # # Save DataFrame to CSV
+            # cluster_times_df.to_csv(csv_file_path, index=False)
+
+def create_empty_moves_csv(preprocessed_data, output_folder=PATH_FROM_REP_ROOT+"empty_moves_csvs/"):
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    for player_data in preprocessed_data:
+        if not player_data[PARSED_PLAYER_ID_KEY].startswith("9999"):  # skip the non-player data
+            data = PreprocessedPlayerData(player_data)
 
             player_id = player_data[PARSED_PLAYER_ID_KEY]
             csv_file_path = os.path.join(output_folder, f"Player_{player_id}_cluster_times.csv")
 
-            # Create DataFrame for explore times
-            explore_df = pd.DataFrame(explore_times, columns=["gallery_out_time", "gallery_in_time"])
-            explore_df["phase"] = "explore"
-
-            # Create DataFrame for exploit times
-            exploit_df = pd.DataFrame(exploit_times, columns=["gallery_out_time", "gallery_in_time"])
-            exploit_df["phase"] = "exploit"
-
-            # Combine both DataFrames
-            cluster_times_df = pd.concat([explore_df, exploit_df], ignore_index=True)
-
             # Save DataFrame to CSV
-            cluster_times_df.to_csv(csv_file_path, index=False)
+            data.get_empty_moves_times(csv_file_path)
 
 def create_players_game_presentation(preprocessed_data, delta_t=True):
     # Create a presentation object
@@ -138,8 +164,8 @@ def create_players_game_presentation(preprocessed_data, delta_t=True):
 
         if not player_data[PARSED_PLAYER_ID_KEY].startswith("9999"):  # skip the non-player data
             data = PreprocessedPlayerData(player_data)
-
             shapesImagePath = data.plot_clusters()
+
             if delta_t:
                 plotGalleryImagePath = data.plot_gallery_dt()
             else:
@@ -229,6 +255,11 @@ if __name__ == '__main__':
         create_players_cluster_times_csv(preprocessed_data, output_folder)
         print(f"csv's with players cluster saved in folder: '{output_folder}'")
 
+    def create_players_empty_moves_times():
+        output_folder = PATH_FROM_REP_ROOT+"empty_moves_csvs/"
+        create_empty_moves_csv(preprocessed_data, output_folder)
+        print(f"csv's with players cluster saved in folder: '{output_folder}'")
 
-    create_presentation_with_both_plots()
-    #create_players_cluster_times()
+    # create_presentation_with_both_plots()
+    # create_players_cluster_times()
+    create_players_empty_moves_times()

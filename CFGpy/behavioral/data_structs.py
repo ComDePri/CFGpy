@@ -237,22 +237,67 @@ class PreprocessedPlayerData(ParsedPlayerData):
         return clusters
 
     def get_clusters_times(self):
-        explore_clusters_times = []
 
-    def get_cluster_times(self):
+        # def get_times_for_slices(slices):
+        #     cluster_times = []
+        #     for start, end in slices:
+        #         first_out_time = self.shapes_df.iloc[start, self.shapes_df.columns.get_loc(SHAPE_MAX_MOVE_TIME_IDX)]
+        #         last_in_time = self.shapes_df.iloc[end - 1, self.shapes_df.columns.get_loc(SHAPE_MOVE_TIME_IDX)]
+        #         cluster_times.append([first_out_time, last_in_time])
+        #     return cluster_times
+        #
+        # exploit_times = get_times_for_slices(self.exploit_slices)
+        # explore_times = get_times_for_slices(self.explore_slices)
 
-        def get_times_for_slices(slices):
-            cluster_times = []
-            for start, end in slices:
-                first_out_time = self.shapes_df.iloc[start, self.shapes_df.columns.get_loc(SHAPE_MAX_MOVE_TIME_IDX)]
-                last_in_time = self.shapes_df.iloc[end - 1, self.shapes_df.columns.get_loc(SHAPE_MOVE_TIME_IDX)]
-                cluster_times.append([first_out_time, last_in_time])
-            return cluster_times
+        exploit_times = []
+        explore_times = []
+        prev_last_out_time = 0
 
-        explore_times = get_times_for_slices(self.explore_slices)
-        exploit_times = get_times_for_slices(self.exploit_slices)
+        for start, end in self.exploit_slices:
+            first_in_time = self.shapes_df.iloc[start, self.shapes_df.columns.get_loc(SHAPE_MOVE_TIME_IDX)]
+            first_out_time = self.shapes_df.iloc[start, self.shapes_df.columns.get_loc(SHAPE_MAX_MOVE_TIME_IDX)]
+            last_in_time = self.shapes_df.iloc[end - 1, self.shapes_df.columns.get_loc(SHAPE_MOVE_TIME_IDX)]
+            last_out_time = self.shapes_df.iloc[end - 1, self.shapes_df.columns.get_loc(SHAPE_MAX_MOVE_TIME_IDX)]
+
+            exploit_times.append([first_out_time, last_in_time])
+            explore_times.append([prev_last_out_time, first_in_time])
+            prev_last_out_time = last_out_time
+
+        # explore_times.append([prev_last_out_time, GAME_LENGTH_IN_SEC]) #todo: how to get length of game - add to constants?
 
         return explore_times, exploit_times
+
+    def clusters_times_to_csv(self, csv_file_path):
+        explore_times , exploit_times = self.get_clusters_times()
+        def create_data_frame(phase, cluster_times, columns=("start", "end")):
+            start, end = columns[0], columns[1]
+            df = pd.DataFrame(cluster_times, columns=[start, end])
+            df["phase"] = phase
+            return df
+
+        explore_df = create_data_frame(EXPLORE_KEY, explore_times)
+        exploit_df = create_data_frame(EXPLOIT_KEY, exploit_times)
+
+        # Combine both DataFrames
+        cluster_times_df = pd.concat([explore_df, exploit_df], ignore_index=True)
+
+        # Save DataFrame to CSV
+        cluster_times_df.to_csv(csv_file_path, index=False)
+
+    def get_empty_moves_times(self, csv_file_path):
+        # Calculate the empty move flag in a vectorized manner
+        start_times = self.shapes_df.iloc[:, SHAPE_MOVE_TIME_IDX]
+        end_times = self.shapes_df.iloc[:, SHAPE_MAX_MOVE_TIME_IDX]
+        empty_move_flags = (start_times != end_times).astype(int)
+
+        # Create a DataFrame with the required columns
+        empty_moves_df = pd.DataFrame({
+            "start time": start_times,
+            "is empty move": empty_move_flags
+        })
+
+        # Save DataFrame to CSV
+        empty_moves_df.to_csv(csv_file_path, index=False)
 
     def plot_gallery_dt(self, path=PATH_FROM_REP_ROOT):
         # if there is no explore / exploit --> don't plot
