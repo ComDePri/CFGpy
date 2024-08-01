@@ -1,6 +1,5 @@
-gallery_out_time,gallery_in_time,phase
-3.917,223.333,explore
-379.476,536.315,explore
-713.985,893.593,explore
+start,end,phase
+0.0,225.756,explore
+372.627,540.268,explore
 225.756,372.627,exploit
 540.268,699.973,exploit

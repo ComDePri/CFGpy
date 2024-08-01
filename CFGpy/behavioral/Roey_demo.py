@@ -216,10 +216,10 @@ if __name__ == '__main__':
     # NOTE: Change here to one of 3 options for loading the data
 
     # Load vanilla to preprocess it with the MRI algorithm and dump it into a new json file
-    preprocessed_data = from_json("/Volumes/HartLabNAS/Projects/CFG/vanilla_data/vanilla.json")
-    path = "/Volumes/HartLabNAS/Projects/CFG/vanilla_data/vanilla_shuffled_noMRIFix.json"
-    with open(path, "w") as out_file:
-        json.dump(preprocessed_data, out_file)
+    #preprocessed_data = from_json("/Volumes/HartLabNAS/Projects/CFG/vanilla_data/vanilla.json")
+    #path = "/Volumes/HartLabNAS/Projects/CFG/vanilla_data/vanilla_shuffled_noMRIFix.json"
+    #with open(path, "w") as out_file:
+    #    json.dump(preprocessed_data, out_file)
 
     # Load data from url & save new JSON
     #preprocessed_data = from_url(CSV_URL)
@@ -261,5 +261,5 @@ if __name__ == '__main__':
         print(f"csv's with players cluster saved in folder: '{output_folder}'")
 
     # create_presentation_with_both_plots()
-    # create_players_cluster_times()
+    create_players_cluster_times()
     create_players_empty_moves_times()
