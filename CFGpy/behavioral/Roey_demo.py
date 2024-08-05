@@ -7,7 +7,6 @@ def __from_raw_data(raw_data):
     parser = Parser(raw_data)
     print("Parsing...")
     parsed_data = parser.parse()
-
     postparser = PostParser(parsed_data)
     print("Segmenting...")
     return postparser.postparse()
