@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from itertools import pairwise, groupby, combinations
+from itertools import pairwise, combinations
 from collections import Counter
 import networkx as nx
 from CFGpy.behavioral._consts import (PARSED_PLAYER_ID_KEY, PARSED_TIME_KEY, PARSED_ALL_SHAPES_KEY,
@@ -42,10 +42,7 @@ class ParsedPlayerData:
 
     def get_steps(self):
         shape_ids = self.shapes_df.iloc[:, config.SHAPE_ID_IDX]
-        without_empty_moves = [shape_id for shape_id, group in groupby(shape_ids)]
-        # TODO: after empty moves are handled by Preprocessor, previous line is redundant and the next one can just run
-        #  on shape_ids
-        steps = list(pairwise(without_empty_moves))
+        steps = list(pairwise(shape_ids))
         return steps
 
     def get_gallery_mask(self):
@@ -62,13 +59,7 @@ class ParsedPlayerData:
 
     def get_self_avoidance(self):
         shape_ids = self.shapes_df.iloc[:, config.SHAPE_ID_IDX]
-        unique_shapes = np.unique(shape_ids)
-        shapes_no_consecutive_duplicates = [k for k, g in groupby(shape_ids)]
-        # TODO: in a future version, consecutive duplicates will be handled by Preprocessor. when this is implemented,
-        #  there will be no need for shapes_no_consecutive_duplicates, it will be  equivalent to shapes.
-        #  Instead of its len, it would then make sense to use n_moves (defined in self.calc)
-
-        return len(unique_shapes) / len(shapes_no_consecutive_duplicates)
+        return len(np.unique(shape_ids)) / len(shape_ids)
 
     def plot_shapes(self, ncols=10):
         is_galleries = self.get_gallery_mask()
@@ -136,10 +127,7 @@ class PostparsedPlayerData(ParsedPlayerData):
                                  [get_shortest_path_len(shape1, shape2) for shape1, shape2 in pairwise(gallery_ids)])
         all_efficiency_values = {idx: shortest_len / actual_len for idx, shortest_len, actual_len
                                  in zip(gallery_indices, shortest_path_lengths, actual_path_lengths)
-                                 if (shortest_len, actual_len) != (1, 1)}
-        # TODO: after empty steps are handled, shortest paths would not be able to be 0 and the condition can be
-        #  simplified to actual_len>1
-
+                                 if actual_len > 1}
         explore_efficiencies = []
         exploit_efficiencies = []
         is_explore = self.get_explore_mask()
