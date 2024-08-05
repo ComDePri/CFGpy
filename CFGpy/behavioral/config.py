@@ -9,7 +9,7 @@ default config.
 """
 
 from CFGpy.behavioral._utils import server_coords_to_binary_shape
-from CFGpy.utils import binary_shape_to_id
+from CFGpy.utils import binary_matrix_to_shape_id
 from CFGpy.behavioral import _consts
 
 # downloading
@@ -93,9 +93,10 @@ SHAPE_SAVE_TIME_IDX = PARSED_GAME_HEADERS.index(_consts.GALLERY_SAVE_TIME_COLUMN
 
 # post-parsing
 MIN_SAVE_FOR_EXPLOIT = 3
+SHAPE_MAX_MOVE_TIME_IDX = 3
 
 # feature extraction
-FIRST_SHAPE_ID = binary_shape_to_id(server_coords_to_binary_shape(FIRST_SHAPE_SERVER_COORDS))
+FIRST_SHAPE_ID = binary_matrix_to_shape_id(server_coords_to_binary_shape(FIRST_SHAPE_SERVER_COORDS))
 MARGIN_FOR_PAUSE_DURATION = 3
 MIN_OVERLAP_FOR_SEMANTIC_CONNECTION = 2
 

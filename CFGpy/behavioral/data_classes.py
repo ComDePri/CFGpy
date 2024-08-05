@@ -7,6 +7,9 @@ from CFGpy.behavioral._consts import (PARSED_PLAYER_ID_KEY, PARSED_TIME_KEY, PAR
                                       PARSED_CHOSEN_SHAPES_KEY, EXPLORE_KEY, EXPLOIT_KEY)
 from CFGpy.behavioral import config
 from CFGpy.behavioral._utils import is_semantic_connection
+from CFGpy.utils import plot_shape
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 # TODO: consider: some methods only serve MeasureCalculator, while other are meant as API for end users (e.g.
@@ -66,6 +69,22 @@ class ParsedPlayerData:
         #  Instead of its len, it would then make sense to use n_moves (defined in self.calc)
 
         return len(unique_shapes) / len(shapes_no_consecutive_duplicates)
+
+    def plot_shapes(self, ncols=10):
+        is_galleries = self.get_gallery_mask()
+        shape_ids = self.shapes_df.iloc[:, config.SHAPE_ID_IDX]
+
+        nrows = int(np.ceil(len(shape_ids) / ncols))
+        fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols, nrows), dpi=400)
+        plt.subplots_adjust(bottom=0, top=1, left=0, right=1, wspace=0, hspace=0)
+        for i, ax in enumerate(axs.flat):
+            if i < len(shape_ids):
+                # TODO: adjust grid linewidth to be the correct fraction of the bbox width instead of always 3
+                plot_shape(shape_ids[i], ax=ax, is_gallery=is_galleries[i])
+            else:
+                ax.axis("off")
+
+        plt.show()
 
 
 class PostparsedPlayerData(ParsedPlayerData):
@@ -142,6 +161,37 @@ class PostparsedPlayerData(ParsedPlayerData):
             clusters.append(cluster)
 
         return clusters
+
+    def plot_gallery_dt(self):
+        is_gallery = self.get_gallery_mask()
+        gallery_in_times = self.shapes_df[is_gallery].iloc[:, config.SHAPE_MOVE_TIME_IDX]
+        gallery_out_times = self.shapes_df[is_gallery].iloc[:, config.SHAPE_MAX_MOVE_TIME_IDX]
+        gallery_diffs = gallery_in_times - gallery_out_times.shift()
+        gallery_diffs.iloc[0] = 0
+        gallery_diffs = gallery_diffs.to_numpy()
+
+        cluster_label = np.empty(len(self.shapes_df), dtype=object)
+        phase_type = np.empty(len(self.shapes_df), dtype=object)
+        for phase_name, phase_slices in zip(("explore", "exploit"), (self.explore_slices, self.exploit_slices)):
+            for i, (start, end) in enumerate(phase_slices):
+                cluster_label[start:end] = f"{phase_name}{i}"
+                phase_type[start:end] = phase_name
+
+        df = pd.DataFrame({"gallery_time": gallery_in_times, "gallery_diff": gallery_diffs,
+                           "cluster": cluster_label[is_gallery], "phase_type": phase_type[is_gallery]})
+        fig, ax = plt.subplots(figsize=(10, 5))
+        marker_dict = {"explore": "o", "exploit": "X"}
+        sns.lineplot(data=df, ax=ax, x="gallery_time", y="gallery_diff", hue="cluster", style="phase_type",
+                     markers=marker_dict, markersize=10)
+        handles, labels = plt.gca().get_legend_handles_labels()
+        unique_markers = dict(zip(labels, handles))
+        plt.legend((unique_markers["explore"], unique_markers["exploit"]), ("explore", "exploit"))
+        plt.xlabel(r"$t$ (s)", fontsize=14)
+        plt.ylabel(r"$\Delta t$ (s)", fontsize=14)
+        plt.suptitle("Gallery shapes creation time, segmented by clusters", fontsize=16)
+        plt.title(f"Player ID: {self.id}")
+        plt.grid()
+        plt.show()
 
 
 class ParsedDataset:
