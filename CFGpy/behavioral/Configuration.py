@@ -1,6 +1,5 @@
-from dataclasses import dataclass, asdict
-from CFGpy._version import __version__ as CFGpy_version
-from CFGpy.behavioral._consts import CONFIG_PACKAGE, CONFIG_FILENAME, CFGPY_VERSION_ERROR, CONFIG_DUMP_EXTENSION
+from dataclasses import dataclass
+from CFGpy.behavioral._consts import CONFIG_PACKAGE, CONFIG_FILENAME
 from CFGpy.behavioral._utils import server_coords_to_binary_shape
 from CFGpy.utils import binary_shape_to_id
 import yaml
