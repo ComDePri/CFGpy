@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from CFGpy.behavioral._consts import CONFIG_PACKAGE, CONFIG_FILENAME
 from CFGpy.behavioral._utils import server_coords_to_binary_shape
+from CFGpy.utils import binary_shape_to_id
 import yaml
 import dacite
 import importlib.resources as ir
@@ -34,7 +35,7 @@ class Configuration:
     def _post_init(self):
         self._validate()
         self._add_parsed_game_header_indices()
-        # self._add_first_shape_id()
+        self._add_first_shape_id()
 
     def _validate(self):
         pass
@@ -45,7 +46,6 @@ class Configuration:
         self.SHAPE_SAVE_TIME_IDX: int = self.PARSED_GAME_HEADERS.index(self.GALLERY_SAVE_TIME_COLUMN)
 
     def _add_first_shape_id(self) -> None:
-        from CFGpy.utils import binary_shape_to_id
 
         self.FIRST_SHAPE_ID = binary_shape_to_id(server_coords_to_binary_shape(self.FIRST_SHAPE_SERVER_COORDS))
 
