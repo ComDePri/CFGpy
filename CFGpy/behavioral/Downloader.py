@@ -3,15 +3,14 @@ import requests
 from tqdm import tqdm
 import pandas as pd
 from CFGpy.behavioral._consts import DOWNLOADER_OUTPUT_FILENAME, DOWNLOADER_URL_ERROR, EVENTS_PER_PAGE
-from CFGpy.behavioral import config
+from CFGpy.behavioral import Configuration
 
 
 class Downloader:
-    def __init__(self, csv_url, output_filename=DOWNLOADER_OUTPUT_FILENAME):
+    def __init__(self, csv_url, output_filename=DOWNLOADER_OUTPUT_FILENAME, config=Configuration.default()):
         self.json_url = self.convert_url(csv_url)  # runs on init so that ValueError is raised immediately if needed
         self.output_filename = output_filename
-        self.common_fields = config.DOWNLOADER_COMMON_FIELDS
-        self.field_order = config.DOWNLOADER_FIELD_ORDER
+        self.config = config
 
         self.players = dict()
         self.custom_data_fields = set()
@@ -60,7 +59,7 @@ class Downloader:
         if player_id in self.players:
             player = self.players[player_id]
         else:
-            r = requests.get(config.DOWNLOAD_PLAYER_REQUEST.format(player_id))
+            r = requests.get(self.config.DOWNLOAD_PLAYER_REQUEST.format(player_id))
             player = r.json()
             self.players[player_id] = player
             self.required_net_request.append(player_id)
@@ -83,30 +82,30 @@ class Downloader:
 
         for event in event_iterator:
             # Filter out common fields
-            output_json_record = {k: v for (k, v) in event.items() if k in self.common_fields}
+            output_json_record = {k: v for (k, v) in event.items() if k in self.config.DOWNLOADER_COMMON_FIELDS}
 
             # Handle custom data
-            if config.EVENT_CUSTOM_DATA_KEY in event:
-                if isinstance(event[config.EVENT_CUSTOM_DATA_KEY], dict):
+            if self.config.EVENT_CUSTOM_DATA_KEY in event:
+                if isinstance(event[self.config.EVENT_CUSTOM_DATA_KEY], dict):
                     # Add each key as a custom data field
-                    for key, value in event[config.EVENT_CUSTOM_DATA_KEY].items():
-                        keyName = f"{config.EVENT_CUSTOM_DATA_KEY}.{key}"
+                    for key, value in event[self.config.EVENT_CUSTOM_DATA_KEY].items():
+                        keyName = f"{self.config.EVENT_CUSTOM_DATA_KEY}.{key}"
                         self.custom_data_fields.add(keyName)
                         output_json_record[keyName] = value
                 else:
-                    self.custom_data_fields.add(config.EVENT_CUSTOM_DATA_KEY)
+                    self.custom_data_fields.add(self.config.EVENT_CUSTOM_DATA_KEY)
 
             # Handle player
-            player_id = event[config.EVENT_PLAYER_ID_KEY]
+            player_id = event[self.config.EVENT_PLAYER_ID_KEY]
             player = self._get_player(player_id)
 
-            output_json_record[config.RAW_PLAYER_ID] = player_id
-            output_json_record[config.RAW_PLAYER_BIRTHDATE] = player.get("birthDate")
-            output_json_record[config.RAW_PLAYER_REGION] = player.get("region")
-            output_json_record[config.RAW_PLAYER_COUNTRY] = player.get("country")
-            output_json_record[config.RAW_PLAYER_GENDER] = player.get("gender")
-            output_json_record[config.RAW_PLAYER_EXTERNAL_ID] = player.get("externalId")
-            output_json_record[config.RAW_PLAYER_CUSTOM_DATA] = player.get("customData")
+            output_json_record[self.config.RAW_PLAYER_ID] = player_id
+            output_json_record[self.config.RAW_PLAYER_BIRTHDATE] = player.get("birthDate")
+            output_json_record[self.config.RAW_PLAYER_REGION] = player.get("region")
+            output_json_record[self.config.RAW_PLAYER_COUNTRY] = player.get("country")
+            output_json_record[self.config.RAW_PLAYER_GENDER] = player.get("gender")
+            output_json_record[self.config.RAW_PLAYER_EXTERNAL_ID] = player.get("externalId")
+            output_json_record[self.config.RAW_PLAYER_CUSTOM_DATA] = player.get("customData")
 
             output_json.append(output_json_record)
 
@@ -114,11 +113,11 @@ class Downloader:
 
     def write_csv(self, output_json, verbose=False):
         """
-        Writes the CSV while ensuring existence and oder of all fields defined in self.field_order
+        Writes the CSV while ensuring existence and oder of all fields defined in self.config.DOWNLOADER_FIELD_ORDER
         """
-        self.extra_fields = set(self.custom_data_fields) - set(self.field_order)
+        self.extra_fields = set(self.custom_data_fields) - set(self.config.DOWNLOADER_FIELD_ORDER)
 
-        all_fields = self.field_order + tuple(self.extra_fields)
+        all_fields = self.config.DOWNLOADER_FIELD_ORDER + tuple(self.extra_fields)
         with open(self.output_filename, "w", newline="") as output_file:
             output_file_writer = csv.DictWriter(output_file, fieldnames=all_fields, quoting=csv.QUOTE_ALL)
 

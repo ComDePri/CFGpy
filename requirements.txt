@@ -8,3 +8,6 @@ networkx~=3.3
 matplotlib~=3.9.0
 seaborn~=0.13.2
 scipy~=1.13.1
+DateTime~=5.5
+dacite~=1.8.1
+PyYAML~=6.0.2

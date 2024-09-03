@@ -1,9 +1,12 @@
 """
-This file contains all arbitrarily chosen values in the behavioral data pipeline.
+This file contains all non-configurable and/or arbitrarily chosen values in the behavioral data pipeline.
 Some of these are only used for internal reference and their actual value doesn't matter. Others appear in outputs and
 external scripts may rely on them.
 Please do not change this file unless you're absolutely sure you know what you're doing.
 """
+# configuration
+CONFIG_PACKAGE = "CFGpy.behavioral"
+CONFIG_FILENAME = "default_config.yml"
 
 # downloader
 DOWNLOADER_OUTPUT_FILENAME = "event.csv"
@@ -14,7 +17,6 @@ EVENTS_PER_PAGE = 500
 PARSER_OUTPUT_FILENAME = "parsed.json"
 MERGED_ID_KEY = "merged_id"
 DEFAULT_ID = 'No ID Found'
-GALLERY_SAVE_TIME_COLUMN = 'gallery save time'
 
 # parsed data format
 PARSED_PLAYER_ID_KEY = 'id'
@@ -29,7 +31,7 @@ EXPLOIT_KEY = "exploit"
 INVALID_SHAPE_ERROR = "Encountered invalid shape: {}\nPlayer id: {}\n" \
                       "This indicates a bug in the CFG software or in the data parsing"
 
-# feature extraction
+# feature extractor
 FEATURES_ID_KEY = "ID"
 FEATURES_START_TIME_KEY = "Date/Time"
 N_MOVES_KEY = "Total # moves"

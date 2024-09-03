@@ -17,6 +17,6 @@ setup(
     license='MIT',
     packages=find_packages(),
     install_requires=[],
-    # package_data={'': []},
+    package_data={'': ["behavioral/default_config.json"]},
     include_package_data=True
 )

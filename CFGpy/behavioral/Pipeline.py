@@ -1,11 +1,13 @@
-from CFGpy.behavioral import Downloader, Parser, PostParser, FeatureExtractor
+from CFGpy.behavioral import Downloader, Parser, PostParser, FeatureExtractor, Configuration
 from CFGpy.behavioral._consts import DEFAULT_FINAL_OUTPUT_FILENAME
 
 
 class Pipeline:
-    def __init__(self, red_metrics_csv_url, output_filename=DEFAULT_FINAL_OUTPUT_FILENAME):
+    def __init__(self, red_metrics_csv_url, output_filename=DEFAULT_FINAL_OUTPUT_FILENAME,
+                 config=Configuration.default()):
         self.output_filename = output_filename
-        self.downloader = Downloader(red_metrics_csv_url)
+        self.config = config
+        self.downloader = Downloader(red_metrics_csv_url, self.config)
         self.parser = None
         self.postparser = None
         self.feature_extractor = None
@@ -15,16 +17,16 @@ class Pipeline:
         raw_data = self.downloader.download(verbose)
 
         print("Parsing...")
-        self.parser = Parser(raw_data)
+        self.parser = Parser(raw_data, self.config)
         parsed_data = self.parser.parse()
         self.parser.dump()
 
         print("Post-parsing...")
-        self.postparser = PostParser(parsed_data)
+        self.postparser = PostParser(parsed_data, self.config)
         postparsed_data = self.postparser.postparse()
 
         print("Calculating measures...")
-        self.feature_extractor = FeatureExtractor(postparsed_data)
+        self.feature_extractor = FeatureExtractor(postparsed_data, self.config)
         features_df = self.feature_extractor.extract(verbose)
         self.feature_extractor.dump(self.output_filename)
         print(f"Results written successfully to {self.output_filename}")
