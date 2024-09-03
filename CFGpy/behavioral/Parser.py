@@ -154,7 +154,7 @@ class Parser:
         # Now that we have the save time in all move rows, we can get rid of save rows:
         game_data = game_data[game_data[self.config.EVENT_TYPE].isin([self.config.SHAPE_MOVE_EVENT_TYPE])]
 
-        actions = game_data[self.config.PARSED_GAME_HEADERS]
+        actions = game_data.loc[:, self.config.PARSED_GAME_HEADERS]
         if self.include_in_id:
             player_id_field = [game_data[MERGED_ID_KEY].iloc[0]] + self.include_in_id
         parsed_game = {
