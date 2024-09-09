@@ -74,17 +74,17 @@
   PARSED_GAME_HEADERS: [ *SHAPE_MOVE_COLUMN, *PARSER_TIME_COLUMN, *GALLERY_SAVE_TIME_COLUMN ],
 
   ## Post-Parsing
-  MIN_SAVE_FOR_EXPLOIT: 3,
+  MIN_SAVE_FOR_EXPLOIT: 3,  # minimal number of galleries in a cluster to be considered exploitation
 
   ## Feature Extraction
-  MARGIN_FOR_PAUSE_DURATION: 3,
-  MIN_OVERLAP_FOR_SEMANTIC_CONNECTION: 2,
+  MARGIN_FOR_PAUSE_DURATION: 3,  # margins are excluded from the calculation of the max pause a player took between moves
+  MIN_OVERLAP_FOR_SEMANTIC_CONNECTION: 2,  # minimal overlap between two clustered to be considered semantically connected
 
   ## Soft Filtering
-  MANUALLY_EXCLUDED_IDS: [ ],
-  MIN_N_MOVES: 80,
-  MIN_N_CLUSTERS: 1,
-  MIN_GAME_DURATION_SEC: 600,
-  MAX_PAUSE_DURATION_SEC: 90,
-  MAX_ZSCORE_FOR_OUTLIERS: 3
+  MANUALLY_EXCLUDED_IDS: [ ], # IDs to exclude, e.g., those used for testing the experiment
+  MIN_N_MOVES: 80, # exclude participants who made fewer moves than this
+  MIN_N_CLUSTERS: 1, # exclude participants who made fewer clusters than this
+  MIN_GAME_DURATION_SEC: 600, # exclude participants who played for less than this duration
+  MAX_PAUSE_DURATION_SEC: 90, # excluded participants who paused for longer than this duration
+  MAX_ZSCORE_FOR_OUTLIERS: 3 # exclude participants with absolute zscore greater than this in median explore/exploit lengths
 }
