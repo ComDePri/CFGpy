@@ -1,13 +1,12 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from CFGpy._version import __version__ as CFGpy_version
-from CFGpy.behavioral._consts import CONFIG_PACKAGE, CONFIG_FILENAME, CFGPY_VERSION_ERROR
+from CFGpy.behavioral._consts import CONFIG_PACKAGE, CONFIG_FILENAME, CFGPY_VERSION_ERROR, CONFIG_DUMP_EXTENSION
 from CFGpy.behavioral._utils import server_coords_to_binary_shape
 from CFGpy.utils import binary_shape_to_id
 import yaml
 import dacite
 import importlib.resources as ir
 import sys
-from pathlib import Path
 
 
 @dataclass
@@ -22,7 +21,7 @@ class Configuration:
         return cls.from_yaml(config_path)
 
     @classmethod
-    def from_yaml(cls, yaml_path: Path):
+    def from_yaml(cls, yaml_path):
         with open(yaml_path) as yaml_fp:
             config_dict = yaml.safe_load(yaml_fp)
         return cls.from_dict(config_dict)
@@ -38,6 +37,14 @@ class Configuration:
         self._add_CFGpy_version()
         self._add_parsed_game_header_indices()
         self._add_first_shape_id()
+
+    def to_yaml(self, yaml_path: str):
+        if not yaml_path.endswith(CONFIG_DUMP_EXTENSION):
+            yaml_path += "_config" + CONFIG_DUMP_EXTENSION
+
+        config_dict = asdict(self)
+        with open(yaml_path, 'w') as yaml_fp:
+            yaml.safe_dump(config_dict, yaml_fp)
 
     def _validate(self):
         # validate that the required CFGpy version is the one installed:

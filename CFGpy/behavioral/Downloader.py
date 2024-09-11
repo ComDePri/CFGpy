@@ -30,6 +30,7 @@ class Downloader:
         input_json = self.get_events(verbose)
         output_json = self.create_output(input_json, verbose)
         self.write_csv(output_json, verbose)
+        self.dump_config()
 
         return pd.read_csv(self.output_filename)  # why not return output_json? see to-do in create_output
 
@@ -89,6 +90,7 @@ class Downloader:
         #  replaced by calling to_csv on that DataFrame. This will also make the return statement in self.download
         #  cleaner: instead of writing a CSV and then reading it just to be able to return it in the correct format,
         #  self will have a correctly formatted DataFrame to return from download
+        #  after doing this, Downloader should only write to disk using a dump method, which will also dump config
 
         output_json = []
 
@@ -127,6 +129,9 @@ class Downloader:
             output_json.append(output_json_record)
 
         return output_json
+
+    def dump_config(self):
+        self.config.to_yaml(self.output_filename)
 
     def write_csv(self, output_json, verbose=False):
         """

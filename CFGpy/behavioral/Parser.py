@@ -52,10 +52,13 @@ class Parser:
         return self.parsed_data
 
     def dump(self, path=PARSER_OUTPUT_FILENAME, pretty=False):
+        # dump parsed
         json_str = prettify_games_json(self.parsed_data) if pretty else json.dumps(self.parsed_data)
-
         with open(path, "w") as out_file:
             out_file.write(json_str)
+
+        # dump config
+        self.config.to_yaml(path)
 
     def _prepare_data(self):
         data = self.patchfix_csv_data(self.raw_data)

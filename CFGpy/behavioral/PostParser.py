@@ -50,10 +50,13 @@ class PostParser:
             player_data[EXPLOIT_KEY] = exploit
 
     def dump(self, path=POSTPARSER_OUTPUT_FILENAME, pretty=False):
+        # dump post-parsed
         json_str = prettify_games_json(self.all_players_data) if pretty else json.dumps(self.all_players_data)
-
         with open(path, "w") as out_file:
             out_file.write(json_str)
+
+        # dump config
+        self.config.to_yaml(path)
 
 
 if __name__ == '__main__':

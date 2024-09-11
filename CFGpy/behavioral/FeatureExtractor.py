@@ -64,7 +64,12 @@ class FeatureExtractor:
         return self.output_df
 
     def dump(self, path=DEFAULT_FINAL_OUTPUT_FILENAME):
-        self.output_df.to_csv(path, index=False)  # reorder columns
+        # dump features
+        self.output_df.to_csv(path, index=False)  # reorder columns?
+
+        # dump config
+        self.config.to_yaml(path)
+
         # TODO: document all filtered ids and filtering criteria
         # TODO: write html with dashboards to inspect data quality and some summary stats
 
