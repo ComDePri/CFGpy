@@ -89,6 +89,7 @@ class Configuration:
     RAW_SHAPE: str
 
     # Downloading
+    RED_METRICS_CSV_URL: str | None
     DOWNLOAD_PLAYER_REQUEST: str
     DOWNLOADER_COMMON_FIELDS: tuple
     DOWNLOADER_FIELD_ORDER: tuple

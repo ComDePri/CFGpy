@@ -11,7 +11,9 @@ CFGPY_VERSION_ERROR = "Configuration file requires CFGpy version {}. Installed v
 
 # downloader
 DOWNLOADER_OUTPUT_FILENAME = "event.csv"
-DOWNLOADER_URL_ERROR = "URL is incorrect: '{}'"
+NO_DOWNLOADER_URL_ERROR = "RedMetrics URL undefined. Specify URL either as a parameter or in config"
+TWO_DOWNLOADER_URL_ERROR = "RedMetrics URL was defined both as a parameter and in config. Define URL exactly once"
+DOWNLOADER_URL_NO_CSV_ERROR = "URL is incorrect: '{}'\nCopy the address from 'Download all pages as CSV' in RedMetrics"
 EVENTS_PER_PAGE = 500
 
 # parser

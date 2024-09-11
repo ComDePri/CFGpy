@@ -2,15 +2,24 @@ import csv
 import requests
 from tqdm import tqdm
 import pandas as pd
-from CFGpy.behavioral._consts import DOWNLOADER_OUTPUT_FILENAME, DOWNLOADER_URL_ERROR, EVENTS_PER_PAGE
+from CFGpy.behavioral._consts import (DOWNLOADER_OUTPUT_FILENAME, NO_DOWNLOADER_URL_ERROR, DOWNLOADER_URL_NO_CSV_ERROR,
+                                      TWO_DOWNLOADER_URL_ERROR, EVENTS_PER_PAGE)
 from CFGpy.behavioral import Configuration
 
 
 class Downloader:
-    def __init__(self, csv_url, output_filename=DOWNLOADER_OUTPUT_FILENAME, config=Configuration.default()):
-        self.json_url = self.convert_url(csv_url)  # runs on init so that ValueError is raised immediately if needed
-        self.output_filename = output_filename
+    def __init__(self, csv_url: str | None = None, output_filename: str = DOWNLOADER_OUTPUT_FILENAME,
+                 config: Configuration = Configuration.default()):
+        """
+        Creates a new Downloader object.
+        :param csv_url: Web address of the "Download all pages as CSV" in RedMetrics. Optional. If None, URL is expected
+                         as part of config.
+        :param output_filename: filename for output.
+        :param config: a Configuration file. If this defines a RedMetrics URL, `csv_url` shouldn't.
+        """
         self.config = config
+        self.json_url = self.validate_and_convert_url(csv_url)
+        self.output_filename = output_filename
 
         self.players = dict()
         self.custom_data_fields = set()
@@ -24,13 +33,21 @@ class Downloader:
 
         return pd.read_csv(self.output_filename)  # why not return output_json? see to-do in create_output
 
-    @staticmethod
-    def convert_url(csv_url):
+    def validate_and_convert_url(self, csv_url):
         # Expecting address like:
         # https://api.creativeforagingtask.com/v1/event.csv?game=c9d8979c-94ad-498f-8d2b-a37cff3c5b41&gameVersion=40f2894d-1891-456b-af26-a386c6111287&entityType=event
 
+        # at least one URL should not be None:
+        if csv_url is None and self.config.RED_METRICS_CSV_URL is None:
+            raise ValueError(NO_DOWNLOADER_URL_ERROR)
+
+        # at most one URL should not be None:
+        if csv_url is not None and self.config.RED_METRICS_CSV_URL is not None:
+            raise ValueError(TWO_DOWNLOADER_URL_ERROR)
+
+        # URL should point to an event.csv file:
         if csv_url.find("/event.csv") == -1:
-            raise ValueError(DOWNLOADER_URL_ERROR.format(csv_url))
+            raise ValueError(DOWNLOADER_URL_NO_CSV_ERROR.format(csv_url))
 
         return csv_url.replace("/event.csv", "/event.json")
 

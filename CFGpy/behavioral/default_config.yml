@@ -29,6 +29,7 @@
   RAW_SHAPE: &RAW_SHAPE "customData.shape",
 
   ## Downloading
+  RED_METRICS_CSV_URL: null,  # Web address of the "Download all pages as CSV"
   DOWNLOAD_PLAYER_REQUEST: "https://api.creativeforagingtask.com/v1/player/{}",
   DOWNLOADER_COMMON_FIELDS: [
     *EVENT_ID_KEY, *RAW_SERVER_TIME, *RAW_USER_TIME, *RAW_GAME_VERSION, *EVENT_TYPE, *RAW_COORDINATES, *RAW_SECTION ],
