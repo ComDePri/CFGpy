@@ -6,7 +6,7 @@ import networkx as nx
 from CFGpy.behavioral._consts import (PARSED_PLAYER_ID_KEY, PARSED_TIME_KEY, PARSED_ALL_SHAPES_KEY,
                                       PARSED_CHOSEN_SHAPES_KEY, EXPLORE_KEY, EXPLOIT_KEY)
 from CFGpy.behavioral import Configuration
-from CFGpy.behavioral._utils import is_semantic_connection
+from CFGpy.behavioral._utils import is_semantic_connection, load_json
 
 
 # TODO: consider: some methods only serve MeasureCalculator, while other are meant as API for end users (e.g.
@@ -152,6 +152,10 @@ class ParsedDataset:
         self.players_data = []
         self._reset_state(input_data)
 
+    @classmethod
+    def from_json(cls, path: str):
+        return cls(load_json(path))
+
     def _reset_state(self, input_data):
         self.input_data = input_data
         self.players_data = [ParsedPlayerData(player_data) for player_data in self.input_data]
@@ -231,6 +235,10 @@ class PostparsedDataset(ParsedDataset):
         super().__init__(input_data)
         self.config = config
         self._reset_state(input_data)
+
+    @classmethod
+    def from_json(cls, path: str, config=Configuration.default()):
+        return cls(load_json(path), config)
 
     def _reset_state(self, input_data):
         self.input_data = input_data
