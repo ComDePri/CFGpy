@@ -21,12 +21,12 @@ class Parser:
         parse_datetime_re_millisecond,
     ]
 
-    def __init__(self, raw_data, include_in_id: list = None, config=Configuration.default()):
+    def __init__(self, raw_data, config=Configuration.default()):
         self.raw_data = raw_data
         self.config = config
         self.parsed_data = None
 
-        self.include_in_id = include_in_id if include_in_id is not None else []
+        self.include_in_id = list(self.config.INCLUDE_IN_PARSER_ID)
         self.parser_relevant_columns = [
             MERGED_ID_KEY,
             self.config.EVENT_TYPE,
