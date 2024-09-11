@@ -6,6 +6,8 @@
 # Do NOT change unless you're absolutely sure you know what you're doing, AND you have Yuval's approval for the new defaults.
 
 {
+  CFGPY_VERSION: null, # CFGpy version to use with this configuration. Null will be replaced with current version in runtime
+
   ## Raw Data
   EVENT_ID_KEY: &EVENT_ID_KEY "id",
   EVENT_CUSTOM_DATA_KEY: "customData",

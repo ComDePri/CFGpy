@@ -1,5 +1,6 @@
 from dataclasses import dataclass
-from CFGpy.behavioral._consts import CONFIG_PACKAGE, CONFIG_FILENAME
+from CFGpy._version import __version__ as CFGpy_version
+from CFGpy.behavioral._consts import CONFIG_PACKAGE, CONFIG_FILENAME, CFGPY_VERSION_ERROR
 from CFGpy.behavioral._utils import server_coords_to_binary_shape
 from CFGpy.utils import binary_shape_to_id
 import yaml
@@ -34,11 +35,19 @@ class Configuration:
 
     def _post_init(self):
         self._validate()
+        self._add_CFGpy_version()
         self._add_parsed_game_header_indices()
         self._add_first_shape_id()
 
     def _validate(self):
-        pass
+        # validate that the required CFGpy version is the one installed:
+        required_version = self.CFGPY_VERSION
+        if required_version is not None and required_version != CFGpy_version:
+            raise ValueError(CFGPY_VERSION_ERROR.format(required_version, CFGpy_version))
+
+    def _add_CFGpy_version(self):
+        if self.CFGPY_VERSION is None:
+            self.CFGPY_VERSION = CFGpy_version
 
     def _add_parsed_game_header_indices(self) -> None:
         self.SHAPE_ID_IDX: int = self.PARSED_GAME_HEADERS.index(self.SHAPE_MOVE_COLUMN)
@@ -46,8 +55,12 @@ class Configuration:
         self.SHAPE_SAVE_TIME_IDX: int = self.PARSED_GAME_HEADERS.index(self.GALLERY_SAVE_TIME_COLUMN)
 
     def _add_first_shape_id(self) -> None:
-
         self.FIRST_SHAPE_ID = binary_shape_to_id(server_coords_to_binary_shape(self.FIRST_SHAPE_SERVER_COORDS))
+
+    # Class data
+    # ----------
+
+    CFGPY_VERSION: str | None
 
     # Raw data column names
     """

@@ -7,6 +7,7 @@ Please do not change this file unless you're absolutely sure you know what you'r
 # configuration
 CONFIG_PACKAGE = "CFGpy.behavioral"
 CONFIG_FILENAME = "default_config.yml"
+CFGPY_VERSION_ERROR = "Configuration file requires CFGpy version {}. Installed version is {}"
 
 # downloader
 DOWNLOADER_OUTPUT_FILENAME = "event.csv"
