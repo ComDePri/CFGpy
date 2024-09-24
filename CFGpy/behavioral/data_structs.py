@@ -3,8 +3,8 @@ import pandas as pd
 from itertools import pairwise, groupby, combinations
 from collections import Counter
 import networkx as nx
-from CFGpy.behavioral._consts import *
-from CFGpy.behavioral._utils import is_semantic_connection
+from ._consts import *
+from ._utils import is_semantic_connection
 import matplotlib.pyplot as plt
 import seaborn as sns
 
