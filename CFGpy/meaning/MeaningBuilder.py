@@ -179,6 +179,9 @@ def load_connected_clusters(verbose=True):
     
     return connected_clusters
 
+def show_communities(communities):
+    print()
+
 def build_clusters_and_communities(verbose=True):
     if verbose:
         print('Loading vanilla data')
@@ -201,6 +204,7 @@ def build_clusters_and_communities(verbose=True):
     communities = [community for community in nx.community.greedy_modularity_communities(largest_cc_subgraph)]
     top_communities = communities[:N_TOP_COMMUNITIES]
     dimensions_count_per_shape = count_shapes_in_many_communities(top_communities) # Gallery meaning scores
+    import ipdb;ipdb.set_trace()
     all_gallery_shapes = get_all_gallery_shapes(parsed_vanilla)
     core_shapes = {
         shape for shape in dimensions_count_per_shape if is_core_shape(dimensions_count_per_shape[shape])
@@ -221,7 +225,6 @@ def build_clusters_and_communities(verbose=True):
     gallery_graph_cc_subgraph = gallery_graph.subgraph(largest_gallery_graph_connected_component)
 
     induced_meaning = build_meaning(all_galleries_connected=largest_gallery_graph_connected_component, gallery_meaning_scores=dimensions_count_per_shape, gallery_graph_connected=gallery_graph_cc_subgraph)
-    import ipdb;ipdb.set_trace()
 
     # Show shapes that appear >5 times
 

@@ -2,6 +2,10 @@ from ._version import __version__
 import os
 
 
+def check_datafiles():
+    #TODO: if datafiles are not there download them, if impossible throw some exception
+    pass
+
 def get_nas_path():
     default_nas_path = r"\\132.64.186.144\HartLabNAS"
     environment_variable_name = "NAS_PATH"
@@ -22,7 +26,7 @@ def get_nas_path():
     raise NotADirectoryError(error_msg)
 
 
-NAS_PATH = get_nas_path()
+check_datafiles()
 
 # the following line has to appear after NAS_PATH is defined, because sub-packages use import CFGpy.NAS_PATH.
 # Importing them before NAS_PATH exists results in circular import
