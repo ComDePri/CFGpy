@@ -3,11 +3,11 @@ from CFGpy.behavioral._consts import DEFAULT_FINAL_OUTPUT_FILENAME
 
 
 class Pipeline:
-    def __init__(self, red_metrics_csv_url, output_filename=DEFAULT_FINAL_OUTPUT_FILENAME,
+    def __init__(self, red_metrics_csv_url: str | None = None, output_filename=DEFAULT_FINAL_OUTPUT_FILENAME,
                  config=Configuration.default()):
         self.output_filename = output_filename
         self.config = config
-        self.downloader = Downloader(red_metrics_csv_url, self.config)
+        self.downloader = Downloader(red_metrics_csv_url, config=self.config)
         self.parser = None
         self.postparser = None
         self.feature_extractor = None
