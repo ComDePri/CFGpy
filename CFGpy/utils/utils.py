@@ -2,6 +2,8 @@ import numpy as np
 import os
 import json
 import networkx as nx
+import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
 from collections import Counter, defaultdict
 from CFGpy import NAS_PATH
 
@@ -18,6 +20,9 @@ VANILLA_GC_PATH = os.path.join(VANILLA_DATA_DIR, "giant_component.json")
 ID2COORD = np.load(os.path.join(CFG_RESOURCES_PATH, "grid_coords.npy"))
 N_ALL_SHAPES = len(ID2COORD) - 1  # subtract 1 because index 0 in ID2COORD is a placeholder, not a shape
 SHORTEST_PATHS_DICT_PATH = os.path.join(CFG_RESOURCES_PATH, "shortest_path_len.json")
+SHAPE_COLOR = "#32CD32"  # CSS "limegreen", as used in the game
+SHAPE_BG_COLOR = "k"
+GALLERY_BG_COLOR = "r"
 
 
 def get_vanilla():
@@ -74,27 +79,26 @@ def dump_vanilla_stats(step_counter, gallery_counter, giant_component):
         json.dump(giant_component, gc_fp)
 
 
-def get_shape_binary_matrix(shape_id):
+def shape_id_to_binary_matrix(shape_id):
     """
     Converts a shape's ID to its binary matrix representation.
     :param shape_id: int
     :return: 2D ndarray with dtype float, all values are binary
     """
     coords = ID2COORD[shape_id]
-    binary_mat = np.array([list(np.binary_repr(row, width=10)) for row in coords],
-                          dtype=float)
+    binary_mat = np.array([list(np.binary_repr(row, width=10)) for row in coords], dtype=float)
     nrow, ncol = np.max(np.nonzero(binary_mat), axis=1) + 1
-    binary_mat = binary_mat[:nrow, :ncol]  # truncate all zeros rows and cols from bottom and right respectively
+    binary_mat = binary_mat[:nrow, :ncol]  # truncate all zeros rows and cols from bottom and right
 
     return binary_mat
 
 
-def binary_shape_to_id(binary_shape):
-    pad_width = (0, 10 - len(binary_shape))
-    padded_shape = np.pad(binary_shape, pad_width=pad_width)
+def binary_matrix_to_shape_id(binary_matrix):
+    pad_width = (0, 10 - len(binary_matrix))
+    padded_shape = np.pad(binary_matrix, pad_width=pad_width)
     shape_id = np.flatnonzero(np.all(ID2COORD == padded_shape, axis=1))
     if shape_id.size != 1:
-        raise ValueError('Was not able to find the desired shape', binary_shape)
+        raise ValueError('Was not able to find the desired shape', binary_matrix)
 
     return int(shape_id[0])
 
@@ -166,3 +170,53 @@ def step_orig_map_factory(step_counter, alpha=0, d=N_ALL_SHAPES - 1):
         orig_map[step] = -np.log10(smoothed_prob)
 
     return orig_map
+
+
+def plot_binary_matrix(binary_matrix, ax=None, is_gallery=False, save_filename=None, title=''):
+    """
+    Plots the binary matrix representation of a shape.
+    :param binary_matrix: a binary matrix representation of a shape.
+    :param ax: plt Axes object. If None, a new one is created and eventually displayed.
+    :param is_gallery: True iff this a gallery shape. affects background color.
+    :param save_filename: a filename to save the image, or None (to avoid saving).
+    :param title: plot title.
+    """
+    bg_color = GALLERY_BG_COLOR if is_gallery else SHAPE_BG_COLOR
+    nrow, ncol = binary_matrix.shape
+    pad_rows = (10 - nrow) / 2
+    pad_rows = (np.ceil(pad_rows).astype('int'), np.floor(pad_rows).astype('int'))
+    pad_cols = (10 - ncol) / 2
+    pad_cols = (np.ceil(pad_cols).astype('int'), np.floor(pad_cols).astype('int'))
+    binary_matrix = np.pad(binary_matrix, (pad_rows, pad_cols))
+
+    show = False
+    if ax is None:
+        show = True
+        dpi = 100
+        res = (750 / dpi, 750 / dpi)
+        fig, ax = plt.subplots(figsize=res, dpi=dpi)
+    ax.matshow(binary_matrix, cmap=ListedColormap([bg_color, SHAPE_COLOR]))
+
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+    ax.set_xticks(np.arange(-.5, 10, 1), minor=True)
+    ax.set_yticks(np.arange(-.5, 10, 1), minor=True)
+    ax.grid(which='minor', color=bg_color, linestyle='-', linewidth=3)
+    ax.tick_params(which="both", bottom=False, top=False, left=False, right=False)
+    plt.title(title)
+
+    if save_filename:
+        plt.savefig(save_filename)
+
+    if show:
+        plt.show()
+
+
+def plot_shape(shape_id, *args, **kwargs):
+    """
+    Plots a shape.
+    :param shape_id: int
+    All other params (positional and keyword) are as in plot_binary_matrix
+    """
+    binary_matrix = shape_id_to_binary_matrix(shape_id)
+    plot_binary_matrix(binary_matrix, *args, **kwargs)
