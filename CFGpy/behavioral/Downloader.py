@@ -18,7 +18,7 @@ class Downloader:
         :param config: a Configuration file. If this defines a RedMetrics URL, `csv_url` shouldn't.
         """
         self.config = config
-        self.json_url = self.validate_and_convert_url(csv_url)
+        self.json_url = self._validate_and_convert_url(csv_url)
         self.output_filename = output_filename
 
         self.players = dict()
@@ -34,10 +34,7 @@ class Downloader:
 
         return pd.read_csv(self.output_filename)  # why not return output_json? see to-do in create_output
 
-    def validate_and_convert_url(self, csv_url):
-        # Expecting address like:
-        # https://api.creativeforagingtask.com/v1/event.csv?game=c9d8979c-94ad-498f-8d2b-a37cff3c5b41&gameVersion=40f2894d-1891-456b-af26-a386c6111287&entityType=event
-
+    def _validate_and_convert_url(self, csv_url):
         # at least one URL should not be None:
         if csv_url is None and self.config.RED_METRICS_CSV_URL is None:
             raise ValueError(NO_DOWNLOADER_URL_ERROR)
@@ -45,6 +42,8 @@ class Downloader:
         # at most one URL should not be None:
         if csv_url is not None and self.config.RED_METRICS_CSV_URL is not None:
             raise ValueError(TWO_DOWNLOADER_URL_ERROR)
+
+        csv_url = self.config.RED_METRICS_CSV_URL if csv_url is None else csv_url
 
         # URL should point to an event.csv file:
         if csv_url.find("/event.csv") == -1:
