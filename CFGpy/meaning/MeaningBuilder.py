@@ -1,9 +1,17 @@
+import sys
+sys.path.append('D:\\ComDePri\\simCFG')
+sys.path.append('D:\\ComDePri\\ComDePy')
+import os
+import simCFG
+import matplotlib.pyplot as plt
+
 import pandas as pd
 import numpy as np
 import itertools
 import networkx as nx
 import json
 
+from tqdm import tqdm
 from itertools import groupby
 from collections import Counter
 from .. import behavioral
@@ -11,10 +19,36 @@ from ..behavioral import _consts as consts
 from .. import utils
 
 CONNECTED_CLUSTERS = r'connected_clusters.json'
-MIN_INTERSECT_TO_CONNECT_CLUSTERS = 3
+MIN_INTERSECT_TO_CONNECT_CLUSTERS = 4
 MIN_SHAPES_FOR_CLUSTER = 3
 MIN_COUNT_TO_SHOW = 5
 N_TOP_COMMUNITIES = 8
+
+# Move somewhere else when I finish with this
+def show_community(community, community_number):
+    unique_community_shapes = set([shape for community_set in community for shape in community_set])
+    unique_community_shapes = [simCFG.utils.get_shape_binary_matrix(int(shape)) for shape in unique_community_shapes]
+
+    len_community = len(unique_community_shapes)
+    cols = np.ceil(len_community**0.5).astype(int)
+    fig, ax = plt.subplots(nrows=cols, ncols=cols, figsize = (16, 12))
+    for counter, shape in enumerate(unique_community_shapes):
+        res = (900/100, 900/100)
+        shape_image = simCFG.utils.show_binary_matrix(shape, show=False, is_gallery=False, is_exploit=False, render=True, save_filename=None, title='', res=res)
+        ax.flat[counter].imshow(shape_image)
+        x_position = 305 * (counter % cols)
+        y_position = 305 * (counter // cols)
+        ax.flat[counter].set_xticklabels([])
+        ax.flat[counter].set_yticklabels([])
+    
+    for axis in ax.flat[counter + 1:]:
+        axis.remove()
+    
+    if not os.path.isdir('communities'):
+        os.mkdir('communities')
+    plt.savefig('communities/community_{community_number}.png'.format(community_number=community_number))
+    plt.close()
+    return
 
 def get_all_clusters(games):
     '''
@@ -25,10 +59,10 @@ def get_all_clusters(games):
     for game in games:
         actions = game[consts.PARSED_ALL_SHAPES_KEY]
         exploit_actions = [
-            np.array(actions[cluster_range[0]:cluster_range[1]]) for cluster_range in game[consts.EXPLOIT_KEY]
+            actions[cluster_range[0]:cluster_range[1]] for cluster_range in game[consts.EXPLOIT_KEY]
         ]
         clusters = [
-            cluster[~pd.isna(cluster[:,consts.SHAPE_SAVE_TIME_IDX])][:, consts.SHAPE_ID_IDX] for cluster in exploit_actions
+            cluster[~pd.isna(cluster[:, consts.SHAPE_SAVE_TIME_IDX])][:, consts.SHAPE_ID_IDX] for cluster in exploit_actions
         ]
         clusters = [
             cluster.tolist() for cluster in clusters if cluster.shape[0] > MIN_SHAPES_FOR_CLUSTER
@@ -55,7 +89,7 @@ def get_all_gallery_shapes(games):
     for game in games:
         actions = game[consts.PARSED_ALL_SHAPES_KEY]
         exploit_actions = [
-            np.array(actions[cluster_range[0]:cluster_range[1]]) for cluster_range in game[consts.EXPLOIT_KEY]
+            actions[cluster_range[0]:cluster_range[1]] for cluster_range in game[consts.EXPLOIT_KEY]
         ]
         clusters = [
             cluster[~pd.isna(cluster[:,consts.SHAPE_SAVE_TIME_IDX])][:, consts.SHAPE_ID_IDX] for cluster in exploit_actions
@@ -168,7 +202,11 @@ def load_connected_clusters(verbose=True):
     except FileNotFoundError:
         if verbose:
             print('Connected clusters not found, recalculating')
-        parsed_vanilla = utils.get_vanilla()
+        with open('fixed_vanilla.json', 'r') as fp:
+            parsed_vanilla = json.load(fp)
+
+        for game in parsed_vanilla:
+            game['actions'] = np.array([action for action in game['actions']])
         clusters = get_all_clusters(parsed_vanilla) # Move from parsed data form to exploit cluster form
         connected_clusters = find_connected_clusters(clusters) # Each exploit cluster is treated like a vertex, a node
 
@@ -189,7 +227,6 @@ def build_clusters_and_communities(verbose=True):
         parsed_vanilla = json.load(fp)
 
     # parsed_vanilla = utils.get_vanilla() # Imports the vanilla data (Currently uses a faulty vanilla with the tutorial in it)
-
     if verbose:
         print('Loading connected clusters data')
     connected_clusters = load_connected_clusters(verbose) # Each exploit cluster is treated like a vertex, a node
@@ -202,9 +239,15 @@ def build_clusters_and_communities(verbose=True):
     
     # Find communities of connected components
     communities = [community for community in nx.community.greedy_modularity_communities(largest_cc_subgraph)]
+    if verbose:
+        offset = 0
+        print('Saving all communities')
+        for ind, community in tqdm(enumerate(communities[offset:])):
+            show_community(community, ind + offset)
+    import ipdb;ipdb.set_trace()
     top_communities = communities[:N_TOP_COMMUNITIES]
     dimensions_count_per_shape = count_shapes_in_many_communities(top_communities) # Gallery meaning scores
-    import ipdb;ipdb.set_trace()
+
     all_gallery_shapes = get_all_gallery_shapes(parsed_vanilla)
     core_shapes = {
         shape for shape in dimensions_count_per_shape if is_core_shape(dimensions_count_per_shape[shape])
