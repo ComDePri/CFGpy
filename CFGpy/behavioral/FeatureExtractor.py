@@ -14,7 +14,7 @@ from CFGpy.behavioral._consts import (FEATURES_ID_KEY, FEATURES_START_TIME_KEY, 
                                       FRACTION_GALLERIES_UNIQUELY_COVERED_EXPLORE_KEY,
                                       FRACTION_GALLERIES_UNIQUELY_COVERED_EXPLOIT_KEY, N_CLUSTERS_IN_GC_KEY,
                                       ABSOLUTE_FEATURES_MESSAGE, RELATIVE_FEATURES_MESSAGE, EXPLORE_OUTLIER_REASON,
-                                      EXPLOIT_OUTLIER_REASON, NO_EXPLOIT_EXCLUSION_REASON,
+                                      EXPLOIT_OUTLIER_REASON, NO_EXPLOIT_EXCLUSION_REASON, MANUAL_EXCLUSION_REASON,
                                       GAME_LENGTH_EXCLUSION_REASON, GAME_DURATION_EXCLUSION_REASON,
                                       PAUSE_EXCLUSION_REASON, SAMPLE_RELATIVE_FEATURES_LABEL)
 from CFGpy.behavioral import Configuration
@@ -64,12 +64,9 @@ class FeatureExtractor:
         return self.output_df
 
     def dump(self, path=DEFAULT_FINAL_OUTPUT_FILENAME):
-        # dump features
         self.output_df.to_csv(path, index=False)  # reorder columns?
-
-        # dump config
         self.config.to_yaml(path)
-
+        self.exclusions.to_csv(f"{path}_exclusions.csv", index=False)
         # TODO: document all filtered ids and filtering criteria
         # TODO: write html with dashboards to inspect data quality and some summary stats
 
@@ -111,7 +108,7 @@ class FeatureExtractor:
         represented by a textual description and a mask with **True for players to exclude**, False for players to keep.
         :return: masks, reasons.
         """
-        reasons = (NO_EXPLOIT_EXCLUSION_REASON, NO_EXPLOIT_EXCLUSION_REASON, GAME_LENGTH_EXCLUSION_REASON,
+        reasons = (MANUAL_EXCLUSION_REASON, NO_EXPLOIT_EXCLUSION_REASON, GAME_LENGTH_EXCLUSION_REASON,
                    GAME_DURATION_EXCLUSION_REASON, PAUSE_EXCLUSION_REASON)
         masks = (self.output_df[FEATURES_ID_KEY].isin(self.config.MANUALLY_EXCLUDED_IDS),
                  self.output_df[N_CLUSTERS_KEY] < self.config.MIN_N_CLUSTERS,
@@ -146,7 +143,7 @@ class FeatureExtractor:
                 FEATURES_ID_KEY: ids_to_exclude,
                 EXCLUSION_REASON_KEY: [reason] * len(ids_to_exclude)
             })
-            pd.concat((self.exclusions, current_exclusion))
+            self.exclusions = pd.concat((self.exclusions, current_exclusion))
 
     def _extract_absolute_features(self, verbose=True):
         n_galleries_in_explore = []
