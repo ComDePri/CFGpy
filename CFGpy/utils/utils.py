@@ -1,11 +1,11 @@
+from pkg_resources import resource_filename
 import numpy as np
 import os
 import json
 import networkx as nx
 from collections import Counter, defaultdict
-from .. import NAS_PATH
 
-CFG_RESOURCES_PATH = os.path.join(NAS_PATH, "Projects", "CFG")
+CFG_RESOURCES_PATH = resource_filename("CFGpy", "datafiles/")
 
 VANILLA_DATA_DIR = os.path.join(CFG_RESOURCES_PATH, "vanilla_data")
 VANILLA_PATH = os.path.join(VANILLA_DATA_DIR, "vanilla.json")
