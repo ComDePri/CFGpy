@@ -1,9 +1,8 @@
-from CFGpy.behavioral._utils import *
-from CFGpy.behavioral._consts import *
-from CFGpy.utils import binary_shape_to_id as bin2id
+from ._utils import *
+from ._consts import *
+from ..utils.utils import binary_shape_to_id as bin2id # Doesn't happen
 
 DEFAULT_OUTPUT_FILENAME = "preprocessed.json"
-
 
 class Preprocessor:
     def __init__(self, parsed_data):
@@ -26,6 +25,7 @@ class Preprocessor:
         """
         for player_data in self.all_players_data:
             shapes = player_data[PARSED_ALL_SHAPES_KEY]
+            import ipdb;ipdb.set_trace()
             for shape in shapes:
                 try:
                     shape[SHAPE_ID_IDX] = bin2id(shape[SHAPE_ID_IDX])

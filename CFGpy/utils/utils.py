@@ -3,7 +3,7 @@ import os
 import json
 import networkx as nx
 from collections import Counter, defaultdict
-from CFGpy import NAS_PATH
+from .. import NAS_PATH
 
 CFG_RESOURCES_PATH = os.path.join(NAS_PATH, "Projects", "CFG")
 

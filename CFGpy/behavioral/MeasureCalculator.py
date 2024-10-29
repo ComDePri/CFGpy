@@ -1,13 +1,13 @@
 import numpy as np
 import pandas as pd
 from datetime import datetime
-from CFGpy.behavioral.data_structs import PreprocessedDataset
-from CFGpy.behavioral._consts import *
-from CFGpy.behavioral._utils import load_json, is_semantic_connection
+from .data_structs import PreprocessedDataset
+from ._consts import *
+from ._utils import load_json, is_semantic_connection
 from collections.abc import Collection
 from functools import reduce
 from scipy.stats import zscore
-from CFGpy.utils import get_vanilla_descriptors, step_orig_map_factory, gallery_orig_map_factory
+from ..utils import get_vanilla_descriptors, step_orig_map_factory, gallery_orig_map_factory
 from tqdm import tqdm
 
 
