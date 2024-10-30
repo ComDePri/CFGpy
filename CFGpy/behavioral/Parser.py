@@ -75,7 +75,7 @@ class Parser:
 
         data = self.merge_id_columns(data)
         data[self.config.PARSER_TIME_COLUMN] = pd.to_datetime(data[self.config.PARSER_TIME_COLUMN],
-                                                              format=self.config.PARSER_DATE_FORMAT)
+                                                              format=self.config.SERVER_DATE_FORMAT)
         data = data.sort_values(by=self.config.PARSER_TIME_COLUMN).reset_index(drop=True)
 
         return data

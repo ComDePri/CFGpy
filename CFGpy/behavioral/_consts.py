@@ -77,7 +77,7 @@ PAUSE_EXCLUSION_REASON = "Paused for too long"
 
 ABSOLUTE_FEATURES_MESSAGE = "Extracting absolute features..."
 RELATIVE_FEATURES_MESSAGE = "Extracting relative{} features..."
-DEFAULT_FINAL_OUTPUT_FILENAME = "CFG measures.csv"
+DEFAULT_FINAL_OUTPUT_FILENAME = "CFG_measures.csv"
 
 # utils
 SERVER_COORDS_TYPE_ERROR = "Received incorrect type as csv_coords, should be str or list, received {}"

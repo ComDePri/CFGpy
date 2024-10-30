@@ -109,7 +109,7 @@ class Configuration:
     UNIQUE_INTERNAL_ID_COLUMN: str
     PARSER_ID_COLUMNS: tuple
     INCLUDE_IN_PARSER_ID: tuple
-    PARSER_DATE_FORMAT: str
+    SERVER_DATE_FORMAT: str
     PARSER_TIME_COLUMN: str
     PARSER_JSON_COLUMN: str
     SHAPE_MOVE_COLUMN: str

@@ -18,7 +18,8 @@ class Downloader:
         :param config: a Configuration file. If this defines a RedMetrics URL, `csv_url` shouldn't.
         """
         self.config = config
-        self.json_url = self._validate_and_convert_url(csv_url)
+        self.csv_url = self._validate_url(csv_url)
+        self.json_url = self.csv_url.replace("/event.csv", "/event.json")
         self.output_filename = output_filename
 
         self.players = dict()
@@ -34,7 +35,7 @@ class Downloader:
 
         return pd.read_csv(self.output_filename)  # why not return output_json? see to-do in create_output
 
-    def _validate_and_convert_url(self, csv_url):
+    def _validate_url(self, csv_url):
         # at least one URL should not be None:
         if csv_url is None and self.config.RED_METRICS_CSV_URL is None:
             raise ValueError(NO_DOWNLOADER_URL_ERROR)
@@ -49,7 +50,7 @@ class Downloader:
         if csv_url.find("/event.csv") == -1:
             raise ValueError(DOWNLOADER_URL_NO_CSV_ERROR.format(csv_url))
 
-        return csv_url.replace("/event.csv", "/event.json")
+        return csv_url
 
     def get_events(self, verbose=False):
         if verbose:
