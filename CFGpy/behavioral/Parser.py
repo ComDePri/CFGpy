@@ -21,9 +21,9 @@ class Parser:
         parse_datetime_re_millisecond,
     ]
 
-    def __init__(self, raw_data, config=Configuration.default()):
+    def __init__(self, raw_data, config: Configuration = None):
         self.raw_data = raw_data
-        self.config = config
+        self.config = config if config is not None else Configuration.default()
         self.parsed_data = None
 
         self.include_in_id = list(self.config.INCLUDE_IN_PARSER_ID)

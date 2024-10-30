@@ -13,13 +13,13 @@ from CFGpy.behavioral._utils import is_semantic_connection, load_json
 #  visualizations). This probably means there's a better way to design these classes
 
 class ParsedPlayerData:
-    def __init__(self, player_data, config=Configuration.default()):
+    def __init__(self, player_data, config: Configuration = None):
         self.id = player_data[PARSED_PLAYER_ID_KEY]
         self.start_time = player_data[PARSED_TIME_KEY]
         self.shapes_df = pd.DataFrame(player_data[PARSED_ALL_SHAPES_KEY])
         self.chosen_shapes = player_data.get(PARSED_CHOSEN_SHAPES_KEY)
 
-        self.config = config
+        self.config = config if config is not None else Configuration.default()
         self.delta_move_times = np.diff(self.shapes_df.iloc[:, self.config.SHAPE_MOVE_TIME_IDX])
 
     def __len__(self):
@@ -71,7 +71,7 @@ class ParsedPlayerData:
 
 
 class PostparsedPlayerData(ParsedPlayerData):
-    def __init__(self, player_data, config=Configuration.default()):
+    def __init__(self, player_data, config: Configuration = None):
         self.explore_slices = player_data[EXPLORE_KEY]
         self.exploit_slices = player_data[EXPLOIT_KEY]
         super().__init__(player_data, config)
@@ -228,16 +228,16 @@ class ParsedDataset:
 
 
 class PostparsedDataset(ParsedDataset):
-    def __init__(self, input_data, config=Configuration.default()):
+    def __init__(self, input_data, config: Configuration = None):
         """
         Expects a list of dicts like the output from Preprocessor.preprocess()
         """
         super().__init__(input_data)
-        self.config = config
+        self.config = config if config is not None else Configuration.default()
         self._reset_state(input_data)
 
     @classmethod
-    def from_json(cls, path: str, config=Configuration.default()):
+    def from_json(cls, path: str, config: Configuration = None):
         return cls(load_json(path), config)
 
     def _reset_state(self, input_data):

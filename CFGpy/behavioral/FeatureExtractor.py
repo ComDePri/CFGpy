@@ -38,9 +38,9 @@ def _get_frac_uniquely_covered(player_objects, objects_not_uniquely_covered):
 
 
 class FeatureExtractor:
-    def __init__(self, preprocessed_data, config=Configuration.default()):
+    def __init__(self, preprocessed_data, config: Configuration = None):
         self.input_data = PostparsedDataset(preprocessed_data)
-        self.config = config
+        self.config = config if config is not None else Configuration.default()
         self.all_absolute_features = None
         self.output_df = None
 

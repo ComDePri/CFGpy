@@ -9,7 +9,7 @@ from CFGpy.behavioral import Configuration
 
 class Downloader:
     def __init__(self, csv_url: str | None = None, output_filename: str = DOWNLOADER_OUTPUT_FILENAME,
-                 config: Configuration = Configuration.default()):
+                 config: Configuration = None):
         """
         Creates a new Downloader object.
         :param csv_url: Web address of the "Download all pages as CSV" in RedMetrics. Optional. If None, URL is expected
@@ -17,7 +17,7 @@ class Downloader:
         :param output_filename: filename for output.
         :param config: a Configuration file. If this defines a RedMetrics URL, `csv_url` shouldn't.
         """
-        self.config = config
+        self.config = config if config is not None else Configuration.default()
         self.csv_url = self._validate_url(csv_url)
         self.json_url = self.csv_url.replace("/event.csv", "/event.json")
         self.output_filename = output_filename

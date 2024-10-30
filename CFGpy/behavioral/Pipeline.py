@@ -6,9 +6,9 @@ from CFGpy.behavioral._utils import CFGPipelineException
 
 class Pipeline:
     def __init__(self, red_metrics_csv_url: str | None = None, output_filename=DEFAULT_FINAL_OUTPUT_FILENAME,
-                 config=Configuration.default()):
+                 config: Configuration = None):
         self.output_filename = output_filename
-        self.config = config
+        self.config = config if config is not None else Configuration.default()
         self.red_metrics_csv_url = red_metrics_csv_url
 
         self.downloader = None

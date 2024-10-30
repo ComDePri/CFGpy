@@ -6,9 +6,9 @@ import json
 
 
 class PostParser:
-    def __init__(self, parsed_data, config=Configuration.default()):
+    def __init__(self, parsed_data, config: Configuration = None):
         self.all_players_data = parsed_data
-        self.config = config
+        self.config = config if config is not None else Configuration.default()
 
     @classmethod
     def from_json(cls, path: str, config=Configuration.default()):
