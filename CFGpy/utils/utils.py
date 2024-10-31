@@ -116,7 +116,7 @@ def get_shortest_path_len(shape1, shape2):
     return shortest_path_len
 
 
-def gallery_orig_map_factory(gallery_counter, alpha=0, d=N_ALL_SHAPES):
+def gallery_orig_map_factory(gallery_counter, alpha, d):
     """
     Creates a map from each gallery shape to its Originality, given by -log10(p) where p is the estimated probability.
     :param gallery_counter: a Counter object with the number of times each shape was saved to gallery in the sample.
@@ -135,7 +135,7 @@ def gallery_orig_map_factory(gallery_counter, alpha=0, d=N_ALL_SHAPES):
     return orig_map
 
 
-def step_orig_map_factory(step_counter, alpha=0, d=N_ALL_SHAPES - 1):
+def step_orig_map_factory(step_counter, alpha, d):
     """
     Creates a map from each step (s1, s2) to its Originality, given by -log10(p) where p is the estimated probability of
     s2 given s1.

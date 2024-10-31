@@ -83,12 +83,16 @@
   ## Feature Extraction
   MARGIN_FOR_PAUSE_DURATION: 3,  # margins are excluded from the calculation of the max pause a player took between moves
   MIN_OVERLAP_FOR_SEMANTIC_CONNECTION: 2,  # minimal overlap between two clustered to be considered semantically connected
+  STEP_ORIG_PSEUDOCOUNT: 1,  # alpha parameter for additive smoothing
+  GALLERY_ORIG_PSEUDOCOUNT: 1,  # alpha parameter for additive smoothing
+  STEP_ORIG_N_CATEGORIES: 36445,  # d parameter for additive smoothing; all possible steps
+  GALLERY_ORIG_N_CATEGORIES: 36446,  # d parameter for additive smoothing; all possible shapes
 
   ## Soft Filtering
-  MANUALLY_EXCLUDED_IDS: [ ], # IDs to exclude, e.g., those used for testing the experiment
-  MIN_N_MOVES: 80, # exclude participants who made fewer moves than this
-  MIN_N_CLUSTERS: 1, # exclude participants who made fewer clusters than this
-  MIN_GAME_DURATION_SEC: 600, # exclude participants who played for less than this duration
-  MAX_PAUSE_DURATION_SEC: 90, # excluded participants who paused for longer than this duration
-  MAX_ZSCORE_FOR_OUTLIERS: 3 # exclude participants with absolute zscore greater than this in median explore/exploit lengths
+  MANUALLY_EXCLUDED_IDS: [ ],  # IDs to exclude, e.g., those used for testing the experiment
+  MIN_N_MOVES: 80,  # exclude participants who made fewer moves than this
+  MIN_N_CLUSTERS: 1,  # exclude participants who made fewer clusters than this
+  MIN_GAME_DURATION_SEC: 600,  # exclude participants who played for less than this duration
+  MAX_PAUSE_DURATION_SEC: 90,  # excluded participants who paused for longer than this duration
+  MAX_ZSCORE_FOR_OUTLIERS: 3  # exclude participants with absolute zscore greater than this in median explore/exploit lengths
 }
