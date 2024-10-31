@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from CFGpy.behavioral._consts import (SERVER_COORDS_TYPE_ERROR, EXPLORE_KEY, PRETTIFY_WARNING, PARSED_ALL_SHAPES_KEY,
                                       PARSED_CHOSEN_SHAPES_KEY, EXPLOIT_KEY)
-from CFGpy.behavioral import config
 from _ctypes import PyObj_FromPtr
 
 
@@ -72,17 +71,26 @@ def _server_coords_to_binary_shape(coords):
     return shape_id
 
 
-def segment_explore_exploit(shapes):
+def segment_explore_exploit(shapes, shape_move_time_idx, shape_save_time_idx,
+                            min_save_for_exploit) -> tuple[list, list]:
+    """
+    Returns a segmentation of the shapes to explore-exploit.
+    :param shapes: 2D array-like
+    :param shape_move_time_idx: the column in shapes containing move time. should be relayed from a Configuration object
+    :param shape_save_time_idx: the column in shapes containing save time. should be relayed from a Configuration object
+    :param min_save_for_exploit: minimal cluster size considered exploit. should be relayed from a Configuration object
+    :return: explore_slices, exploit_slices
+    """
     n_shapes = len(shapes)
     no_exploit_return_value = [(0, n_shapes)], []
     shapes_df = pd.DataFrame(shapes)
 
-    gallery_saves = shapes_df[config.SHAPE_SAVE_TIME_IDX]
+    gallery_saves = shapes_df[shape_save_time_idx]
     gallery_indices = np.flatnonzero(gallery_saves.notna())
     if not any(gallery_indices):
         return no_exploit_return_value
 
-    gallery_times = shapes_df.iloc[gallery_indices][config.SHAPE_MOVE_TIME_IDX]
+    gallery_times = shapes_df.iloc[gallery_indices][shape_move_time_idx]
     gallery_diffs = np.diff(gallery_times, prepend=gallery_times.iloc[0])
 
     clusters = []
@@ -99,7 +107,7 @@ def segment_explore_exploit(shapes):
     for cluster in clusters:
         start = gallery_indices[cluster][0]
         end = gallery_indices[cluster][-1] + 1
-        if cluster.size >= config.MIN_SAVE_FOR_EXPLOIT:
+        if cluster.size >= min_save_for_exploit:
             exploit_slices.append((int(start), int(end)))
             if prev_exploit_end != start:
                 explore_slices.append((int(prev_exploit_end), int(start)))
@@ -136,18 +144,19 @@ def group_by_monotone_decreasing(sequence):
     return monotone_sequences
 
 
-def is_semantic_connection(cluster1, cluster2):
-    return len(set(cluster1) & set(cluster2)) >= config.MIN_OVERLAP_FOR_SEMANTIC_CONNECTION
+def is_semantic_connection(cluster1, cluster2, min_overlap_for_semantic_connection):
+    return len(set(cluster1) & set(cluster2)) >= min_overlap_for_semantic_connection
 
 
-def plot_gallery_dt(postparsed_player_data):
+def plot_gallery_dt(postparsed_player_data, shape_move_time_idx):
     """
     Visualize explore-exploit segmentation, by plotting time difference between galleries as a function of time.
     :param postparsed_player_data: behavioral.data_classes.PostparsedPlayerData. No type hinting here, to avoid
     having to import that class in this file.
+    :param shape_move_time_idx: the column in shapes containing move time. should be relayed from a Configuration object
     """
     is_gallery = postparsed_player_data.get_gallery_mask()
-    gallery_times = postparsed_player_data.shapes_df[is_gallery].iloc[:, config.SHAPE_MOVE_TIME_IDX]
+    gallery_times = postparsed_player_data.shapes_df[is_gallery].iloc[:, shape_move_time_idx]
     gallery_diffs = np.diff(gallery_times, prepend=gallery_times.iloc[0])
 
     cluster_label = np.empty(len(postparsed_player_data.shapes_df), dtype=object)

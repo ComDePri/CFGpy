@@ -5,9 +5,8 @@ import re
 from datetime import datetime, timezone
 from CFGpy.behavioral._utils import server_coords_to_binary_shape, prettify_games_json, CFGPipelineException
 from CFGpy.behavioral._consts import (PARSED_PLAYER_ID_KEY, PARSED_TIME_KEY, PARSED_ALL_SHAPES_KEY,
-                                      PARSED_CHOSEN_SHAPES_KEY, MERGED_ID_KEY, DEFAULT_ID, PARSER_OUTPUT_FILENAME,
-                                      GALLERY_SAVE_TIME_COLUMN)
-from CFGpy.behavioral import config
+                                      PARSED_CHOSEN_SHAPES_KEY, MERGED_ID_KEY, DEFAULT_ID, PARSER_OUTPUT_FILENAME)
+from CFGpy.behavioral import Configuration
 
 
 class Parser:
@@ -22,58 +21,62 @@ class Parser:
         parse_datetime_re_millisecond,
     ]
 
-    parser_relevant_columns = [
-        MERGED_ID_KEY,
-        config.EVENT_TYPE,
-        config.RAW_NEW_SHAPE,
-        config.RAW_SHAPE,
-        config.RAW_USER_TIME,
-    ]
-    shape_relevant_event_types = [
-        config.SHAPE_MOVE_EVENT_TYPE,
-        config.GALLERY_SAVE_EVENT_TYPE,
-    ]
-
-    def __init__(self, raw_data, include_in_id: list = None):
+    def __init__(self, raw_data, config: Configuration = None):
         self.raw_data = raw_data
-        self.include_in_id = include_in_id if include_in_id is not None else []
+        self.config = config if config is not None else Configuration.default()
         self.parsed_data = None
 
+        self.include_in_id = list(self.config.INCLUDE_IN_PARSER_ID)
+        self.parser_relevant_columns = [
+            MERGED_ID_KEY,
+            self.config.EVENT_TYPE,
+            self.config.RAW_NEW_SHAPE,
+            self.config.RAW_SHAPE,
+            self.config.RAW_USER_TIME,
+        ]
+        self.shape_relevant_event_types = [
+            self.config.SHAPE_MOVE_EVENT_TYPE,
+            self.config.GALLERY_SAVE_EVENT_TYPE,
+        ]
+
     @classmethod
-    def from_file(cls, raw_data_filename: str, include_in_id: list = None):
+    def from_file(cls, raw_data_filename: str, config=Configuration.default()):
         raw_data = pd.read_csv(raw_data_filename)
-        return cls(raw_data, include_in_id)
+        return cls(raw_data, config)
 
     def parse(self):
         prepared_data = self._prepare_data()
-        games_grouped_by_unique_id = prepared_data.groupby(config.UNIQUE_INTERNAL_ID_COLUMN)
+        games_grouped_by_unique_id = prepared_data.groupby(self.config.UNIQUE_INTERNAL_ID_COLUMN)
         hard_filtered_games = games_grouped_by_unique_id.filter(self._apply_hard_filters)
         self.parsed_data = self._parse_all_player_games(hard_filtered_games)
         return self.parsed_data
 
     def dump(self, path=PARSER_OUTPUT_FILENAME, pretty=False):
+        # dump parsed
         json_str = prettify_games_json(self.parsed_data) if pretty else json.dumps(self.parsed_data)
-
         with open(path, "w") as out_file:
             out_file.write(json_str)
 
+        # dump config
+        self.config.to_yaml(path)
+
     def _prepare_data(self):
         data = self.patchfix_csv_data(self.raw_data)
-        data[config.PARSER_JSON_COLUMN] = data[config.PARSER_JSON_COLUMN].apply(json.loads)
+        data[self.config.PARSER_JSON_COLUMN] = data[self.config.PARSER_JSON_COLUMN].apply(json.loads)
         all_json_keys = self.get_all_json_keys_from_csv_data(data)
         for key in all_json_keys:
             # Take the json inside the csv file and turn them into columns
-            data[key] = data[config.PARSER_JSON_COLUMN].apply(lambda json_dict: json_dict.get(key))
+            data[key] = data[self.config.PARSER_JSON_COLUMN].apply(lambda json_dict: json_dict.get(key))
 
-        data[config.SHAPE_MOVE_COLUMN] = data[config.SHAPE_MOVE_COLUMN].apply(
+        data[self.config.SHAPE_MOVE_COLUMN] = data[self.config.SHAPE_MOVE_COLUMN].apply(
             lambda val: sorted(json.loads(val)) if type(val) is str else np.NAN)
-        data[config.SHAPE_SAVE_COLUMN] = data[config.SHAPE_SAVE_COLUMN].apply(
+        data[self.config.SHAPE_SAVE_COLUMN] = data[self.config.SHAPE_SAVE_COLUMN].apply(
             lambda val: sorted(json.loads(val)) if type(val) is str else np.NAN)
 
         data = self.merge_id_columns(data)
-        data[config.PARSER_TIME_COLUMN] = pd.to_datetime(data[config.PARSER_TIME_COLUMN],
-                                                         format=config.PARSER_DATE_FORMAT)
-        data = data.sort_values(by=config.PARSER_TIME_COLUMN).reset_index(drop=True)
+        data[self.config.PARSER_TIME_COLUMN] = pd.to_datetime(data[self.config.PARSER_TIME_COLUMN],
+                                                              format=self.config.SERVER_DATE_FORMAT)
+        data = data.sort_values(by=self.config.PARSER_TIME_COLUMN).reset_index(drop=True)
 
         return data
 
@@ -93,14 +96,14 @@ class Parser:
         return data
 
     def get_all_json_keys_from_csv_data(self, data):
-        all_json_keys = np.concatenate(data[config.PARSER_JSON_COLUMN].apply(lambda x: tuple(x.keys())).unique())
+        all_json_keys = np.concatenate(data[self.config.PARSER_JSON_COLUMN].apply(lambda x: tuple(x.keys())).unique())
 
         return set(all_json_keys)
 
     def merge_id_columns(self, data):
         data[MERGED_ID_KEY] = None
 
-        for id_column in config.PARSER_ID_COLUMNS:
+        for id_column in self.config.PARSER_ID_COLUMNS:
             if id_column in data.columns:
                 missing_indices = data[MERGED_ID_KEY].isna()
                 data.loc[missing_indices, MERGED_ID_KEY] = data[id_column].loc[missing_indices].astype(str)
@@ -114,11 +117,11 @@ class Parser:
         return self.is_game_started(game)
 
     def is_game_started(self, game):
-        return game[config.EVENT_TYPE].str.contains(config.TUTORIAL_END_EVENT_TYPE).sum() > 0
+        return game[self.config.EVENT_TYPE].str.contains(self.config.TUTORIAL_END_EVENT_TYPE).sum() > 0
 
     def _parse_all_player_games(self, games):
         all_parsed_games = []
-        for _, game in games.groupby(config.UNIQUE_INTERNAL_ID_COLUMN):
+        for _, game in games.groupby(self.config.UNIQUE_INTERNAL_ID_COLUMN):
             parsed_game = self.parse_single_game(game)
             all_parsed_games.append(parsed_game)
 
@@ -130,30 +133,31 @@ class Parser:
 
         assert len(game_data[MERGED_ID_KEY].unique()) == 1
         player_id_field = game_data[MERGED_ID_KEY].iloc[0]
-        game_start_time = game_data[game_data[config.EVENT_TYPE] == config.TUTORIAL_END_EVENT_TYPE].iloc[0][
-            config.PARSER_TIME_COLUMN]
+        game_start_time = game_data[game_data[self.config.EVENT_TYPE] == self.config.TUTORIAL_END_EVENT_TYPE].iloc[0][
+            self.config.PARSER_TIME_COLUMN]
 
-        game_data = game_data[game_data[config.PARSER_TIME_COLUMN] >= game_start_time]
-        game_data = game_data[game_data[config.EVENT_TYPE].isin(self.shape_relevant_event_types)]
-        first_row = [
-            player_id_field, config.SHAPE_MOVE_EVENT_TYPE, config.FIRST_SHAPE_SERVER_COORDS, np.NAN, game_start_time]
+        game_data = game_data[game_data[self.config.PARSER_TIME_COLUMN] >= game_start_time]
+        game_data = game_data[game_data[self.config.EVENT_TYPE].isin(self.shape_relevant_event_types)]
+        first_row = [player_id_field, self.config.SHAPE_MOVE_EVENT_TYPE,
+                     self.config.FIRST_SHAPE_SERVER_COORDS, np.NAN, game_start_time]
         first_row_df = pd.DataFrame([first_row], columns=game_data.columns)
         game_data = pd.concat([first_row_df, game_data], ignore_index=True)
 
-        game_data[config.PARSER_TIME_COLUMN] = (game_data[config.PARSER_TIME_COLUMN] - game_start_time).apply(
+        game_data[self.config.PARSER_TIME_COLUMN] = (game_data[self.config.PARSER_TIME_COLUMN] - game_start_time).apply(
             lambda time_delta: time_delta.total_seconds())
-        game_data[config.SHAPE_MOVE_COLUMN] = game_data[config.SHAPE_MOVE_COLUMN].apply(server_coords_to_binary_shape)
+        game_data[self.config.SHAPE_MOVE_COLUMN] = game_data[self.config.SHAPE_MOVE_COLUMN].apply(
+            server_coords_to_binary_shape)
 
-        game_data[GALLERY_SAVE_TIME_COLUMN] = None
+        game_data[self.config.GALLERY_SAVE_TIME_COLUMN] = None
 
-        gallery_save_indices = game_data[config.SHAPE_MOVE_COLUMN].isna()[
-            game_data[config.SHAPE_MOVE_COLUMN].isna()].index
-        game_data.loc[gallery_save_indices - 1, GALLERY_SAVE_TIME_COLUMN] = game_data.loc[
-            gallery_save_indices, config.PARSER_TIME_COLUMN].values
+        gallery_save_indices = game_data[self.config.SHAPE_MOVE_COLUMN].isna()[
+            game_data[self.config.SHAPE_MOVE_COLUMN].isna()].index
+        game_data.loc[gallery_save_indices - 1, self.config.GALLERY_SAVE_TIME_COLUMN] = game_data.loc[
+            gallery_save_indices, self.config.PARSER_TIME_COLUMN].values
         # Now that we have the save time in all move rows, we can get rid of save rows:
-        game_data = game_data[game_data[config.EVENT_TYPE].isin([config.SHAPE_MOVE_EVENT_TYPE])]
+        game_data = game_data[game_data[self.config.EVENT_TYPE].isin([self.config.SHAPE_MOVE_EVENT_TYPE])]
 
-        actions = game_data[config.PARSED_GAME_HEADERS]
+        actions = game_data.loc[:, self.config.PARSED_GAME_HEADERS]
         if self.include_in_id:
             player_id_field = [game_data[MERGED_ID_KEY].iloc[0]] + self.include_in_id
         parsed_game = {

@@ -17,7 +17,7 @@ from CFGpy.behavioral._consts import (FEATURES_ID_KEY, FEATURES_START_TIME_KEY, 
                                       EXPLOIT_OUTLIER_REASON, NO_EXPLOIT_EXCLUSION_REASON, MANUAL_EXCLUSION_REASON,
                                       GAME_LENGTH_EXCLUSION_REASON, GAME_DURATION_EXCLUSION_REASON,
                                       PAUSE_EXCLUSION_REASON, SAMPLE_RELATIVE_FEATURES_LABEL)
-from CFGpy.behavioral import config
+from CFGpy.behavioral import Configuration
 from CFGpy.behavioral._utils import load_json, is_semantic_connection
 from functools import reduce
 from scipy.stats import zscore
@@ -37,25 +37,18 @@ def _get_frac_uniquely_covered(player_objects, objects_not_uniquely_covered):
     return frac_uniquely_covered
 
 
-def is_cluster_in_GC(cluster, GC):
-    for GC_cluster in GC:
-        if is_semantic_connection(cluster, GC_cluster):
-            return True
-
-    return False
-
-
 class FeatureExtractor:
-    def __init__(self, preprocessed_data):
+    def __init__(self, preprocessed_data, config: Configuration = None):
         self.input_data = PostparsedDataset(preprocessed_data)
+        self.config = config if config is not None else Configuration.default()
         self.all_absolute_features = None
         self.output_df = None
 
         self.exclusions = pd.DataFrame(columns=[FEATURES_ID_KEY, EXCLUSION_REASON_KEY])
 
     @classmethod
-    def from_json(cls, path: str):
-        return cls(load_json(path))
+    def from_json(cls, path: str, config=Configuration.default()):
+        return cls(load_json(path), config)
 
     def extract(self, verbose=False):
         self.all_absolute_features = self._extract_absolute_features(verbose)
@@ -73,8 +66,17 @@ class FeatureExtractor:
     def dump(self, path=DEFAULT_FINAL_OUTPUT_FILENAME):
         self.output_df.to_csv(path, index=False)  # reorder columns
         self.exclusions.to_csv(f"{path}_exclusions.csv", index=False)
+        self.config.to_yaml(path)
+
         # TODO: document all filtered ids and filtering criteria
         # TODO: write html with dashboards to inspect data quality and some summary stats
+
+    def is_cluster_in_GC(self, cluster, GC):
+        for GC_cluster in GC:
+            if is_semantic_connection(cluster, GC_cluster, self.config.MIN_OVERLAP_FOR_SEMANTIC_CONNECTION):
+                return True
+
+        return False
 
     def get_all_absolute_features(self):
         return self.all_absolute_features
@@ -109,11 +111,11 @@ class FeatureExtractor:
         """
         reasons = (MANUAL_EXCLUSION_REASON, NO_EXPLOIT_EXCLUSION_REASON, GAME_LENGTH_EXCLUSION_REASON,
                    GAME_DURATION_EXCLUSION_REASON, PAUSE_EXCLUSION_REASON)
-        masks = (self.output_df[FEATURES_ID_KEY].isin(config.MANUALLY_EXCLUDED_IDS),
-                 self.output_df[N_CLUSTERS_KEY] < config.MIN_N_CLUSTERS,
-                 self.output_df[N_MOVES_KEY] < config.MIN_N_MOVES,
-                 self.output_df[GAME_DURATION_KEY] < config.MIN_GAME_DURATION_SEC,
-                 self.output_df[LONGEST_PAUSE_KEY] > config.MAX_PAUSE_DURATION_SEC)
+        masks = (self.output_df[FEATURES_ID_KEY].isin(self.config.MANUALLY_EXCLUDED_IDS),
+                 self.output_df[N_CLUSTERS_KEY] < self.config.MIN_N_CLUSTERS,
+                 self.output_df[N_MOVES_KEY] < self.config.MIN_N_MOVES,
+                 self.output_df[GAME_DURATION_KEY] < self.config.MIN_GAME_DURATION_SEC,
+                 self.output_df[LONGEST_PAUSE_KEY] > self.config.MAX_PAUSE_DURATION_SEC)
 
         return masks, reasons
 
@@ -125,8 +127,8 @@ class FeatureExtractor:
         """
         reasons = (EXPLORE_OUTLIER_REASON, EXPLOIT_OUTLIER_REASON)
         zscores = self.output_df[[MEDIAN_EXPLORE_LENGTH_KEY, MEDIAN_EXPLOIT_LENGTH_KEY]].apply(zscore)
-        masks = (abs(zscores[MEDIAN_EXPLORE_LENGTH_KEY]) > config.MAX_ZSCORE_FOR_OUTLIERS,
-                 abs(zscores[MEDIAN_EXPLOIT_LENGTH_KEY]) > config.MAX_ZSCORE_FOR_OUTLIERS)
+        masks = (abs(zscores[MEDIAN_EXPLORE_LENGTH_KEY]) > self.config.MAX_ZSCORE_FOR_OUTLIERS,
+                 abs(zscores[MEDIAN_EXPLOIT_LENGTH_KEY]) > self.config.MAX_ZSCORE_FOR_OUTLIERS)
 
         return masks, reasons
 
@@ -222,7 +224,7 @@ class FeatureExtractor:
             is_explore_given_gallery = player_data.get_explore_mask()[is_gallery]
             is_exploit_given_gallery = ~is_explore_given_gallery
             exploit_clusters = player_data.get_exploit_clusters()
-            n_clusters_in_GC = sum([is_cluster_in_GC(cluster, GC) for cluster in exploit_clusters])
+            n_clusters_in_GC = sum([self.is_cluster_in_GC(cluster, GC) for cluster in exploit_clusters])
             frac_clusters_in_GC = (n_clusters_in_GC / len(player_data.exploit_slices)
                                    if player_data.exploit_slices else None)
 

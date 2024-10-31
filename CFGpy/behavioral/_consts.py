@@ -1,20 +1,26 @@
 """
-This file contains all arbitrarily chosen values in the behavioral data pipeline.
+This file contains all non-configurable and/or arbitrarily chosen values in the behavioral data pipeline.
 Some of these are only used for internal reference and their actual value doesn't matter. Others appear in outputs and
 external scripts may rely on them.
 Please do not change this file unless you're absolutely sure you know what you're doing.
 """
+# configuration
+CONFIG_PACKAGE = "CFGpy.behavioral"
+CONFIG_FILENAME = "default_config.yml"
+CFGPY_VERSION_ERROR = "Configuration file requires CFGpy version {}. Installed version is {}"
+CONFIG_DUMP_EXTENSION = ".yml"
 
 # downloader
 DOWNLOADER_OUTPUT_FILENAME = "event.csv"
-DOWNLOADER_URL_ERROR = "URL is incorrect: '{}'"
+NO_DOWNLOADER_URL_ERROR = "RedMetrics URL undefined. Specify URL either as a parameter or in config"
+TWO_DOWNLOADER_URL_ERROR = "RedMetrics URL was defined both as a parameter and in config. Define URL exactly once"
+DOWNLOADER_URL_NO_CSV_ERROR = "URL is incorrect: '{}'\nCopy the address from 'Download all pages as CSV' in RedMetrics"
 EVENTS_PER_PAGE = 500
 
 # parser
 PARSER_OUTPUT_FILENAME = "parsed.json"
 MERGED_ID_KEY = "merged_id"
 DEFAULT_ID = 'No ID Found'
-GALLERY_SAVE_TIME_COLUMN = 'gallery save time'
 
 # parsed data format
 PARSED_PLAYER_ID_KEY = 'id'
@@ -29,7 +35,7 @@ EXPLOIT_KEY = "exploit"
 INVALID_SHAPE_ERROR = "Encountered invalid shape: {}\nPlayer id: {}\n" \
                       "This indicates a bug in the CFG software or in the data parsing"
 
-# feature extraction
+# feature extractor
 FEATURES_ID_KEY = "ID"
 FEATURES_START_TIME_KEY = "Date/Time"
 N_MOVES_KEY = "Total # moves"
@@ -71,7 +77,7 @@ PAUSE_EXCLUSION_REASON = "Paused for too long"
 
 ABSOLUTE_FEATURES_MESSAGE = "Extracting absolute features..."
 RELATIVE_FEATURES_MESSAGE = "Extracting relative{} features..."
-DEFAULT_FINAL_OUTPUT_FILENAME = "CFG measures.csv"
+DEFAULT_FINAL_OUTPUT_FILENAME = "CFG_measures.csv"
 
 # utils
 SERVER_COORDS_TYPE_ERROR = "Received incorrect type as csv_coords, should be str or list, received {}"
