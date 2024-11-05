@@ -97,13 +97,13 @@ def test_postparser(test_dir):
 def _compare_features(test_dir, features_filename):
     test_features = pd.read_csv(os.path.join(test_dir, TEST_FEATURES_FILENAME)).sort_values("ID").reset_index(drop=True)
     features = pd.read_csv(features_filename).sort_values("ID").reset_index(drop=True)
-    assert len(test_features) == len(features)
+    assert len(test_features) == len(features), f"{len(features)} subjects instead of {len(test_features)}"
     for col in test_features:
-        assert col in features
+        assert col in features, f"missing feature {col}"
         if test_features[col].dtype == "float64":
-            assert np.allclose(test_features[col], features[col], equal_nan=True)
+            assert np.allclose(test_features[col], features[col], equal_nan=True), "IDs comparison failed"
         elif col != "Date/Time":  # date/time causes problems with subjects that played during daylight saving
-            assert test_features[col].equals(features[col])
+            assert test_features[col].equals(features[col]), f"{col} comparison failed"
 
 
 @pytest.mark.parametrize("test_dir", test_dirs)
