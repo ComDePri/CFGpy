@@ -101,14 +101,14 @@ def _compare_features(test_dir, features_filename):
     for col in test_features:
         assert col in features, f"missing feature {col}"
         if test_features[col].dtype == "float64":
-            assert np.allclose(test_features[col], features[col], equal_nan=True), "IDs comparison failed"
+            assert np.allclose(test_features[col], features[col], equal_nan=True), f"{col} comparison failed"
         elif col != "Date/Time":  # date/time causes problems with subjects that played during daylight saving
             assert test_features[col].equals(features[col]), f"{col} comparison failed"
 
 
 @pytest.mark.parametrize("test_dir", test_dirs)
 def test_feature_extractor(test_dir):
-    features_filename = "features.csv"
+    features_filename = f"features{test_dir[-1]}alpha=1.csv"
 
     with open(os.path.join(test_dir, TEST_POSTPARSED_FILENAME), "r") as test_postparsed_fp:
         postparsed_data = json.load(test_postparsed_fp)
