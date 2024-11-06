@@ -123,6 +123,10 @@ class Configuration:
     # Feature Extraction
     MARGIN_FOR_PAUSE_DURATION: int
     MIN_OVERLAP_FOR_SEMANTIC_CONNECTION: int
+    STEP_ORIG_PSEUDOCOUNT: int
+    GALLERY_ORIG_PSEUDOCOUNT: int
+    STEP_ORIG_N_CATEGORIES: int
+    GALLERY_ORIG_N_CATEGORIES: int
 
     # Soft Filtering
     MANUALLY_EXCLUDED_IDS: tuple

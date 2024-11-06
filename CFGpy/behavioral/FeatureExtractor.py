@@ -205,9 +205,10 @@ class FeatureExtractor:
         steps_not_uniquely_covered, step_counter, galleries_not_uniquely_covered, gallery_counter, GC = stats
         label_ext = f" ({label})" if label else ""
 
-        # TODO: use d parameter as discussed with Yuval
-        step_orig_map = step_orig_map_factory(step_counter)
-        gallery_orig_map = gallery_orig_map_factory(gallery_counter)
+        step_orig_map = step_orig_map_factory(step_counter, alpha=self.config.STEP_ORIG_PSEUDOCOUNT,
+                                              d=self.config.STEP_ORIG_N_CATEGORIES)
+        gallery_orig_map = gallery_orig_map_factory(gallery_counter, alpha=self.config.GALLERY_ORIG_PSEUDOCOUNT,
+                                                    d=self.config.GALLERY_ORIG_N_CATEGORIES)
 
         iterator = self.input_data
         if verbose:
