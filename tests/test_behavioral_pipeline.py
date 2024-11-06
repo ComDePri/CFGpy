@@ -108,7 +108,7 @@ def _compare_features(test_dir, features_filename):
 
 @pytest.mark.parametrize("test_dir", test_dirs)
 def test_feature_extractor(test_dir):
-    features_filename = f"features{test_dir[-1]}alpha=1.csv"
+    features_filename = f"features.csv"
 
     with open(os.path.join(test_dir, TEST_POSTPARSED_FILENAME), "r") as test_postparsed_fp:
         postparsed_data = json.load(test_postparsed_fp)
