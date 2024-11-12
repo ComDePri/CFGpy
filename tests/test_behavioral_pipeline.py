@@ -1,5 +1,5 @@
 import pytest
-from CFGpy.behavioral import Downloader, Parser, PostParser, FeatureExtractor
+from CFGpy.behavioral import Downloader, Parser, PostParser, FeatureExtractor, Pipeline, Configuration
 from CFGpy import NAS_PATH
 import os
 import json
@@ -94,20 +94,42 @@ def test_postparser(test_dir):
     assert test_postparsed == postparsed
 
 
+def _compare_features(test_dir, features_filename):
+    test_features = pd.read_csv(os.path.join(test_dir, TEST_FEATURES_FILENAME)).sort_values("ID").reset_index(drop=True)
+    features = pd.read_csv(features_filename).sort_values("ID").reset_index(drop=True)
+    assert len(test_features) == len(features), f"{len(features)} subjects instead of {len(test_features)}"
+    for col in test_features:
+        assert col in features, f"missing feature {col}"
+        if test_features[col].dtype == "float64":
+            assert np.allclose(test_features[col], features[col], equal_nan=True), f"{col} comparison failed"
+        elif col != "Date/Time":  # date/time causes problems with subjects that played during daylight saving
+            assert test_features[col].equals(features[col]), f"{col} comparison failed"
+
+
 @pytest.mark.parametrize("test_dir", test_dirs)
 def test_feature_extractor(test_dir):
+    features_filename = f"features.csv"
+
     with open(os.path.join(test_dir, TEST_POSTPARSED_FILENAME), "r") as test_postparsed_fp:
         postparsed_data = json.load(test_postparsed_fp)
     feature_extractor = FeatureExtractor(postparsed_data)
     feature_extractor.extract(verbose=True)
-    feature_extractor.dump("features.csv")
+    feature_extractor.dump(features_filename)
 
-    test_features = pd.read_csv(os.path.join(test_dir, TEST_FEATURES_FILENAME)).sort_values("ID").reset_index(drop=True)
-    features = pd.read_csv("features.csv").sort_values("ID").reset_index(drop=True)
-    assert len(test_features) == len(features)
-    for col in test_features:
-        assert col in features
-        if test_features[col].dtype == "float64":
-            assert np.allclose(test_features[col], features[col], equal_nan=True)
-        elif col != "Date/Time":  # date/time causes problems with subjects that played during daylight saving
-            assert test_features[col].equals(features[col])
+    _compare_features(test_dir, features_filename)
+
+
+@pytest.mark.parametrize("test_dir", test_dirs)
+def test_full_pipeline(test_dir):
+    features_filename = "features.csv"
+
+    with open(os.path.join(test_dir, RED_METRICS_URL_FILENAME)) as url_fp:
+        url = url_fp.read()
+
+    pipeline = Pipeline(url, features_filename)
+    pipeline.run_pipeline(verbose=True)
+    _compare_features(test_dir, features_filename)
+
+    config = Configuration.from_yaml(f"{features_filename}_config.yml")
+    print(config.RED_METRICS_CSV_URL)
+    assert "&before=" in config.RED_METRICS_CSV_URL

@@ -116,7 +116,7 @@ def get_shortest_path_len(shape1, shape2):
     return shortest_path_len
 
 
-def gallery_orig_map_factory(gallery_counter, alpha=0, d=N_ALL_SHAPES):
+def gallery_orig_map_factory(gallery_counter, alpha, d):
     """
     Creates a map from each gallery shape to its Originality, given by -log10(p) where p is the estimated probability.
     :param gallery_counter: a Counter object with the number of times each shape was saved to gallery in the sample.
@@ -126,7 +126,8 @@ def gallery_orig_map_factory(gallery_counter, alpha=0, d=N_ALL_SHAPES):
     """
     N = gallery_counter.total()  # notation follows the wiki article linked above
     smoothed_0_prob = alpha / (N + alpha * d)
-    orig_map = defaultdict(lambda: smoothed_0_prob)
+    orig_of_0_prob = -np.log10(smoothed_0_prob)
+    orig_map = defaultdict(lambda: orig_of_0_prob)
     for gallery_shape, count in gallery_counter.items():
         smoothed_prob = (count + alpha) / (N + alpha * d)
         orig_map[gallery_shape] = -np.log10(smoothed_prob)
@@ -134,7 +135,7 @@ def gallery_orig_map_factory(gallery_counter, alpha=0, d=N_ALL_SHAPES):
     return orig_map
 
 
-def step_orig_map_factory(step_counter, alpha=0, d=N_ALL_SHAPES - 1):
+def step_orig_map_factory(step_counter, alpha, d):
     """
     Creates a map from each step (s1, s2) to its Originality, given by -log10(p) where p is the estimated probability of
     s2 given s1.
@@ -147,17 +148,19 @@ def step_orig_map_factory(step_counter, alpha=0, d=N_ALL_SHAPES - 1):
     for step, count in step_counter.items():
         Ns[step[0]] += count
 
-    def smoothed_0_prob(step):
+    def orig_of_0_prob(step):
         N = Ns[step[0]]
         if N == alpha == 0:
-            return 1 / d
-        return alpha / (N + alpha * d)
+            smoothed_0_prob = 1 / d
+        else:
+            smoothed_0_prob = alpha / (N + alpha * d)
+        return -np.log10(smoothed_0_prob)
 
     class DefaultDict(defaultdict):  # Extends defaultdict to allow default_factory to take an arg
         def __missing__(self, key):
             return self.default_factory(key)
 
-    orig_map = DefaultDict(smoothed_0_prob)
+    orig_map = DefaultDict(orig_of_0_prob)
     for step, count in step_counter.items():
         smoothed_prob = (count + alpha) / (Ns[step[0]] + alpha * d)
         orig_map[step] = -np.log10(smoothed_prob)

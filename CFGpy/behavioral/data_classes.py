@@ -5,40 +5,42 @@ from collections import Counter
 import networkx as nx
 from CFGpy.behavioral._consts import (PARSED_PLAYER_ID_KEY, PARSED_TIME_KEY, PARSED_ALL_SHAPES_KEY,
                                       PARSED_CHOSEN_SHAPES_KEY, EXPLORE_KEY, EXPLOIT_KEY)
-from CFGpy.behavioral import config
-from CFGpy.behavioral._utils import is_semantic_connection
+from CFGpy.behavioral import Configuration
+from CFGpy.behavioral._utils import is_semantic_connection, load_json
 
 
 # TODO: consider: some methods only serve MeasureCalculator, while other are meant as API for end users (e.g.
 #  visualizations). This probably means there's a better way to design these classes
 
 class ParsedPlayerData:
-    def __init__(self, player_data):
+    def __init__(self, player_data, config: Configuration = None):
         self.id = player_data[PARSED_PLAYER_ID_KEY]
         self.start_time = player_data[PARSED_TIME_KEY]
         self.shapes_df = pd.DataFrame(player_data[PARSED_ALL_SHAPES_KEY])
         self.chosen_shapes = player_data.get(PARSED_CHOSEN_SHAPES_KEY)
 
-        self.delta_move_times = np.diff(self.shapes_df.iloc[:, config.SHAPE_MOVE_TIME_IDX])
+        self.config = config if config is not None else Configuration.default()
+        self.delta_move_times = np.diff(self.shapes_df.iloc[:, self.config.SHAPE_MOVE_TIME_IDX])
 
     def __len__(self):
         return len(self.shapes_df)
 
     def get_last_action_time(self):
-        last_action_time = self.shapes_df.iloc[-1, config.SHAPE_SAVE_TIME_IDX]
+        last_action_time = self.shapes_df.iloc[-1, self.config.SHAPE_SAVE_TIME_IDX]
         if last_action_time is None or np.isnan(last_action_time):  # is None handles cases of 0-gallery games
-            last_action_time = self.shapes_df.iloc[-1, config.SHAPE_MOVE_TIME_IDX]
+            last_action_time = self.shapes_df.iloc[-1, self.config.SHAPE_MOVE_TIME_IDX]
 
         return last_action_time
 
     def get_max_pause_duration(self):
-        truncated_deltas = self.delta_move_times[config.MARGIN_FOR_PAUSE_DURATION:-config.MARGIN_FOR_PAUSE_DURATION]
+        margin = self.config.MARGIN_FOR_PAUSE_DURATION
+        truncated_deltas = self.delta_move_times[margin:-margin]
         if len(truncated_deltas):
             return max(truncated_deltas)
         return None
 
     def get_steps(self):
-        shape_ids = self.shapes_df.iloc[:, config.SHAPE_ID_IDX]
+        shape_ids = self.shapes_df.iloc[:, self.config.SHAPE_ID_IDX]
         without_empty_moves = [shape_id for shape_id, group in groupby(shape_ids)]
         # TODO: after empty moves are handled by Preprocessor, previous line is redundant and the next one can just run
         #  on shape_ids
@@ -50,15 +52,15 @@ class ParsedPlayerData:
         Returns a mask where true means gallery shape.
         :return: ndarray with shape (len(self.shapes_df),) and dtype bool.
         """
-        return self.shapes_df.iloc[:, config.SHAPE_SAVE_TIME_IDX].notna()
+        return self.shapes_df.iloc[:, self.config.SHAPE_SAVE_TIME_IDX].notna()
 
     def get_gallery_ids(self):
         is_gallery = self.get_gallery_mask()
-        gallery_ids = self.shapes_df[is_gallery].iloc[:, config.SHAPE_ID_IDX]
+        gallery_ids = self.shapes_df[is_gallery].iloc[:, self.config.SHAPE_ID_IDX]
         return gallery_ids
 
     def get_self_avoidance(self):
-        shape_ids = self.shapes_df.iloc[:, config.SHAPE_ID_IDX]
+        shape_ids = self.shapes_df.iloc[:, self.config.SHAPE_ID_IDX]
         unique_shapes = np.unique(shape_ids)
         shapes_no_consecutive_duplicates = [k for k, g in groupby(shape_ids)]
         # TODO: in a future version, consecutive duplicates will be handled by Preprocessor. when this is implemented,
@@ -69,10 +71,10 @@ class ParsedPlayerData:
 
 
 class PostparsedPlayerData(ParsedPlayerData):
-    def __init__(self, player_data):
+    def __init__(self, player_data, config: Configuration = None):
         self.explore_slices = player_data[EXPLORE_KEY]
         self.exploit_slices = player_data[EXPLOIT_KEY]
-        super().__init__(player_data)
+        super().__init__(player_data, config)
 
     def get_explore_mask(self):
         """
@@ -98,8 +100,8 @@ class PostparsedPlayerData(ParsedPlayerData):
     def total_exploit_time(self):
         time_in_exploit = 0
         for start, end in self.exploit_slices:
-            start_time = self.shapes_df.iloc[start, config.SHAPE_MOVE_TIME_IDX]
-            end_time = self.shapes_df.iloc[end - 1, config.SHAPE_MOVE_TIME_IDX]
+            start_time = self.shapes_df.iloc[start, self.config.SHAPE_MOVE_TIME_IDX]
+            end_time = self.shapes_df.iloc[end - 1, self.config.SHAPE_MOVE_TIME_IDX]
             time_in_exploit += (end_time - start_time)
 
         return time_in_exploit
@@ -112,8 +114,8 @@ class PostparsedPlayerData(ParsedPlayerData):
             return np.nan, np.nan
 
         actual_path_lengths = np.diff(gallery_indices, prepend=0)
-        gallery_ids = self.shapes_df.iloc[gallery_indices, config.SHAPE_ID_IDX]
-        shortest_path_lengths = ([get_shortest_path_len(config.FIRST_SHAPE_ID, gallery_ids.iloc[0])] +
+        gallery_ids = self.shapes_df.iloc[gallery_indices, self.config.SHAPE_ID_IDX]
+        shortest_path_lengths = ([get_shortest_path_len(self.config.FIRST_SHAPE_ID, gallery_ids.iloc[0])] +
                                  [get_shortest_path_len(shape1, shape2) for shape1, shape2 in pairwise(gallery_ids)])
         all_efficiency_values = {idx: shortest_len / actual_len for idx, shortest_len, actual_len
                                  in zip(gallery_indices, shortest_path_lengths, actual_path_lengths)
@@ -137,7 +139,7 @@ class PostparsedPlayerData(ParsedPlayerData):
         clusters = []
         for start, end in self.exploit_slices:
             slice_is_gallery = is_gallery[start:end]
-            slice_shape_ids = self.shapes_df.iloc[start:end, config.SHAPE_ID_IDX]
+            slice_shape_ids = self.shapes_df.iloc[start:end, self.config.SHAPE_ID_IDX]
             cluster = tuple(slice_shape_ids[slice_is_gallery])
             clusters.append(cluster)
 
@@ -149,6 +151,10 @@ class ParsedDataset:
         self.input_data = []
         self.players_data = []
         self._reset_state(input_data)
+
+    @classmethod
+    def from_json(cls, path: str):
+        return cls(load_json(path))
 
     def _reset_state(self, input_data):
         self.input_data = input_data
@@ -222,12 +228,17 @@ class ParsedDataset:
 
 
 class PostparsedDataset(ParsedDataset):
-    def __init__(self, input_data):
+    def __init__(self, input_data, config: Configuration = None):
         """
         Expects a list of dicts like the output from Preprocessor.preprocess()
         """
         super().__init__(input_data)
+        self.config = config if config is not None else Configuration.default()
         self._reset_state(input_data)
+
+    @classmethod
+    def from_json(cls, path: str, config: Configuration = None):
+        return cls(load_json(path), config)
 
     def _reset_state(self, input_data):
         self.input_data = input_data
@@ -245,7 +256,7 @@ class PostparsedDataset(ParsedDataset):
         semantic_network = nx.Graph()
         exploit_clusters = self.get_all_exploit_clusters()
         edges = [(c1, c2) for c1, c2 in combinations(exploit_clusters, 2)
-                 if is_semantic_connection(c1, c2)]
+                 if is_semantic_connection(c1, c2, self.config.MIN_OVERLAP_FOR_SEMANTIC_CONNECTION)]
         semantic_network.add_edges_from(edges)
         GC = max(nx.connected_components(semantic_network), key=len)
 
