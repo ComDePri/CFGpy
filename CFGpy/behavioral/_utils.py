@@ -61,7 +61,7 @@ def coords_to_bin_coords(coords):
     return shape_id
 
 
-def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT):
+def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, normalize_by_steps=False):
     n_shapes = len(shapes)
     no_exploit_return_value = [(0, n_shapes)], []
     shapes_df = pd.DataFrame(shapes)
@@ -70,9 +70,12 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT):
     gallery_indices = np.flatnonzero(gallery_saves.notna())
     if not any(gallery_indices):
         return no_exploit_return_value
-
+        
     gallery_times = shapes_df.iloc[gallery_indices][SHAPE_MOVE_TIME_IDX]
-    gallery_diffs = np.diff(gallery_times, prepend=gallery_times.iloc[0])
+    gallery_diffs = np.insert(np.diff(gallery_times), 0, gallery_times.iloc[0])
+    import ipdb;ipdb.set_trace()
+    if normalize_by_steps:
+        gallery_diffs = gallery_diffs / np.insert(np.diff(gallery_indices), 0, gallery_indices[0] + 10**-50)
 
     clusters = []
     if gallery_diffs.size:
