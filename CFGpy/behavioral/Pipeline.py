@@ -23,7 +23,8 @@ class Pipeline:
     def _add_url_to_config(self):
         csv_url = self.downloader.csv_url
         if "&before=" not in csv_url:
-            now_str = datetime.now(timezone.utc).strftime(self.config.SERVER_DATE_FORMAT)
+            date_format_up_to_millisec = self.config.SERVER_DATE_FORMAT.replace("%f", "%3d")
+            now_str = datetime.now(timezone.utc).strftime(date_format_up_to_millisec)
             csv_url += f"&before={now_str}"
 
         self.config.RED_METRICS_CSV_URL = csv_url
