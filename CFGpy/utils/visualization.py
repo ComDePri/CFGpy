@@ -1,11 +1,18 @@
 import os
 import tqdm
 
+from rectpack import newPacker
 import numpy as np
+import sys
+sys.path.append('C:\\Users\\Yogevhen\\Desktop\\Project\\simCFG')
+sys.path.append('D:\\ComDePri\\ComDePy')
 import simCFG
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox, BboxImage
+from matplotlib.transforms import Bbox, TransformedBbox
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from functools import partial
 from matplotlib.text import Text
 
@@ -185,27 +192,37 @@ def remove_duplicate_actions(game):
     
     return cleaned_actions
 
-def show_shape_from_iterable(iterable, is_dict_with_size=False):
-    if is_dict_with_size:
-        shapes = {
-            simCFG.utils.get_shape_binary_matrix(int(shape)): size for shape, size in iterable.items()
-        }
-    shapes = [simCFG.utils.get_shape_binary_matrix(int(shape)) for shape in iterable]
+def show_shape_from_size_dict(shapes_dict):
+    min_size = 3
+    shapes = [
+        simCFG.utils.show_binary_matrix(simCFG.utils.get_shape_binary_matrix(int(shape)), show=False, is_gallery=False, is_exploit=False, render=True, save_filename=None, title='', res=(min_size + (size/20), min_size + (size/20)))
+        for shape, size in shapes_dict.items()
+    ]
 
-    len_shapes = len(shapes)
-    cols = np.ceil(len_shapes**0.5).astype(int)
-    fig, ax = plt.subplots(nrows=cols, ncols=cols, figsize = (16, 12))
-    for counter, shape in enumerate(shapes):
-        res = (900/100, 900/100)
-        shape_image = simCFG.utils.show_binary_matrix(shape, show=False, is_gallery=False, is_exploit=False, render=True, save_filename=None, title='', res=res)
-        ax.flat[counter].imshow(shape_image)
-        ax.flat[counter].set_xticklabels([])
-        ax.flat[counter].set_yticklabels([])
+    packer = newPacker()
+    for im in shapes:
+        packer.add_rect(*im.size)
+
+    bin_size = np.sum(sorted([im.size[0] for im in shapes])[::-1][:int(len(shapes_dict) ** 0.5) + 1])
+    packer.add_bin(bin_size, bin_size)
+    packer.pack()
+    bin = packer[0]
+    rect_arr = np.array(packer.rect_list())
+    rightmost_shape = rect_arr[np.argmax(rect_arr[:, 1])]
+    highest_shape = rect_arr[np.argmax(rect_arr[:, 2])]
+    fig_width = (rightmost_shape[1] + rightmost_shape[3])/100
+    fig_height = (highest_shape[2] + highest_shape[4])/100
+
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
+    for index, pil_obj in enumerate(shapes):
+        rect = [bin[index].x, bin[index].y, bin[index].width, bin[index].height]
+        bbox = Bbox.from_bounds(*rect)
+        bbox_image = BboxImage(bbox)
+        bbox_image.set_data(pil_obj)
+        fig.add_artist(bbox_image)
     
-    for axis in ax.flat[counter + 1:]:
-        axis.remove()
+    plt.axis('off')
     
-    plt.tight_layout()
     return fig
 
 def save_plot(fig, file_name, path, subfolder='', close=True):

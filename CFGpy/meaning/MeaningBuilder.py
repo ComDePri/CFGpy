@@ -477,6 +477,14 @@ def prune_edges(G, min_attr_for_node, attr):
     
     return G
 
+def total_node_weight(G, attr, node):
+    weights = nx.get_edge_attributes(G, attr)
+    all_node_weights = [
+        weights[edge] if edge in weights else weights[edge[::-1]] for edge in G.edges(node)
+    ]
+    return np.sum(all_node_weights)
+
+
 def transform_graph_attribute(G, attr, func):
     edge_attribute = nx.get_edge_attributes(G, attr)
     new_attributes = {}
@@ -510,7 +518,7 @@ def build_clusters_and_communities(verbose=True):
     # Build super-graph of connected clusters
     #connected_clusters_graph = nx.from_edgelist(connected_clusters)
     from ..behavioral import _utils as ut
-    ut.segment_explore_exploit(parsed_vanilla[0]['actions'], normalize_by_steps=True)
+    #ut.segment_explore_exploit(parsed_vanilla[0]['actions'], normalize_by_steps=True)
     all_connected_components = sorted([connected_component for connected_component in nx.connected_components(connected_clusters_graph)], key=len)
     largest_connected_component = all_connected_components[-1]
     largest_cc_subgraph = connected_clusters_graph.subgraph(largest_connected_component)
@@ -522,7 +530,10 @@ def build_clusters_and_communities(verbose=True):
         offset = 0
         print('Saving all communities')
         for ind, community in tqdm(enumerate(communities[offset:])):
-            show_community(community, ind + offset, subfolder)
+            fig = utils.visualization.show_shape_from_size_dict({shape: total_node_weight(G=connected_clusters_graph, attr='weight', node=shape) for shape in community})
+            file_name = 'community_{comm}.png'.format(comm=ind + offset)
+            path = 'C:\\Users\\Yogevhen\\Desktop\\Project\\CFGpy\\communities'
+            utils.visualization.save_plot(fig=fig, file_name=file_name, path=path, subfolder='tests')
     top_communities = communities[:N_TOP_COMMUNITIES]
     dimensions_count_per_shape = count_shapes_in_many_communities(top_communities) # Gallery meaning scores
 
@@ -550,6 +561,4 @@ def build_clusters_and_communities(verbose=True):
     # Show shapes that appear >5 times
 
 if __name__ == "__main__":
-    plot_all_games()
-    exit()
     build_clusters_and_communities()
