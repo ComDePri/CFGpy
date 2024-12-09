@@ -3,6 +3,7 @@ import pandas as pd
 import json
 import re
 from datetime import datetime, timezone
+from CFGpy.utils.utils import get_node_neighbors
 from CFGpy.behavioral._utils import server_coords_to_binary_shape, prettify_games_json, CFGPipelineException
 from CFGpy.behavioral._consts import (PARSED_PLAYER_ID_KEY, PARSED_TIME_KEY, PARSED_ALL_SHAPES_KEY,
                                       PARSED_CHOSEN_SHAPES_KEY, MERGED_ID_KEY, DEFAULT_ID, PARSER_OUTPUT_FILENAME)
@@ -49,6 +50,8 @@ class Parser:
         games_grouped_by_unique_id = prepared_data.groupby(self.config.UNIQUE_INTERNAL_ID_COLUMN)
         hard_filtered_games = games_grouped_by_unique_id.filter(self._apply_hard_filters)
         self.parsed_data = self._parse_all_player_games(hard_filtered_games)
+        self._validate_parsed_data(self.parsed_data)
+
         return self.parsed_data
 
     def dump(self, path=PARSER_OUTPUT_FILENAME, pretty=False):
@@ -116,6 +119,20 @@ class Parser:
     def _apply_hard_filters(self, game):
         return self.is_game_started(game)
 
+    def _validate_parsed_data(self, games):
+        for game in games:
+            self.check_game_for_discontinuities(game)
+
+    def check_game_for_discontinuities(self, game):
+        prev_shape = 1
+        for curr_shape, _, _ in game[self.config.PARSED_ALL_SHAPES_KEY][1:]:
+            neighbors = get_node_neighbors(curr_shape, is_id=True)
+            if prev_shape not in neighbors[curr_shape] and prev_shape != curr_shape:
+                error_msg = self.config.NOT_A_NEIGHBOR_ERROR.format(prev_shape, curr_shape)
+                raise AssertionError(error_msg)
+
+            prev_shape = curr_shape
+
     def is_game_started(self, game):
         return game[self.config.EVENT_TYPE].str.contains(self.config.TUTORIAL_END_EVENT_TYPE).sum() > 0
 
@@ -154,6 +171,7 @@ class Parser:
             game_data[self.config.SHAPE_MOVE_COLUMN].isna()].index
         game_data.loc[gallery_save_indices - 1, self.config.GALLERY_SAVE_TIME_COLUMN] = game_data.loc[
             gallery_save_indices, self.config.PARSER_TIME_COLUMN].values
+
         # Now that we have the save time in all move rows, we can get rid of save rows:
         game_data = game_data[game_data[self.config.EVENT_TYPE].isin([self.config.SHAPE_MOVE_EVENT_TYPE])]
 
