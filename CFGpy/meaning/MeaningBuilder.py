@@ -560,5 +560,13 @@ def build_clusters_and_communities(verbose=True):
 
     # Show shapes that appear >5 times
 
+def test_community_building(parsed_data, community_building_method, subfolder):
+    communities = community_building_method(parsed_data)
+    for ind, community in tqdm(enumerate(communities)):
+        fig = utils.visualization.show_shape_from_size_dict(community)
+        file_name = 'community_{comm}.png'.format(comm=ind)
+        path = 'C:\\Users\\Yogevhen\\Desktop\\Project\\CFGpy\\communities'
+        utils.visualization.save_plot(fig=fig, file_name=file_name, path=path, subfolder=subfolder)
+
 if __name__ == "__main__":
     build_clusters_and_communities()
