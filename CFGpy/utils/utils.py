@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import os
 import json
 import networkx as nx
@@ -8,7 +9,8 @@ from CFGpy import NAS_PATH
 CFG_RESOURCES_PATH = os.path.join(NAS_PATH, "Projects", "CFG")
 
 VANILLA_DATA_DIR = os.path.join(CFG_RESOURCES_PATH, "vanilla_data")
-VANILLA_PATH = os.path.join(VANILLA_DATA_DIR, "vanilla.json")
+VANILLA_JSON_PATH = os.path.join(VANILLA_DATA_DIR, "vanilla.json")
+VANILLA_FEATURES_PATH = os.path.join(VANILLA_DATA_DIR, "vanilla_features.csv")
 VANILLA_STEP_ORIG_PATH = os.path.join(VANILLA_DATA_DIR, "step_orig.json")
 VANILLA_GALLERY_ORIG_PATH = os.path.join(VANILLA_DATA_DIR, "gallery_orig.json")
 VANILLA_STEP_COUNTER_PATH = os.path.join(VANILLA_DATA_DIR, "step_counter.json")
@@ -22,15 +24,17 @@ SHORTEST_PATHS_DICT_PATH = os.path.join(CFG_RESOURCES_PATH, "shortest_path_len.j
 
 def get_vanilla():
     """
-    Returns the most up-to-date version of the vanilla data.
+    Returns the most up-to-date postparsed version of the vanilla data.
     """
-    with open(VANILLA_PATH) as vanilla_fp:
+    with open(VANILLA_JSON_PATH) as vanilla_fp:
         return json.load(vanilla_fp)
 
 
-def dump_vanilla(vanilla):
-    with open(VANILLA_PATH, "w") as vanilla_fp:
-        return json.dump(vanilla, vanilla_fp)
+def get_vanilla_features() -> pd.DataFrame:
+    """
+    Returns the features extracted from the most up-to-date vanilla data.
+    """
+    return pd.read_csv(VANILLA_FEATURES_PATH)
 
 
 def get_vanilla_stats():
@@ -56,22 +60,6 @@ def get_vanilla_stats():
     giant_component = {tuple(node) for node in giant_component}
 
     return covered_steps, step_counter, covered_galleries, gallery_counter, giant_component
-
-
-def dump_vanilla_stats(step_counter, gallery_counter, giant_component):
-    # prepare for serialization:
-    step_counter = {str(list(step)): orig for step, orig in step_counter.items()}
-    giant_component = [list(node) for node in giant_component]
-
-    # serialize:
-    with open(VANILLA_STEP_COUNTER_PATH, "w") as step_counter_fp:
-        json.dump(step_counter, step_counter_fp)
-
-    with open(VANILLA_GALLERY_COUNTER_PATH, "w") as gallery_counter_fp:
-        json.dump(gallery_counter, gallery_counter_fp)
-
-    with open(VANILLA_GC_PATH, "w") as gc_fp:
-        json.dump(giant_component, gc_fp)
 
 
 def get_shape_binary_matrix(shape_id):
