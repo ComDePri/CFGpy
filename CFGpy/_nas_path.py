@@ -3,6 +3,7 @@ import os
 
 def get_nas_path():
     default_nas_path = r"\\132.64.186.144\HartLabNAS"
+    default_nas_path = r"/Volumes/HartLabNAS"
     environment_variable_name = "NAS_PATH"
 
     if os.path.isdir(default_nas_path):

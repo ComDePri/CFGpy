@@ -8,6 +8,9 @@ class RM2Converter(Downloader):
         self.rm2_json_filename = rm2_json_filename
         self.rm1_format = None
 
+    def _validate_url(self, csv_url):
+        return "csv_url"
+
     def convert_rm2_to_rm1_json(self):
         with open(self.rm2_json_filename) as f:
             rm2 = json.load(f)
@@ -63,10 +66,10 @@ class RM2Converter(Downloader):
 
 
 rm2_config = Configuration.default()
-rm2_config.SERVER_DATE_FORMAT = '%Y-%m-%dT%H:%M:%S%z'
+#rm2_config.SERVER_DATE_FORMAT = '%Y-%m-%dT%H:%M:%S%z' # ROEY: Removed this line because now RM2 also has ms in its time data
 
 # start from RM2 json
-rm2_json_filename = r"/home/royg/home/royg/CFGpy/CFGpy/behavioral/rm2.json"
+rm2_json_filename = r"/home/roey/Documents/CFG_TAU/data/data_tau.json"
 raw_data_filename = "event.csv"
 rm2_converter = RM2Converter(rm2_json_filename=rm2_json_filename, output_filename=raw_data_filename, config=rm2_config)
 rm2_converter.convert_rm2_json_to_csv()
