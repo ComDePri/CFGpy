@@ -1,5 +1,6 @@
 import csv
 import requests
+from io import StringIO
 from tqdm import tqdm
 import pandas as pd
 from CFGpy.behavioral._consts import (DOWNLOADER_OUTPUT_FILENAME, NO_DOWNLOADER_URL_ERROR, DOWNLOADER_URL_NO_CSV_ERROR,
@@ -57,6 +58,7 @@ class Downloader:
             print("Download events...")
         input_json = []
         page_count = int(requests.get(self.json_url, {"page": 1, "perPage": EVENTS_PER_PAGE}).headers['x-page-count'])
+        total_results = int(requests.get(self.json_url, {"page": 1, "perPage": EVENTS_PER_PAGE}).headers['x-Total-Count'])
         # TODO: see if a similar request can give the total events number and avoid downloading if the output file
         #  exists with the correct length
 
@@ -64,9 +66,29 @@ class Downloader:
         if verbose:
             page_iterator = tqdm(page_iterator, desc="pages")
         for page in page_iterator:
-            r = requests.get(self.json_url, {"page": page, "perPage": EVENTS_PER_PAGE})
+            r = requests.get(self.json_url, {"page": page, "perPage": EVENTS_PER_PAGE, 'orderBy': 'userTime:asc'})
             page_json = r.json()
             input_json = input_json + page_json
+            input_json = [ii for n, ii in enumerate(input_json) if ii not in input_json[:n]] # Makes sure to remove duplicates
+            all_ids = [item['id'] for item in input_json]
+
+            counter = 0
+            while (page < page_count and len(input_json) < page * EVENTS_PER_PAGE) or (page == page_count and len(input_json) < total_results):
+                missing_rows = []
+                r = requests.get(self.json_url, {"page": page, "perPage": EVENTS_PER_PAGE})
+                if page > 1:
+                    prev_page_r = requests.get(self.json_url, {"page": page - 1, "perPage": EVENTS_PER_PAGE})
+                    page_json = r.json() + prev_page_r.json()
+                else:
+                    page_json = r.json()
+
+                if counter == 5:
+                    raise DownloaderRetryError('Was not able to get row after 5 retries.')
+                missing_rows = [item for item in page_json if item['id'] not in all_ids]
+                missing_rows = [ii for n, ii in enumerate(missing_rows) if ii not in missing_rows[:n]]
+
+                input_json += missing_rows
+                counter += 1
 
         return input_json
 
@@ -174,3 +196,6 @@ if __name__ == '__main__':
 
     d = Downloader(args.url, args.output_filename)
     d.download()
+
+class DownloaderRetryError(Exception):
+    pass

@@ -22,7 +22,8 @@ EVENTS_PER_PAGE = 500
 PARSER_OUTPUT_FILENAME = "parsed.json"
 MERGED_ID_KEY = "merged_id"
 DEFAULT_ID = 'No ID Found'
-NOT_A_NEIGHBOR_ERROR = "Found adjacent non neighboring shapes {} and {}"
+NOT_A_NEIGHBOR_ERROR = "Found adjacent non neighboring shapes {} and {}, Player id:{}\n" \
+                       "Check the source data to see if the game recorded an illegal move, otherwise it's the parser."
 
 # parsed data format
 PARSED_PLAYER_ID_KEY = 'id'

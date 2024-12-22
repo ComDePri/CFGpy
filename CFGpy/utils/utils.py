@@ -88,7 +88,7 @@ def get_node_neighbors(node, is_id=False, return_ids=True):
         return node_neighbors_id[np.nonzero(node_neighbors_id)[0]]
         
     return [
-        coord[np.nonzero(coord)[0]] for coord in ID2COORD[node_neighbors_id[np.nonzero(node_neighbors_id)[0]]]
+        tuple(coord[np.nonzero(coord)[0]]) for coord in ID2COORD[node_neighbors_id[np.nonzero(node_neighbors_id)[0]]]
     ]
 
 def binary_shape_to_id(binary_shape):
