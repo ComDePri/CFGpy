@@ -3,7 +3,6 @@ import pandas as pd
 import json
 import re
 import warnings
-from tqdm import tqdm
 import matplotlib.pyplot as plt
 import seaborn as sns
 from CFGpy.behavioral._consts import (SERVER_COORDS_TYPE_ERROR, EXPLORE_KEY, PRETTIFY_WARNING, PARSED_ALL_SHAPES_KEY,
@@ -190,7 +189,7 @@ def plot_gallery_dt(postparsed_player_data, shape_move_time_idx):
 def prettify_games_json(parsed_games):
     warnings.warn(PRETTIFY_WARNING)
     prettified_games = []
-    for game in tqdm(parsed_games, desc="games"):
+    for game in parsed_games:
         game[PARSED_ALL_SHAPES_KEY] = [NoIndent(action) for action in game[PARSED_ALL_SHAPES_KEY]]
         chosen_shapes = game.get(PARSED_CHOSEN_SHAPES_KEY, None)
         if chosen_shapes is not None:
