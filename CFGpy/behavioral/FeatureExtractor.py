@@ -4,7 +4,7 @@ import shutil
 import numpy as np
 import pandas as pd
 from datetime import datetime
-from CFGpy.behavioral.data_classes import PostparsedDataset
+from CFGpy.behavioral.data_interfaces import PostparsedDataset
 from CFGpy.behavioral._consts import (FEATURES_ID_KEY, FEATURES_START_TIME_KEY, N_CLUSTERS_KEY, GAME_DURATION_KEY,
                                       N_MOVES_KEY, LONGEST_PAUSE_KEY, MEDIAN_EXPLORE_LENGTH_KEY, N_GALLERIES_KEY,
                                       SELF_AVOIDANCE_KEY, EXPLORE_EFFICIENCY_KEY, EXPLOIT_EFFICIENCY_KEY,
