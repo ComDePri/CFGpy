@@ -154,3 +154,6 @@ def step_orig_map_factory(step_counter, alpha, d):
         orig_map[step] = -np.log10(smoothed_prob)
 
     return orig_map
+
+
+get_shortest_path_len(5,1000)

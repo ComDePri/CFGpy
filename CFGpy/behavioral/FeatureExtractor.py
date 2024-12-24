@@ -43,8 +43,15 @@ class FeatureExtractor:
         self.config = config if config is not None else Configuration.default()
         self.all_absolute_features = None
         self.output_df = None
-
         self.exclusions = pd.DataFrame(columns=[FEATURES_ID_KEY, EXCLUSION_REASON_KEY])
+        self._shortest_len_paths_dict = None
+    
+    @property
+    def shortest_len_paths_dict():
+        if not self._shortest_len_paths_dict:
+            with open(SHORTEST_PATHS_DICT_PATH) as shortest_path_len_fp:
+                self._shortest_path_len_dict = json.load(shortest_path_len_fp)
+        return self._shortest_path_len_dict
 
     @classmethod
     def from_json(cls, path: str, config=Configuration.default()):
@@ -64,6 +71,8 @@ class FeatureExtractor:
         return self.output_df
 
     def dump(self, path=DEFAULT_FINAL_OUTPUT_FILENAME):
+        with open(SHORTEST_PATHS_DICT_PATH, "w") as shortest_path_len_fp:
+            json.dump(self.shortest_path_len_dict, shortest_path_len_fp)
         self.output_df.to_csv(path, index=False)  # reorder columns
         self.exclusions.to_csv(f"{path}_exclusions.csv", index=False)
         self.config.to_yaml(path)
