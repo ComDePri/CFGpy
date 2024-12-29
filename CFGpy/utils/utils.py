@@ -19,7 +19,6 @@ VANILLA_GC_PATH = os.path.join(VANILLA_DATA_DIR, "giant_component.json")
 
 ID2COORD = np.load(os.path.join(CFG_RESOURCES_PATH, "grid_coords.npy"))
 N_ALL_SHAPES = len(ID2COORD) - 1  # subtract 1 because index 0 in ID2COORD is a placeholder, not a shape
-SHORTEST_PATHS_DICT_PATH = os.path.join(CFG_RESOURCES_PATH, "shortest_path_len.json")
 
 
 def get_vanilla():
@@ -86,21 +85,25 @@ def binary_shape_to_id(binary_shape):
 
     return int(shape_id[0])
 
+def __verify_shape_type(*, shape: any) -> bool:
+    if not (type(shape) is int) or isinstance(shape, np.float64):
+        raise ValueError(f'The shape type must be int and not {type(shape)}.')
 
-def get_shortest_path_len(shape1, shape2):
+def get_shortest_path_len(shape1: int, shape2: int, shortest_path_len_dict: dict):
+
+    __verify_shape_type(shape=shape1)
+    __verify_shape_type(shape=shape2)
+
     shape1, shape2 = min(shape1, shape2), max(shape1, shape2)
     key = str((shape1, shape2))  # JSON doesn't allow tuples as keys, so they're stringified
-    with open(SHORTEST_PATHS_DICT_PATH) as shortest_path_len_fp:
-        shortest_path_len_dict = json.load(shortest_path_len_fp)
 
-    if key in shortest_path_len_dict:
+    if shortest_path_len_dict and key in shortest_path_len_dict:
         return shortest_path_len_dict[key]
 
     shape_network = nx.read_adjlist(os.path.join(CFG_RESOURCES_PATH, "all_shapes.adjlist"), nodetype=int)
     shortest_path_len = nx.shortest_path_length(shape_network, source=shape1, target=shape2)
     shortest_path_len_dict[key] = shortest_path_len
-    with open(SHORTEST_PATHS_DICT_PATH, "w") as shortest_path_len_fp:
-        json.dump(shortest_path_len_dict, shortest_path_len_fp)
+
     return shortest_path_len
 
 
@@ -154,6 +157,3 @@ def step_orig_map_factory(step_counter, alpha, d):
         orig_map[step] = -np.log10(smoothed_prob)
 
     return orig_map
-
-
-get_shortest_path_len(5,1000)

@@ -1,10 +1,11 @@
+import json
 import numpy as np
 import pandas as pd
 from itertools import pairwise, groupby, combinations
 from collections import Counter
 import networkx as nx
 from CFGpy.behavioral._consts import (PARSED_PLAYER_ID_KEY, PARSED_TIME_KEY, PARSED_ALL_SHAPES_KEY,
-                                      PARSED_CHOSEN_SHAPES_KEY, EXPLORE_KEY, EXPLOIT_KEY)
+                                      PARSED_CHOSEN_SHAPES_KEY, EXPLORE_KEY, EXPLOIT_KEY, SHORTEST_PATHS_DICT_PATH)
 from CFGpy.behavioral import Configuration
 from CFGpy.behavioral._utils import is_semantic_connection, load_json
 
@@ -21,7 +22,7 @@ class ParsedPlayerData:
 
         self.config = config if config is not None else Configuration.default()
         self.delta_move_times = np.diff(self.shapes_df.iloc[:, self.config.SHAPE_MOVE_TIME_IDX])
-
+    
     def __len__(self):
         return len(self.shapes_df)
 
@@ -71,10 +72,11 @@ class ParsedPlayerData:
 
 
 class PostparsedPlayerData(ParsedPlayerData):
-    def __init__(self, player_data, config: Configuration = None):
+    def __init__(self, player_data, config: Configuration = None, shortest_len_paths_dict: dict = None):
         self.explore_slices = player_data[EXPLORE_KEY]
         self.exploit_slices = player_data[EXPLOIT_KEY]
         super().__init__(player_data, config)
+        self.shortest_len_paths_dict = shortest_len_paths_dict
 
     def get_explore_mask(self):
         """
@@ -115,8 +117,8 @@ class PostparsedPlayerData(ParsedPlayerData):
 
         actual_path_lengths = np.diff(gallery_indices, prepend=0)
         gallery_ids = self.shapes_df.iloc[gallery_indices, self.config.SHAPE_ID_IDX]
-        shortest_path_lengths = ([get_shortest_path_len(self.config.FIRST_SHAPE_ID, gallery_ids.iloc[0])] +
-                                 [get_shortest_path_len(shape1, shape2) for shape1, shape2 in pairwise(gallery_ids)])
+        shortest_path_lengths = ([get_shortest_path_len(self.config.FIRST_SHAPE_ID, gallery_ids.iloc[0], self.shortest_len_paths_dict)] +
+                                 [get_shortest_path_len(shape1, shape2, self.shortest_len_paths_dict) for shape1, shape2 in pairwise(gallery_ids)])
         all_efficiency_values = {idx: shortest_len / actual_len for idx, shortest_len, actual_len
                                  in zip(gallery_indices, shortest_path_lengths, actual_path_lengths)
                                  if (shortest_len, actual_len) != (1, 1)}
@@ -228,12 +230,13 @@ class ParsedDataset:
 
 
 class PostparsedDataset(ParsedDataset):
-    def __init__(self, input_data, config: Configuration = None):
+    def __init__(self, *, input_data, config: Configuration = None, shortest_len_paths_dict: dict = None):
         """
         Expects a list of dicts like the output from Preprocessor.preprocess()
         """
-        super().__init__(input_data)
         self.config = config if config is not None else Configuration.default()
+        self.shortest_len_paths_dict = shortest_len_paths_dict
+        super().__init__(input_data)
         self._reset_state(input_data)
 
     @classmethod
@@ -242,7 +245,8 @@ class PostparsedDataset(ParsedDataset):
 
     def _reset_state(self, input_data):
         self.input_data = input_data
-        self.players_data = [PostparsedPlayerData(player_data) for player_data in self.input_data]
+        self.players_data = [PostparsedPlayerData(player_data=player_data, config=self.config, shortest_len_paths_dict=self.shortest_len_paths_dict) for player_data in self.input_data]
+
 
     def get_all_exploit_clusters(self):
         all_exploit_clusters = []

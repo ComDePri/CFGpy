@@ -4,6 +4,9 @@ Some of these are only used for internal reference and their actual value doesn'
 external scripts may rely on them.
 Please do not change this file unless you're absolutely sure you know what you're doing.
 """
+import os
+from CFGpy import NAS_PATH
+
 # configuration
 CONFIG_PACKAGE = "CFGpy.behavioral"
 CONFIG_FILENAME = "default_config.yml"
@@ -82,3 +85,6 @@ DEFAULT_FINAL_OUTPUT_FILENAME = "CFG_measures.csv"
 # utils
 SERVER_COORDS_TYPE_ERROR = "Received incorrect type as csv_coords, should be str or list, received {}"
 PRETTIFY_WARNING = "Creating a pretty JSON may take a while! Avoid if the file is very big."
+CFG_RESOURCES_PATH = os.path.join(NAS_PATH, "Projects", "CFG")
+SHORTEST_PATHS_DICT_PATH = os.path.join(CFG_RESOURCES_PATH, "shortest_path_len.json")
+TEMP_SHORTEST_PATHS_DICT_PATH = os.path.join(CFG_RESOURCES_PATH, "temp_shortest_path_len.json")
