@@ -85,17 +85,10 @@ def binary_shape_to_id(binary_shape):
 
     return int(shape_id[0])
 
-def __verify_shape_type(*, shape: any) -> bool:
-    if not (type(shape) is int) or isinstance(shape, np.float64):
-        raise ValueError(f'The shape type must be int and not {type(shape)}.')
-
 def get_shortest_path_len(shape1: int, shape2: int, shortest_path_len_dict: dict):
 
-    __verify_shape_type(shape=shape1)
-    __verify_shape_type(shape=shape2)
-
     shape1, shape2 = min(shape1, shape2), max(shape1, shape2)
-    key = str((shape1, shape2))  # JSON doesn't allow tuples as keys, so they're stringified
+    key = f"({shape1}, {shape2})" # JSON doesn't allow tuples as keys, so they're stringified
 
     if shortest_path_len_dict and key in shortest_path_len_dict:
         return shortest_path_len_dict[key]
