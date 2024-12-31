@@ -22,7 +22,7 @@ class ParsedPlayerData:
 
         self.config = config if config is not None else Configuration.default()
         self.delta_move_times = np.diff(self.shapes_df.iloc[:, self.config.SHAPE_MOVE_TIME_IDX])
-    
+
     def __len__(self):
         return len(self.shapes_df)
 
@@ -72,6 +72,7 @@ class ParsedPlayerData:
 
 
 class PostparsedPlayerData(ParsedPlayerData):
+
     def __init__(self, player_data, config: Configuration = None, shortest_len_paths_dict: dict = None):
         self.explore_slices = player_data[EXPLORE_KEY]
         self.exploit_slices = player_data[EXPLOIT_KEY]
@@ -230,13 +231,14 @@ class ParsedDataset:
 
 
 class PostparsedDataset(ParsedDataset):
+
     def __init__(self, *, input_data, config: Configuration = None, shortest_len_paths_dict: dict = None):
         """
         Expects a list of dicts like the output from Preprocessor.preprocess()
         """
-        self.config = config if config is not None else Configuration.default()
         self.shortest_len_paths_dict = shortest_len_paths_dict
         super().__init__(input_data)
+        self.config = config if config is not None else Configuration.default()
         self._reset_state(input_data)
 
     @classmethod
@@ -246,7 +248,6 @@ class PostparsedDataset(ParsedDataset):
     def _reset_state(self, input_data):
         self.input_data = input_data
         self.players_data = [PostparsedPlayerData(player_data=player_data, config=self.config, shortest_len_paths_dict=self.shortest_len_paths_dict) for player_data in self.input_data]
-
 
     def get_all_exploit_clusters(self):
         all_exploit_clusters = []
