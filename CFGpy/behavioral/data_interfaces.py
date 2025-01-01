@@ -76,7 +76,6 @@ class PostparsedPlayerData(ParsedPlayerData):
         self.explore_slices = player_data[EXPLORE_KEY]
         self.exploit_slices = player_data[EXPLOIT_KEY]
         super().__init__(player_data, config)
-        self.shortest_len_paths_dict = shortest_len_paths_dict
 
     def get_explore_mask(self):
         """
@@ -117,8 +116,8 @@ class PostparsedPlayerData(ParsedPlayerData):
 
         actual_path_lengths = np.diff(gallery_indices, prepend=0)
         gallery_ids = self.shapes_df.iloc[gallery_indices, self.config.SHAPE_ID_IDX]
-        shortest_path_lengths = ([get_shortest_path_len(self.config.FIRST_SHAPE_ID, gallery_ids.iloc[0], self.shortest_len_paths_dict)] +
-                                 [get_shortest_path_len(shape1, shape2, self.shortest_len_paths_dict) for shape1, shape2 in pairwise(gallery_ids)])
+        shortest_path_lengths = ([get_shortest_path_len(self.config.FIRST_SHAPE_ID, gallery_ids.iloc[0])] +
+                                 [get_shortest_path_len(shape1, shape2) for shape1, shape2 in pairwise(gallery_ids)])
         all_efficiency_values = {idx: shortest_len / actual_len for idx, shortest_len, actual_len
                                  in zip(gallery_indices, shortest_path_lengths, actual_path_lengths)
                                  if (shortest_len, actual_len) != (1, 1)}
@@ -236,9 +235,7 @@ class PostparsedDataset(ParsedDataset):
         """
         super().__init__(input_data)
         self.config = config if config is not None else Configuration.default()
-        self.shortest_len_paths_dict = shortest_len_paths_dict
-        super().__init__(input_data)
-        self._reset_state(input_data)
+        super().__init__(input_data) # If this call needs to be removed, call self._reset_state() explicitly
 
     @classmethod
     def from_json(cls, path: str, config: Configuration = None):
@@ -246,7 +243,12 @@ class PostparsedDataset(ParsedDataset):
 
     def _reset_state(self, input_data):
         self.input_data = input_data
+<<<<<<< HEAD
         self.players_data = [PostparsedPlayerData(player_data) for player_data in self.input_data]
+=======
+        self.players_data = [PostparsedPlayerData(player_data=player_data, config=self.config) for player_data in self.input_data]
+
+>>>>>>> 57b8c00 (changed dict to global variable)
 
     def get_all_exploit_clusters(self):
         all_exploit_clusters = []
