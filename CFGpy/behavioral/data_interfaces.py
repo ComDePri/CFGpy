@@ -1,4 +1,3 @@
-import json
 import numpy as np
 import pandas as pd
 from itertools import pairwise, groupby, combinations
@@ -243,12 +242,7 @@ class PostparsedDataset(ParsedDataset):
 
     def _reset_state(self, input_data):
         self.input_data = input_data
-<<<<<<< HEAD
         self.players_data = [PostparsedPlayerData(player_data) for player_data in self.input_data]
-=======
-        self.players_data = [PostparsedPlayerData(player_data=player_data, config=self.config) for player_data in self.input_data]
-
->>>>>>> 57b8c00 (changed dict to global variable)
 
     def get_all_exploit_clusters(self):
         all_exploit_clusters = []
