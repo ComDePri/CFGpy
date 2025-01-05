@@ -21,7 +21,7 @@ class ParsedPlayerData:
 
         self.config = config if config is not None else Configuration.default()
         self.delta_move_times = np.diff(self.shapes_df.iloc[:, self.config.SHAPE_MOVE_TIME_IDX])
-
+    
     def __len__(self):
         return len(self.shapes_df)
 
@@ -234,7 +234,7 @@ class PostparsedDataset(ParsedDataset):
         """
         super().__init__(input_data)
         self.config = config if config is not None else Configuration.default()
-        self._reset_state(input_data)
+        super().__init__(input_data) # If this call needs to be removed, call self._reset_state() explicitly
 
     @classmethod
     def from_json(cls, path: str, config: Configuration = None):
