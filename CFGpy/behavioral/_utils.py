@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 import pandas as pd
 import json
@@ -137,7 +138,10 @@ def is_semantic_connection(cluster1, cluster2):
 #########################
 def prettify_games_json(parsed_games):
     prettified_games = []
+    parsed_games = parsed_games.copy()
+    prettified_games = '[\n    '
     for game in parsed_games:
+        game = copy.deepcopy(game)
         game['actions'] = [NoIndent(action) for action in game['actions']]
         chosen_shapes = game.get(PARSED_CHOSEN_SHAPES_KEY, None)
         if chosen_shapes is not None:
@@ -151,9 +155,14 @@ def prettify_games_json(parsed_games):
         if exploit:
             game[EXPLOIT_KEY] = NoIndent(exploit)
 
-        prettified_games.append(game)
+        prettified_game = json.dumps(game, cls=CustomIndentEncoder, sort_keys=True, indent=4)
+        indented_prettified_game = prettified_game.replace('\n', '\n    ')
+        prettified_games += indented_prettified_game
+        prettified_games += ',\n    '
 
-    return json.dumps(prettified_games, cls=CustomIndentEncoder, sort_keys=True, indent=4)
+    prettified_games = prettified_games[:-6] + '\n]'
+
+    return prettified_games
 
 
 # Using the answer from here https://stackoverflow.com/a/13252112 to make a prettier json file
