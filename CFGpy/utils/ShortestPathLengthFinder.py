@@ -13,7 +13,10 @@ def is_effective_integer(value: int) -> bool:
 
 
 class ShortestPathLengthFinder:
+    SHAPE_NETWORK = nx.read_adjlist(os.path.join(CFG_RESOURCES_PATH, "all_shapes.adjlist"), nodetype=int)
+
     def __init__(self):
+        # TODO consider: should these also be class variables?
         self.shortest_path_len = self._read_shortest_path_dict()
         self.new_shortest_path_len = {}
 
@@ -43,8 +46,7 @@ class ShortestPathLengthFinder:
         if key in self.new_shortest_path_len:
             return self.new_shortest_path_len[key]
 
-        shape_network = nx.read_adjlist(os.path.join(CFG_RESOURCES_PATH, "all_shapes.adjlist"), nodetype=int)
-        shortest_path_len = nx.shortest_path_length(shape_network, source=shape1, target=shape2)
+        shortest_path_len = nx.shortest_path_length(self.SHAPE_NETWORK, source=shape1, target=shape2)
         self.new_shortest_path_len[key] = shortest_path_len
 
         return shortest_path_len
