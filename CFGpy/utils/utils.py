@@ -96,7 +96,7 @@ def get_shortest_path_len(shape1: int, shape2: int):
     shape1, shape2 = min(shape1, shape2), max(shape1, shape2)
 
     if not is_effective_integer(shape1) or not is_effective_integer(shape2):
-        raise ValueError(f"shape1 is of type {type(shape1)} and shape2 is of type {type(shape2)}. Both must be type int.") 
+        raise TypeError(f"shape1 is of type {type(shape1)} and shape2 is of type {type(shape2)}. Both must be type int.") 
     
     key = f"({int(shape1)}, {int(shape2)})" # JSON doesn't allow tuples as keys, so they're stringified
 
