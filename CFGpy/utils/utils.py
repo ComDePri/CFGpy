@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 import os
 import json
-import networkx as nx
 from collections import Counter, defaultdict
 from CFGpy import NAS_PATH
 
@@ -20,9 +19,6 @@ VANILLA_GC_PATH = os.path.join(VANILLA_DATA_DIR, "giant_component.json")
 ID2COORD = np.load(os.path.join(CFG_RESOURCES_PATH, "grid_coords.npy"))
 N_ALL_SHAPES = len(ID2COORD) - 1  # subtract 1 because index 0 in ID2COORD is a placeholder, not a shape
 
-SHORTEST_PATHS_DICT_PATH = os.path.join(CFG_RESOURCES_PATH, "shortest_path_len.json")
-SHORTEST_PATHS_DICT = {}
-NEW_SHORTEST_PATHS_DICT = {}
 
 def get_vanilla():
     """
@@ -88,27 +84,6 @@ def binary_shape_to_id(binary_shape):
 
     return int(shape_id[0])
 
-def is_effective_integer(value: int) -> bool:
-    return value == int(value)
-
-def get_shortest_path_len(shape1: int, shape2: int):
-
-    shape1, shape2 = min(shape1, shape2), max(shape1, shape2)
-
-    if not is_effective_integer(shape1) or not is_effective_integer(shape2):
-        raise TypeError(f"shape1 is of type {type(shape1)} and shape2 is of type {type(shape2)}. Both must be type int.") 
-    
-    key = f"({int(shape1)}, {int(shape2)})" # JSON doesn't allow tuples as keys, so they're stringified
-
-    if SHORTEST_PATHS_DICT and key in SHORTEST_PATHS_DICT:
-        return SHORTEST_PATHS_DICT[key]
-
-    shape_network = nx.read_adjlist(os.path.join(CFG_RESOURCES_PATH, "all_shapes.adjlist"), nodetype=int)
-    shortest_path_len = nx.shortest_path_length(shape_network, source=shape1, target=shape2)
-    NEW_SHORTEST_PATHS_DICT[key] = shortest_path_len
-
-    return shortest_path_len
-
 
 def gallery_orig_map_factory(gallery_counter, alpha, d):
     """
@@ -160,18 +135,3 @@ def step_orig_map_factory(step_counter, alpha, d):
         orig_map[step] = -np.log10(smoothed_prob)
 
     return orig_map
-
-
-def load_global_dict():
-    global SHORTEST_PATHS_DICT
-    try:
-        with open(SHORTEST_PATHS_DICT_PATH, "r") as f:
-            SHORTEST_PATHS_DICT = json.load(f)
-    except FileNotFoundError:
-        print(f"Warning: file {SHORTEST_PATHS_DICT_PATH} not found.")
-        SHORTEST_PATHS_DICT = {}
-    except json.JSONDecodeError:
-        print(f"Warning: {SHORTEST_PATHS_DICT_PATH} contains invalid JSON. Starting with an empty dictionary.")
-        SHORTEST_PATHS_DICT = {}
-
-load_global_dict()

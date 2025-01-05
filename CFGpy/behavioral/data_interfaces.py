@@ -7,6 +7,7 @@ from CFGpy.behavioral._consts import (PARSED_PLAYER_ID_KEY, PARSED_TIME_KEY, PAR
                                       PARSED_CHOSEN_SHAPES_KEY, EXPLORE_KEY, EXPLOIT_KEY)
 from CFGpy.behavioral import Configuration
 from CFGpy.behavioral._utils import is_semantic_connection, load_json
+from CFGpy.utils import path_finder
 
 
 # TODO: consider: some methods only serve MeasureCalculator, while other are meant as API for end users (e.g.
@@ -21,7 +22,7 @@ class ParsedPlayerData:
 
         self.config = config if config is not None else Configuration.default()
         self.delta_move_times = np.diff(self.shapes_df.iloc[:, self.config.SHAPE_MOVE_TIME_IDX])
-    
+
     def __len__(self):
         return len(self.shapes_df)
 
@@ -107,16 +108,15 @@ class PostparsedPlayerData(ParsedPlayerData):
         return time_in_exploit
 
     def get_efficiency(self):
-        from CFGpy.utils import get_shortest_path_len  # moved here to avoid circular import
-
         gallery_indices = np.flatnonzero(self.get_gallery_mask())
         if not gallery_indices.size:
             return np.nan, np.nan
 
         actual_path_lengths = np.diff(gallery_indices, prepend=0)
         gallery_ids = self.shapes_df.iloc[gallery_indices, self.config.SHAPE_ID_IDX]
-        shortest_path_lengths = ([get_shortest_path_len(self.config.FIRST_SHAPE_ID, gallery_ids.iloc[0])] +
-                                 [get_shortest_path_len(shape1, shape2) for shape1, shape2 in pairwise(gallery_ids)])
+        shortest_path_lengths = ([path_finder.get_shortest_path_len(self.config.FIRST_SHAPE_ID, gallery_ids.iloc[0])] +
+                                 [path_finder.get_shortest_path_len(shape1, shape2)
+                                  for shape1, shape2 in pairwise(gallery_ids)])
         all_efficiency_values = {idx: shortest_len / actual_len for idx, shortest_len, actual_len
                                  in zip(gallery_indices, shortest_path_lengths, actual_path_lengths)
                                  if (shortest_len, actual_len) != (1, 1)}
@@ -234,7 +234,7 @@ class PostparsedDataset(ParsedDataset):
         """
         super().__init__(input_data)
         self.config = config if config is not None else Configuration.default()
-        super().__init__(input_data) # If this call needs to be removed, call self._reset_state() explicitly
+        super().__init__(input_data)  # If this call needs to be removed, call self._reset_state() explicitly
 
     @classmethod
     def from_json(cls, path: str, config: Configuration = None):
