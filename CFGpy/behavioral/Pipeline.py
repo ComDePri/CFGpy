@@ -153,7 +153,7 @@ def main():
                         help='Filename of output CSV')
     args = argparser.parse_args()
     
-    config: Configuration | None  = Configuration.from_yaml(yaml_path=args.config_path) if args.config_path else None
+    config: Configuration | None = Configuration.from_yaml(yaml_path=args.config_path) if args.config_path else None
     
     pl = Pipeline(red_metrics_csv_url=args.url, output_filename=args.output_filename, config=config)
     
