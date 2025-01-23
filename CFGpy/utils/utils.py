@@ -4,23 +4,12 @@ import os
 import json
 import networkx as nx
 from collections import Counter, defaultdict
-from CFGpy import NAS_PATH
+from CFGpy.behavioral import FilesHandler
 
-CFG_RESOURCES_PATH = os.path.join(NAS_PATH, "Projects", "CFG")
-
-VANILLA_DATA_DIR = os.path.join(CFG_RESOURCES_PATH, "vanilla_data")
-VANILLA_JSON_PATH = os.path.join(VANILLA_DATA_DIR, "vanilla.json")
-VANILLA_FEATURES_PATH = os.path.join(VANILLA_DATA_DIR, "vanilla_features.csv")
-VANILLA_STEP_ORIG_PATH = os.path.join(VANILLA_DATA_DIR, "step_orig.json")
-VANILLA_GALLERY_ORIG_PATH = os.path.join(VANILLA_DATA_DIR, "gallery_orig.json")
-VANILLA_STEP_COUNTER_PATH = os.path.join(VANILLA_DATA_DIR, "step_counter.json")
-VANILLA_GALLERY_COUNTER_PATH = os.path.join(VANILLA_DATA_DIR, "gallery_counter.json")
-VANILLA_GC_PATH = os.path.join(VANILLA_DATA_DIR, "giant_component.json")
-
-ID2COORD = np.load(os.path.join(CFG_RESOURCES_PATH, "grid_coords.npy"))
+ID2COORD = FilesHandler().id2coord
 N_ALL_SHAPES = len(ID2COORD) - 1  # subtract 1 because index 0 in ID2COORD is a placeholder, not a shape
 
-SHORTEST_PATHS_DICT_PATH = os.path.join(CFG_RESOURCES_PATH, "shortest_path_len.json")
+SHORTEST_PATHS_DICT_PATH = FilesHandler().shortest_paths_dict
 SHORTEST_PATHS_DICT = {}
 NEW_SHORTEST_PATHS_DICT = {}
 
@@ -28,15 +17,14 @@ def get_vanilla():
     """
     Returns the most up-to-date postparsed version of the vanilla data.
     """
-    with open(VANILLA_JSON_PATH) as vanilla_fp:
-        return json.load(vanilla_fp)
+    return FilesHandler().vanilla_data
 
 
 def get_vanilla_features() -> pd.DataFrame:
     """
     Returns the features extracted from the most up-to-date vanilla data.
     """
-    return pd.read_csv(VANILLA_FEATURES_PATH)
+    return FilesHandler().vanilla_features
 
 
 def get_vanilla_stats():
@@ -45,20 +33,18 @@ def get_vanilla_stats():
     behavioral.FeatureExtractor._extract_relative_features.
     cf. behavioral.data_classes.PostparsedDataset.get_stats
     """
-    with open(VANILLA_STEP_COUNTER_PATH) as step_counter_fp:
-        step_counter_dict = json.load(step_counter_fp)
+    
+    step_counter_dict = FilesHandler().vanilla_step_counter
     step_counter = Counter({tuple(json.loads(key)): orig for key, orig in step_counter_dict.items()})
 
     covered_steps = set(step_counter.keys())
 
-    with open(VANILLA_GALLERY_COUNTER_PATH) as gallery_counter_fp:
-        gallery_counter_dict = json.load(gallery_counter_fp)
+    gallery_counter_dict = FilesHandler().vanilla_gallery_counter
     gallery_counter = Counter({int(key): orig for key, orig in gallery_counter_dict.items()})
 
     covered_galleries = set(gallery_counter.keys())
 
-    with open(VANILLA_GC_PATH) as gc_fp:
-        giant_component = json.load(gc_fp)
+    giant_component = FilesHandler().vanilla_giant_component
     giant_component = {tuple(node) for node in giant_component}
 
     return covered_steps, step_counter, covered_galleries, gallery_counter, giant_component
@@ -103,7 +89,7 @@ def get_shortest_path_len(shape1: int, shape2: int):
     if SHORTEST_PATHS_DICT and key in SHORTEST_PATHS_DICT:
         return SHORTEST_PATHS_DICT[key]
 
-    shape_network = nx.read_adjlist(os.path.join(CFG_RESOURCES_PATH, "all_shapes.adjlist"), nodetype=int)
+    shape_network = FilesHandler().shape_network
     shortest_path_len = nx.shortest_path_length(shape_network, source=shape1, target=shape2)
     NEW_SHORTEST_PATHS_DICT[key] = shortest_path_len
 
