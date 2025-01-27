@@ -25,7 +25,6 @@ class Preprocessor:
         """
         for player_data in self.all_players_data:
             shapes = player_data[PARSED_ALL_SHAPES_KEY]
-            import ipdb;ipdb.set_trace()
             for shape in shapes:
                 try:
                     shape[SHAPE_ID_IDX] = bin2id(shape[SHAPE_ID_IDX])

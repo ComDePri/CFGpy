@@ -74,7 +74,7 @@ def segment_explore_exploit(shapes, min_save_for_exploit=MIN_SAVE_FOR_EXPLOIT, n
         
     gallery_times = shapes_df.iloc[gallery_indices][SHAPE_MOVE_TIME_IDX]
     gallery_diffs = np.insert(np.diff(gallery_times), 0, gallery_times.iloc[0])
-    import ipdb;ipdb.set_trace()
+    # import ipdb;ipdb.set_trace()
     if normalize_by_steps:
         gallery_diffs = gallery_diffs / np.insert(np.diff(gallery_indices), 0, gallery_indices[0] + 10**-50)
 
@@ -138,7 +138,6 @@ def is_semantic_connection(cluster1, cluster2):
 #########################
 def prettify_games_json(parsed_games):
     prettified_games = []
-    parsed_games = parsed_games.copy()
     prettified_games = '[\n    '
     for game in parsed_games:
         game = copy.deepcopy(game)

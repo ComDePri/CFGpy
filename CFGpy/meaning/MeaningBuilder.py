@@ -14,6 +14,7 @@ import networkx as nx
 from networkx.readwrite import json_graph
 import json
 
+from cdlib import algorithms, classes
 from tqdm import tqdm
 from itertools import groupby, combinations
 from collections import Counter
@@ -22,7 +23,7 @@ from ..behavioral import _consts as consts
 from .. import utils
 from functools import partial
 
-CLUSTER_GRAPH = r'cluster_grpah.json'
+CLUSTER_GRAPH = r'cluster_graph.json'
 CONNECTED_CLUSTERS = r'connected_clusters.json'
 MIN_INTERSECT_TO_CONNECT_CLUSTERS = 4
 MIN_SHAPES_FOR_CLUSTER = 3
@@ -359,7 +360,7 @@ def load_connected_clusters(verbose=True):
     except FileNotFoundError:
         if verbose:
             print('Connected clusters not found, recalculating')
-        with open('fixed_vanilla.json', 'r') as fp:
+        with open('clean_vanilla_converted.json', 'r') as fp:
             parsed_vanilla = json.load(fp)
 
         for game in parsed_vanilla:
@@ -387,8 +388,11 @@ def load_cluster_graph(verbose=False):
     except FileNotFoundError:
         if verbose:
             print('Clusters graph not found, recalculating')
-        with open('fixed_vanilla.json', 'r') as fp:
+        with open('clean_vanilla_converted.json', 'r') as fp:
             parsed_vanilla = json.load(fp)
+
+        for game in parsed_vanilla:
+            game['actions'] = np.array([action for action in game['actions']])
 
         clusters = get_all_clusters(parsed_vanilla)
         G = nx.Graph()
@@ -496,7 +500,7 @@ def transform_graph_attribute(G, attr, func):
 def build_clusters_and_communities(verbose=True):
     if verbose:
         print('Loading vanilla data')
-    with open('fixed_vanilla.json', 'r') as fp:
+    with open('clean_vanilla_converted.json', 'r') as fp:
         parsed_vanilla = json.load(fp)
         for game in parsed_vanilla:
             game['actions'] = np.array([action for action in game['actions']])
@@ -560,13 +564,247 @@ def build_clusters_and_communities(verbose=True):
 
     # Show shapes that appear >5 times
 
-def test_community_building(parsed_data, community_building_method, subfolder):
-    communities = community_building_method(parsed_data)
-    for ind, community in tqdm(enumerate(communities)):
-        fig = utils.visualization.show_shape_from_size_dict(community)
+def prepare_graph_for_communities(graph_building_method, pruning_number, weights_transformation, parsed_data, is_graph_loaded=False, attr='weight'):
+    if is_graph_loaded:
+        graph = graph_building_method()
+    else:
+        graph = graph_building_method(parsed_data)
+    prune_edges(graph, min_attr_for_node=pruning_number, attr=attr)
+    transform_graph_attribute(graph, attr, weights_transformation)
+
+    return graph
+
+def find_communities(method, graph, filter_largest_cc):
+    graph_for_community_search = graph
+    if filter_largest_cc:
+        all_connected_components = sorted([connected_component for connected_component in nx.connected_components(graph)], key=len)
+        largest_connected_component = all_connected_components[-1]
+        graph_for_community_search = graph.subgraph(largest_connected_component)
+
+    return method(graph_for_community_search)
+
+def wrap_for_cdlib(cdlib_alg):
+    def wrapper(graph, weights=None):
+        copy_graph = False
+        if nx.is_frozen(graph):
+            copy_graph = True
+        
+        relabeled_graph, reverse_map = change_graph_names(graph, copy_graph=True)
+        if weights:
+            results = cdlib_alg(relabeled_graph, weights=weights)
+        else:
+            results = cdlib_alg(relabeled_graph)
+
+        if not copy_graph:
+            graph = change_back_graph_names(relabeled_graph, reverse_map, copy_graph=copy_graph)
+
+        return get_remapped_communities(results, reverse_map)
+
+    return wrapper
+
+def change_graph_names(graph, copy_graph=False):
+    name_map = {node: ind for ind, node in enumerate(graph.nodes)}
+    reverse_map = {ind: node for ind, node in enumerate(graph.nodes)}
+
+    relabeled_graph = nx.relabel_nodes(
+        G=graph,
+        mapping=name_map,
+        copy=copy_graph,
+    )
+
+    return relabeled_graph, reverse_map
+
+def change_back_graph_names(relabeled_graph, reverse_map, copy_graph=False):
+    return nx.relabel_nodes(
+        G=relabeled_graph,
+        mapping=reverse_map,
+        copy=copy_graph,
+    )
+
+def get_remapped_communities(results, reverse_map):
+    # Relabels results back to original node names from  temporary indices
+    return [
+        [reverse_map[node] for node in community]
+        for community in results.communities
+    ]
+
+def count_size_by_weights(communities, graph, weight):
+    edge_weights = nx.get_edge_attributes(graph, weight)
+    
+    community_size_dicts = []
+    if type(communities) is classes.node_clustering.NodeClustering:
+        communities = communities.communities
+    for community in communities:
+        if len(community) == 1:
+            continue
+
+        size_dict = {}
+        for node in community:
+            total_weight = np.sum([edge_weights.get(edge, edge_weights.get(edge[::-1])) for edge in graph.edges(node) if edge[0] in community and edge[1] in community])
+            if total_weight == 0:
+                import ipdb;ipdb.set_trace()
+            size_dict[node] = total_weight
+
+        community_size_dicts.append(size_dict)
+
+    return community_size_dicts
+
+def count_sizes_from_superclusters(communities, graph, weight_attr):
+    community_size_dict = []
+    for community in communities:
+        shapes_with_count = Counter([node for cluster in community for node in cluster])
+        community_size_dict.append(shapes_with_count)
+
+    return community_size_dict
+
+def jaccard_score(a, b):
+    return len([i for i in a if i in b]) / len(set(a + b))
+
+def test_all_community_building_methods():
+    with open('clean_vanilla_converted.json', 'r') as fp:
+        parsed_vanilla = json.load(fp)
+        for game in parsed_vanilla:
+            game['actions'] = np.array([action for action in game['actions']])
+
+    graph_building_methods_and_community_finding_methods = get_graph_methods_config()
+    for community_search_config in tqdm(graph_building_methods_and_community_finding_methods):
+        max_community_size = 80
+        min_community_size = 3
+        pruning_range = range(1, 4)
+        weight_attr = community_search_config.get('weight_attr', 'weight')
+        graph_method_name = community_search_config['graph_label']
+        graphs = [
+            prepare_graph_for_communities(
+                graph_building_method=community_search_config['graph_method'],
+                pruning_number=i,
+                weights_transformation=lambda x: x - i + 1,
+                parsed_data=parsed_vanilla,
+                is_graph_loaded=community_search_config['is_graph_loaded'],
+                attr=weight_attr,
+            )
+            for i in pruning_range
+        ]
+
+        for ind, graph in enumerate(graphs):
+            for method_config in community_search_config['community_finding_configs']:
+                community_method_name = method_config['name']
+                communities = find_communities(method=method_config['method'], graph=graph, filter_largest_cc=True)
+                
+                community_size_counter = community_search_config['size_counting_method']
+                communities_size_dicts = community_size_counter(communities, graph, weight_attr)
+                if method_config.get('prune_community'):
+                    prune_amount = method_config['prune_amount']
+                    communities_size_dicts = [{node: community[node] for node in community if community[node] > prune_amount} for community in communities_size_dicts]
+                #print(len(communities_size_dicts))
+                # We have graphs of superclusters, and adjacency. We need to also have shapes from superclusters
+
+                communities_size_dicts = [(community_size_dict, ind) for ind, community_size_dict in enumerate(communities_size_dicts) if len(community_size_dict) in range(min_community_size, max_community_size)]
+                subfolder_name = f'{graph_method_name}_{community_method_name}_prn_{ind}_big_cc'
+                # import ipdb;ipdb.set_trace()
+
+                save_communities_graphs(communities_with_sizes=communities_size_dicts[:40], subfolder=subfolder_name)
+
+def save_communities_graphs(communities_with_sizes, subfolder):
+    for communities_size_dicts, ind in communities_with_sizes:
+        fig = utils.visualization.show_shape_from_size_dict(communities_size_dicts)
         file_name = 'community_{comm}.png'.format(comm=ind)
-        path = 'C:\\Users\\Yogevhen\\Desktop\\Project\\CFGpy\\communities'
+        path = 'C:\\Users\\Yogevhen\\Desktop\\Project\\CFGpy\\communities\\comparisons'
         utils.visualization.save_plot(fig=fig, file_name=file_name, path=path, subfolder=subfolder)
 
+def clean_vanilla_data(vanilla):
+    cleaned_vanilla = []
+    for game in vanilla:
+        if game['actions'][0] != [1, 0.0, None]:
+            game['actions'].insert(0, [1, 0.0, None])
+            game['explore'] = [[r[0] + 1, r[1] + 1] if r[0] != 0 else [r[0], r[1] + 1] for r in game['explore']]
+            game['exploit'] = [[r[0] + 1, r[1] + 1] if r[0] != 0 else [r[0], r[1] + 1] for r in game['exploit']]
+
+        prev_shape = (1023,)
+        for curr_shape, curr_time, _ in game['actions'][1:]:
+            curr_shape = tuple(curr_shape)
+            neighbors = utils.get_node_neighbors(curr_shape, is_id=False, return_ids=False)
+
+            if prev_shape not in neighbors and prev_shape != curr_shape:
+                error_msg = 'Not a neighbor between shapes: {} {} Game ID: {}'.format(prev_shape, curr_shape, game['id'])
+                import ipdb;ipdb.set_trace()
+                raise AssertionError(error_msg)
+
+            prev_shape = curr_shape
+
+def get_graph_methods_config():
+    return [
+        {
+            'graph_method': load_cluster_graph,
+            'graph_label': 'xplxplt',
+            'is_graph_loaded': True,
+            'size_counting_method': count_sizes_from_superclusters,
+            'community_finding_configs': [
+                {
+                    'method': lambda graph: nx.community.greedy_modularity_communities(graph, resolution=3.5, weight='weight'),
+                    'name': 'gvn_nmn',
+                },
+                {
+                    'method': lambda graph: nx.community.greedy_modularity_communities(graph, resolution=3.5, weight='weight'),
+                    'name': 'gvn_nmn_prn_1',
+                    'prune_community': True,
+                    'prune_amount': 1
+                },
+                {
+                    'method': lambda graph: nx.community.greedy_modularity_communities(graph, resolution=3.5, weight='weight'),
+                    'name': 'gvn_nmn_prn_2',
+                    'prune_community': True,
+                    'prune_amount': 2
+                },
+                {
+                    'method': lambda graph: nx.community.louvain_communities(graph, resolution=1, weight='weight'),
+                    'name': 'lvn',
+                },
+                {
+                    'method': lambda graph: nx.community.louvain_communities(graph, resolution=1, weight='weight'),
+                    'name': 'lvn_prn',
+                    'prune_community': True,
+                    'prune_amount': 2
+                },
+                {
+                    'method': wrap_for_cdlib(algorithms.walktrap),
+                    'name': 'walktrap',
+                },
+                {
+                    'method': wrap_for_cdlib(algorithms.leiden),
+                    'name': 'leiden',
+                },
+                {
+                    'method': wrap_for_cdlib(algorithms.surprise_communities),
+                    'name': 'surprise',
+                },
+            ],
+        },
+        #{
+        #    'graph_method': build_shared_cluster_graph,
+        #    'graph_label': 'xplxplt_shps',
+        #    'is_graph_loaded': False,
+        #    'size_counting_method': count_size_by_weights,
+        #    'weight_attr': 'shared_clusters',
+        #    'community_finding_configs': [
+        #        {
+        #            'method': lambda graph: algorithms.graph_entropy(graph, weights='shared_clusters'),
+        #            'name': 'graph_entropy',
+        #        },
+        #    ]
+        #},
+        #{
+        #    'graph_method': build_adjacency_graph,
+        #    'graph_label': 'adj',
+        #    'is_graph_loaded': False,
+        #    'size_counting_method': count_size_by_weights,
+        #    'community_finding_configs': [
+        #        {
+        #            'method': lambda graph: algorithms.graph_entropy(graph, weights='weight'),
+        #            'name': 'graph_entropy',
+        #        },
+        #    ],
+        #},
+    ]
+
 if __name__ == "__main__":
-    build_clusters_and_communities()
+    test_all_community_building_methods()

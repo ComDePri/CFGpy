@@ -203,10 +203,14 @@ def show_shape_from_size_dict(shapes_dict):
     for im in shapes:
         packer.add_rect(*im.size)
 
-    bin_size = np.sum(sorted([im.size[0] for im in shapes])[::-1][:int(len(shapes_dict) ** 0.5) + 1])
+    total_area = np.sum([im.size[0]**2 for im in shapes])
+    bin_size = int(2 * (total_area**0.5))
     packer.add_bin(bin_size, bin_size)
     packer.pack()
     bin = packer[0]
+    if len(shapes) != len(bin):
+        raise IndexError('Amount of shapes is not amount of bins, probably requries to increase the bin size')
+
     rect_arr = np.array(packer.rect_list())
     rightmost_shape = rect_arr[np.argmax(rect_arr[:, 1])]
     highest_shape = rect_arr[np.argmax(rect_arr[:, 2])]
