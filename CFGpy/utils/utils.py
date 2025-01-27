@@ -4,7 +4,7 @@ import os
 import json
 import networkx as nx
 from collections import Counter, defaultdict
-from CFGpy.behavioral import FilesHandler
+from CFGpy.utils.FilesHandler import FilesHandler
 
 ID2COORD = FilesHandler().id2coord
 N_ALL_SHAPES = len(ID2COORD) - 1  # subtract 1 because index 0 in ID2COORD is a placeholder, not a shape
@@ -146,18 +146,3 @@ def step_orig_map_factory(step_counter, alpha, d):
         orig_map[step] = -np.log10(smoothed_prob)
 
     return orig_map
-
-
-def load_global_dict():
-    global SHORTEST_PATHS_DICT
-    try:
-        with open(SHORTEST_PATHS_DICT_PATH, "r") as f:
-            SHORTEST_PATHS_DICT = json.load(f)
-    except FileNotFoundError:
-        print(f"Warning: file {SHORTEST_PATHS_DICT_PATH} not found.")
-        SHORTEST_PATHS_DICT = {}
-    except json.JSONDecodeError:
-        print(f"Warning: {SHORTEST_PATHS_DICT_PATH} contains invalid JSON. Starting with an empty dictionary.")
-        SHORTEST_PATHS_DICT = {}
-
-load_global_dict()
