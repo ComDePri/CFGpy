@@ -1,11 +1,11 @@
 import json
 import os
+from typing import Optional
 import networkx as nx
 import numpy as np
 import pandas as pd
 from appdirs import user_cache_dir
 import requests
-from requests.auth import HTTPBasicAuth
 
 
 class FileNames:
@@ -38,7 +38,6 @@ class FilesHandler:
 
     def __init__(self):
         if not hasattr(self, '_initialized'):
-            self.token: str = os.getenv("GITHUB_TOKEN")  # TODO: remove token when the repo is public
             self._vanilla_data: dict = {}
             self._vanilla_features: pd.DataFrame = {}
             self._vanilla_gallery_counter: dict = {}
@@ -55,13 +54,13 @@ class FilesHandler:
             if not os.path.isdir(FileNames.VANILLA_DIR):
                 os.mkdir(FileNames.VANILLA_DIR)
     
-    def get_raw_file_from_github(self, file_name: str) -> None:  # TODO: remove token when the repo is public
+    def get_raw_file_from_github(self, file_name: str, branch: Optional[str] = "dev") -> None: 
         
         if file_name not in FileNames.ALL_FILES:
             raise ValueError(f"{file_name} is an invalid file. Only the following files: {FileNames.ALL_FILES} can be retrieved.")
         
-        url = f"https://raw.githubusercontent.com/ComDePri/CFGpy/move_files_to_s3/CFGpy/files/{file_name}" # TODO: verify url and change branch when merging to dev
-        response = requests.get(url, auth=HTTPBasicAuth('username', self.token))
+        url = f"https://raw.githubusercontent.com/ComDePri/CFGpy/{branch}/CFGpy/files/{file_name}" # TODO: verify url and change branch when merging to dev
+        response = requests.get(url)
 
         if response.status_code == 200:
             print("File content retrieved successfully:")
