@@ -18,6 +18,6 @@ setup(
     packages=find_packages(),
     package_data={'': ["behavioral/default_config.yml"]},
     include_package_data=True,
-    install_requires=["numpy", "pandas", "requests", "tqdm", "networkx", "matplotlib",
+    install_requires=["appdirs", "numpy", "pandas", "requests", "tqdm", "networkx", "matplotlib",
                       "seaborn", "scipy", "dacite", "PyYAML"],
 )
