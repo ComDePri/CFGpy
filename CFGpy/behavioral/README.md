@@ -9,9 +9,15 @@ As of v0.0.1, this package can only retrieve raw data from RedMetrics1, and see 
 ### Command line
 Given a URL for downloading raw data as CSV from RM1, run the pipeline from a terminal like so:
 ```
-python Pipeline.py <raw_data_url> -o <output_filename>
+python Pipeline.py --url <raw_data_url> --config-path <config_file_path> -o <output_filename>
 ```
-Where the output filename argument is optional.
+Where the output filename argument is optional, and you need to have either the raw_data_url or the config_file_path argument but not both.
+
+Alternatively, you can also run it like this:
+```
+python run_pipeline --url <raw_data_url> --config-path <config_file_path> -o <output_filename>
+```
+Where the arguments are the same as above. 
 
 ### Python Script
 ```python
