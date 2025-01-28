@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import os
 import json
 import networkx as nx
@@ -8,7 +9,8 @@ from CFGpy import NAS_PATH
 CFG_RESOURCES_PATH = os.path.join(NAS_PATH, "Projects", "CFG")
 
 VANILLA_DATA_DIR = os.path.join(CFG_RESOURCES_PATH, "vanilla_data")
-VANILLA_PATH = os.path.join(VANILLA_DATA_DIR, "vanilla.json")
+VANILLA_JSON_PATH = os.path.join(VANILLA_DATA_DIR, "vanilla.json")
+VANILLA_FEATURES_PATH = os.path.join(VANILLA_DATA_DIR, "vanilla_features.csv")
 VANILLA_STEP_ORIG_PATH = os.path.join(VANILLA_DATA_DIR, "step_orig.json")
 VANILLA_GALLERY_ORIG_PATH = os.path.join(VANILLA_DATA_DIR, "gallery_orig.json")
 VANILLA_STEP_COUNTER_PATH = os.path.join(VANILLA_DATA_DIR, "step_counter.json")
@@ -17,20 +19,24 @@ VANILLA_GC_PATH = os.path.join(VANILLA_DATA_DIR, "giant_component.json")
 
 ID2COORD = np.load(os.path.join(CFG_RESOURCES_PATH, "grid_coords.npy"))
 N_ALL_SHAPES = len(ID2COORD) - 1  # subtract 1 because index 0 in ID2COORD is a placeholder, not a shape
-SHORTEST_PATHS_DICT_PATH = os.path.join(CFG_RESOURCES_PATH, "shortest_path_len.json")
 
+SHORTEST_PATHS_DICT_PATH = os.path.join(CFG_RESOURCES_PATH, "shortest_path_len.json")
+SHORTEST_PATHS_DICT = {}
+NEW_SHORTEST_PATHS_DICT = {}
 
 def get_vanilla():
     """
-    Returns the most up-to-date version of the vanilla data.
+    Returns the most up-to-date postparsed version of the vanilla data.
     """
-    with open(VANILLA_PATH) as vanilla_fp:
+    with open(VANILLA_JSON_PATH) as vanilla_fp:
         return json.load(vanilla_fp)
 
 
-def dump_vanilla(vanilla):
-    with open(VANILLA_PATH, "w") as vanilla_fp:
-        return json.dump(vanilla, vanilla_fp)
+def get_vanilla_features() -> pd.DataFrame:
+    """
+    Returns the features extracted from the most up-to-date vanilla data.
+    """
+    return pd.read_csv(VANILLA_FEATURES_PATH)
 
 
 def get_vanilla_stats():
@@ -58,22 +64,6 @@ def get_vanilla_stats():
     return covered_steps, step_counter, covered_galleries, gallery_counter, giant_component
 
 
-def dump_vanilla_stats(step_counter, gallery_counter, giant_component):
-    # prepare for serialization:
-    step_counter = {str(list(step)): orig for step, orig in step_counter.items()}
-    giant_component = [list(node) for node in giant_component]
-
-    # serialize:
-    with open(VANILLA_STEP_COUNTER_PATH, "w") as step_counter_fp:
-        json.dump(step_counter, step_counter_fp)
-
-    with open(VANILLA_GALLERY_COUNTER_PATH, "w") as gallery_counter_fp:
-        json.dump(gallery_counter, gallery_counter_fp)
-
-    with open(VANILLA_GC_PATH, "w") as gc_fp:
-        json.dump(giant_component, gc_fp)
-
-
 def get_shape_binary_matrix(shape_id):
     """
     Converts a shape's ID to its binary matrix representation.
@@ -98,21 +88,23 @@ def binary_shape_to_id(binary_shape):
 
     return int(shape_id[0])
 
+def is_effective_integer(value: int) -> bool:
+    return value == int(value)
 
-def get_shortest_path_len(shape1, shape2):
+def get_shortest_path_len(shape1: int, shape2: int):
+    if not is_effective_integer(shape1) or not is_effective_integer(shape2):
+        raise TypeError(f"shape1 is of type {type(shape1)} and shape2 is of type {type(shape2)}. Both must be type int.") 
+
     shape1, shape2 = min(shape1, shape2), max(shape1, shape2)
-    key = str((shape1, shape2))  # JSON doesn't allow tuples as keys, so they're stringified
-    with open(SHORTEST_PATHS_DICT_PATH) as shortest_path_len_fp:
-        shortest_path_len_dict = json.load(shortest_path_len_fp)
+    key = f"({int(shape1)}, {int(shape2)})" # JSON doesn't allow tuples as keys, so they're stringified
 
-    if key in shortest_path_len_dict:
-        return shortest_path_len_dict[key]
+    if SHORTEST_PATHS_DICT and key in SHORTEST_PATHS_DICT:
+        return SHORTEST_PATHS_DICT[key]
 
     shape_network = nx.read_adjlist(os.path.join(CFG_RESOURCES_PATH, "all_shapes.adjlist"), nodetype=int)
     shortest_path_len = nx.shortest_path_length(shape_network, source=shape1, target=shape2)
-    shortest_path_len_dict[key] = shortest_path_len
-    with open(SHORTEST_PATHS_DICT_PATH, "w") as shortest_path_len_fp:
-        json.dump(shortest_path_len_dict, shortest_path_len_fp)
+    NEW_SHORTEST_PATHS_DICT[key] = shortest_path_len
+
     return shortest_path_len
 
 
@@ -166,3 +158,18 @@ def step_orig_map_factory(step_counter, alpha, d):
         orig_map[step] = -np.log10(smoothed_prob)
 
     return orig_map
+
+
+def load_global_dict():
+    global SHORTEST_PATHS_DICT
+    try:
+        with open(SHORTEST_PATHS_DICT_PATH, "r") as f:
+            SHORTEST_PATHS_DICT = json.load(f)
+    except FileNotFoundError:
+        print(f"Warning: file {SHORTEST_PATHS_DICT_PATH} not found.")
+        SHORTEST_PATHS_DICT = {}
+    except json.JSONDecodeError:
+        print(f"Warning: {SHORTEST_PATHS_DICT_PATH} contains invalid JSON. Starting with an empty dictionary.")
+        SHORTEST_PATHS_DICT = {}
+
+load_global_dict()

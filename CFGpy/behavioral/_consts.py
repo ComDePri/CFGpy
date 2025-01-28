@@ -4,6 +4,7 @@ Some of these are only used for internal reference and their actual value doesn'
 external scripts may rely on them.
 Please do not change this file unless you're absolutely sure you know what you're doing.
 """
+
 # configuration
 CONFIG_PACKAGE = "CFGpy.behavioral"
 CONFIG_FILENAME = "default_config.yml"

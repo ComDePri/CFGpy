@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from datetime import datetime
-from CFGpy.behavioral.data_classes import PostparsedDataset
+from CFGpy.behavioral.data_interfaces import PostparsedDataset
 from CFGpy.behavioral._consts import (FEATURES_ID_KEY, FEATURES_START_TIME_KEY, N_CLUSTERS_KEY, GAME_DURATION_KEY,
                                       N_MOVES_KEY, LONGEST_PAUSE_KEY, MEDIAN_EXPLORE_LENGTH_KEY, N_GALLERIES_KEY,
                                       SELF_AVOIDANCE_KEY, EXPLORE_EFFICIENCY_KEY, EXPLOIT_EFFICIENCY_KEY,
@@ -39,13 +39,12 @@ def _get_frac_uniquely_covered(player_objects, objects_not_uniquely_covered):
 
 class FeatureExtractor:
     def __init__(self, preprocessed_data, config: Configuration = None):
-        self.input_data = PostparsedDataset(preprocessed_data)
+        self.input_data = PostparsedDataset(input_data=preprocessed_data, config=config)
         self.config = config if config is not None else Configuration.default()
         self.all_absolute_features = None
         self.output_df = None
-
         self.exclusions = pd.DataFrame(columns=[FEATURES_ID_KEY, EXCLUSION_REASON_KEY])
-
+    
     @classmethod
     def from_json(cls, path: str, config=Configuration.default()):
         return cls(load_json(path), config)
@@ -60,7 +59,6 @@ class FeatureExtractor:
         sample_relative_features = self._extract_relative_features(self.input_data.get_stats(), verbose=verbose,
                                                                    label=SAMPLE_RELATIVE_FEATURES_LABEL)
         self.output_df = self.output_df.merge(sample_relative_features, on=FEATURES_ID_KEY, how="left")
-
         return self.output_df
 
     def dump(self, path=DEFAULT_FINAL_OUTPUT_FILENAME):

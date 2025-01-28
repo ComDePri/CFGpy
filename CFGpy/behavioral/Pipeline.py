@@ -20,11 +20,27 @@ class Pipeline:
         self.feature_extractor = None
         self.features_df = None
 
+    def _get_now_str(self) -> str:
+        """
+        Returns a string representation of the current time, formatted like server's time (given in self.config).
+
+        Python's datetime only allows specifying sub-second precision in microseconds (6 decimal places), but RedMetrics
+        URL only accept milliseconds (3 decimal places). Therefore, if the server's time format contains microseconds,
+        we manually replace that with milliseconds, to accommodate RedMetrics.
+        """
+        now = datetime.now(timezone.utc)
+        now_str = (
+            now.strftime(
+                self.config.SERVER_DATE_FORMAT
+                .replace("%f", "{}"))  # plants a placeholder instead of microseconds
+            .format(f"{now.microsecond // 1000:0>3}")  # fills in millisecond info, 0-padded to three digits
+        )
+        return now_str
+
     def _add_url_to_config(self):
         csv_url = self.downloader.csv_url
         if "&before=" not in csv_url:
-            date_format_up_to_millisec = self.config.SERVER_DATE_FORMAT.replace("%f", "%3d")
-            now_str = datetime.now(timezone.utc).strftime(date_format_up_to_millisec)
+            now_str = self._get_now_str()
             csv_url += f"&before={now_str}"
 
         self.config.RED_METRICS_CSV_URL = csv_url
