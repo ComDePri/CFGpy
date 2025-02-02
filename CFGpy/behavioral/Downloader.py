@@ -104,11 +104,13 @@ class Downloader:
         existing_event_ids = [event['id'] for event in self.downloaded_events_json]
         n_missing_events = goal_n_events - len(self.downloaded_events_json)
         discovered_events = []
-        for _ in range(repetition_limit):
-            prev_page_events = self._get_page(page_i - 1).json() if page_i > 1 else []
-            new_events = self._get_page(page_i).json() + prev_page_events
+        for repetition in range(repetition_limit + 1):  # add 1 because the first iteration is not a repetition
+            extra_events = []
+            if page_i > 1 and repetition:  # no need to check previous page on the first try, only in repetitions
+                extra_events = self._get_page(page_i - 1).json()
+            new_events = self._get_page(page_i).json() + extra_events
 
-            # add events discovered in this iteration and removes duplicates:
+            # add events discovered in this iteration and remove duplicates:
             discovered_events += [event for event in new_events if event['id'] not in existing_event_ids]
             discovered_events = [event for i, event in enumerate(discovered_events) if
                                  event not in discovered_events[:i]]
@@ -142,7 +144,7 @@ class Downloader:
 
         output_json = []
 
-        event_iterator = iter(self.downloaded_events_json)
+        event_iterator = self.downloaded_events_json
         if verbose:
             print("\nHandling events...")
             event_iterator = tqdm(event_iterator, desc="events")
