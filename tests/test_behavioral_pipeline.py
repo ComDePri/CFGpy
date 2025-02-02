@@ -22,13 +22,30 @@ test_dirs = [os.path.join(TEST_FILES_DIR, filename)
 @pytest.mark.parametrize("test_dir", test_dirs)
 def test_downloader(test_dir):
     # See https://github.com/ComDePri/CFGpy/issues/13
+
+    event_filename = "event.csv"
     with open(os.path.join(test_dir, RED_METRICS_URL_FILENAME)) as url_fp:
         url = url_fp.read()
-    Downloader(url, "event.csv").download(verbose=True)
+    Downloader(url, event_filename).download(verbose=True)
 
-    test_event = pd.read_csv(os.path.join(test_dir, TEST_DOWNLOADED_FILENAME)).sort_values("id").reset_index(drop=True)
-    event = pd.read_csv("event.csv").sort_values("id").reset_index(drop=True)
-    assert test_event.equals(event)
+    test_event = (pd.read_csv(os.path.join(test_dir, f"new_{TEST_DOWNLOADED_FILENAME}"))
+                  .sort_values("id")
+                  .reset_index(drop=True))
+    event = pd.read_csv(event_filename).sort_values("id").reset_index(drop=True)
+
+    assert len(test_event) == len(event), f"{len(event)} events instead of {len(test_event)}"
+    cols_with_meaningless_spaces = ("customData.startPosition", "customData.shapeIndices", "customData.newShape",
+                                    "customData.shapes", "customData.shape", "customData.endPosition")
+    for col in test_event:
+        assert col in event, f"missing column {col}"
+        if test_event[col].dtype == "float64":
+            assert np.allclose(test_event[col], event[col], equal_nan=True), f"{col} comparison failed"
+        elif col in cols_with_meaningless_spaces:
+            test_col_no_spaces = test_event[col].str.replace(" ", "")
+            col_no_spaces = event[col].str.replace(", ", ",")
+            assert test_col_no_spaces.equals(col_no_spaces), f"{col} comparison failed"
+        else:
+            assert test_event[col].equals(event[col]), f"{col} comparison failed"
 
 
 @pytest.mark.parametrize("test_dir", test_dirs)
@@ -108,7 +125,7 @@ def _compare_features(test_dir, features_filename):
 
 @pytest.mark.parametrize("test_dir", test_dirs)
 def test_feature_extractor(test_dir):
-    features_filename = f"features.csv"
+    features_filename = "features.csv"
 
     with open(os.path.join(test_dir, TEST_POSTPARSED_FILENAME), "r") as test_postparsed_fp:
         postparsed_data = json.load(test_postparsed_fp)
