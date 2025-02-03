@@ -23,6 +23,10 @@ setup(
     entry_points={
         "console_scripts": [
             "run_pipeline=CFGpy.behavioral.Pipeline:main",
+            "download_files=CFGpy.behavioral.Downloader:main",
+            "parse_data=CFGpy.behavioral.Parser:main",
+            "postparse_data=CFGpy.behavioral.PostParser:main",
+            "extract_features=CFGpy.behavioral.FeatureExtractor:main",
         ],
     },
 )
