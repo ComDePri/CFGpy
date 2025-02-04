@@ -140,7 +140,7 @@ class Downloader:
         self.extra_fields = set(self.custom_data_fields) - set(self.config.DOWNLOADER_FIELD_ORDER)
 
         all_fields = self.config.DOWNLOADER_FIELD_ORDER + tuple(self.extra_fields)
-        with open(self.output_filename, "w", newline="") as output_file:
+        with open(self.output_filename, "w", newline="", encoding="utf-8") as output_file:
             output_file_writer = csv.DictWriter(output_file, fieldnames=all_fields, quoting=csv.QUOTE_ALL)
 
             output_file_writer.writeheader()
