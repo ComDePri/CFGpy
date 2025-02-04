@@ -1,5 +1,7 @@
 import json
 import os
+from pathlib import Path
+import shutil
 from typing import Optional
 import networkx as nx
 import numpy as np
@@ -12,7 +14,6 @@ class FileNames:
 
     CACHE_DIR: str = user_cache_dir("cfgpy")
     VANILLA_DIR: str = os.path.join(CACHE_DIR, "vanilla_data")
-    CFGPY_BUCKET: str = "cfgpy-data"
 
     VANILLA_DATA: str = "vanilla_data/vanilla.json"
     VANILLA_FEATURES: str = "vanilla_data/vanilla_features.csv"
@@ -37,108 +38,123 @@ class FilesHandler:
         return cls._instance
 
     def __init__(self):
+
         if not hasattr(self, '_initialized'):
             self._vanilla_data: dict = {}
             self._vanilla_features: pd.DataFrame = {}
             self._vanilla_gallery_counter: dict = {}
             self._vanilla_giant_component: dict = {}
             self._vanilla_step_counter: dict = {}
-            self._shape_network = {}
-            self._id2coord = {}
+            self._shape_network: nx.Graph = None
+            self._id2coord: np.ndarray = None
             self._shortest_paths_dict: dict = {}
             self._initialized = True
-
-            if not os.path.isdir(FileNames.CACHE_DIR):
-                os.mkdir(FileNames.CACHE_DIR)
-
-            if not os.path.isdir(FileNames.VANILLA_DIR):
-                os.mkdir(FileNames.VANILLA_DIR)
     
-    def get_raw_file_from_github(self, file_name: str, branch: Optional[str] = "dev") -> None: 
+    @staticmethod
+    def clear_cache() -> None:
+
+        cache_dir = Path(FileNames.CACHE_DIR)
+        for item in cache_dir.iterdir():
+            if item.is_file() or item.is_symlink():
+                item.unlink()
+            elif item.is_dir():
+                shutil.rmtree(item) 
+
+        return None
+    
+    @staticmethod
+    def get_raw_file_from_github(*, file_name: str, branch: Optional[str] = "main") -> None: 
         
         if file_name not in FileNames.ALL_FILES:
             raise ValueError(f"{file_name} is an invalid file. Only the following files: {FileNames.ALL_FILES} can be retrieved.")
         
-        url = f"https://raw.githubusercontent.com/ComDePri/CFGpy/{branch}/CFGpy/files/{file_name}" # TODO: verify url and change branch when merging to dev
+        url = f"https://raw.githubusercontent.com/ComDePri/CFGpy/{branch}/CFGpy/files/{file_name}"
         response = requests.get(url)
 
         if response.status_code == 200:
-            print("File content retrieved successfully:")
-            print(f"Writing file {file_name} to the cache directory {FileNames.CACHE_DIR}.")
+
+            dir_path: str = os.path.join(FileNames.CACHE_DIR, os.path.dirname(file_name))
+
+            if not os.path.exists(dir_path):
+                os.makedirs(dir_path) # Create directories if they don't exist
+
+            file_path: str = os.path.join(FileNames.CACHE_DIR, file_name)
+            print(f"Retrived file {file_name} successfully. Saving file to {file_path}.")
+
             if file_name.endswith(".npy"):
-                with open(os.path.join(FileNames.CACHE_DIR, file_name), "wb") as f:
+                with open(file_path, "wb") as f:
                         f.write(response.content)
             else:
-                with open(os.path.join(FileNames.CACHE_DIR, file_name), "w", encoding="utf-8") as f:
+                with open(file_path, "w", encoding="utf-8") as f:
                         f.write(response.text)
                 
         else:
-            print(f"Error: {response.status_code} - {response.text}")
+            print(f"Error: {response.status_code} - {response.text}. The file {file_name} could not be found.")
 
         return None
     
-    def get_file(self, file_name: str) -> None:
+    def get_file(self, *, file_name: str) -> None:
         if not os.path.exists(os.path.join(FileNames.CACHE_DIR, file_name)):
-            self.get_raw_file_from_github(file_name=file_name)
+            self.get_raw_file_from_github(file_name=file_name, branch=os.getenv("GIT_BRANCH", "main"))
         return None
     
-    def load_json_data(self, file_name: str) -> dict:
-        with open(os.path.join(FileNames.CACHE_DIR, file_name)) as f:
+    def load_json_data(self, *, file_name: str, dir_path: Optional[str] = FileNames.CACHE_DIR) -> dict:
+        with open(os.path.join(dir_path, file_name)) as f:
             json_data = json.load(f)
         return json_data
 
     @property
     def vanilla_data(self) -> dict:
-        self.get_file(file_name=FileNames.VANILLA_DATA)
         if not self._vanilla_data:
+           self.get_file(file_name=FileNames.VANILLA_DATA)
            self._vanilla_data = self.load_json_data(file_name=FileNames.VANILLA_DATA)
         return self._vanilla_data
     
     @property
     def vanilla_features(self) -> dict:
-        self.get_file(file_name=FileNames.VANILLA_FEATURES)
         if not self._vanilla_features:
+            self.get_file(file_name=FileNames.VANILLA_FEATURES)
             self._vanilla_features = pd.read_csv(os.path.join(FileNames.CACHE_DIR, FileNames.VANILLA_FEATURES))
         return self._vanilla_features
     
     @property
     def vanilla_gallery_counter(self) -> dict:
-        self.get_file(file_name=FileNames.VANILLA_GALLERY_COUNTER)
         if not self._vanilla_gallery_counter:
+            self.get_file(file_name=FileNames.VANILLA_GALLERY_COUNTER)
             self._vanilla_gallery_counter = self.load_json_data(file_name=FileNames.VANILLA_GALLERY_COUNTER)
         return self._vanilla_gallery_counter
     
     @property
     def vanilla_giant_component(self) -> dict:
-        self.get_file(file_name=FileNames.VANILLA_GIANT_COMPONENT)
         if not self._vanilla_giant_component:
+            self.get_file(file_name=FileNames.VANILLA_GIANT_COMPONENT)
             self._vanilla_giant_component = self.load_json_data(file_name=FileNames.VANILLA_GIANT_COMPONENT)
         return self._vanilla_giant_component
     
     @property
     def vanilla_step_counter(self) -> dict:
-        self.get_file(file_name=FileNames.VANILLA_STEP_COUNTER)
         if not self._vanilla_step_counter:
+            self.get_file(file_name=FileNames.VANILLA_STEP_COUNTER)
             self._vanilla_step_counter = self.load_json_data(file_name=FileNames.VANILLA_STEP_COUNTER)
         return self._vanilla_step_counter
     
     @property
-    def shape_network(self) -> dict:
-        self.get_file(file_name=FileNames.SHAPE_NETWORK)
-        if not self._shape_network:
+    def shape_network(self) -> nx.Graph:
+        if self._shape_network is None:
+            self.get_file(file_name=FileNames.SHAPE_NETWORK)
             self._shape_network = nx.read_adjlist(os.path.join(FileNames.CACHE_DIR, FileNames.SHAPE_NETWORK), nodetype=int)
         return self._shape_network
     
     @property
-    def id2coord(self) -> dict:
-        self.get_file(file_name=FileNames.ID2COORD)
-        if not self._id2coord:
+    def id2coord(self) -> np.ndarray:
+        if self._id2coord is None:
+           self.get_file(file_name=FileNames.ID2COORD)
            self._id2coord = np.load(os.path.join(FileNames.CACHE_DIR, FileNames.ID2COORD))
         return self._id2coord
     
     @property
     def shortest_paths_dict(self) -> dict:
-        self.get_file(file_name=FileNames.SHORTEST_PATHS)
         if not self._shortest_paths_dict:
+            self.get_file(file_name=FileNames.SHORTEST_PATHS)
             self._shortest_paths_dict = self.load_json_data(file_name=FileNames.SHORTEST_PATHS)
         return self._shortest_paths_dict

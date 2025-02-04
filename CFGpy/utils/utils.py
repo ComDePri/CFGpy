@@ -6,9 +6,6 @@ import networkx as nx
 from collections import Counter, defaultdict
 from CFGpy.utils.FilesHandler import FilesHandler
 
-ID2COORD = FilesHandler().id2coord
-N_ALL_SHAPES = len(ID2COORD) - 1  # subtract 1 because index 0 in ID2COORD is a placeholder, not a shape
-
 SHORTEST_PATHS_DICT_PATH = FilesHandler().shortest_paths_dict
 SHORTEST_PATHS_DICT = {}
 NEW_SHORTEST_PATHS_DICT = {}
@@ -56,7 +53,7 @@ def get_shape_binary_matrix(shape_id):
     :param shape_id: int
     :return: 2D ndarray with dtype float, all values are binary
     """
-    coords = ID2COORD[shape_id]
+    coords = FilesHandler().id2coord[shape_id]
     binary_mat = np.array([list(np.binary_repr(row, width=10)) for row in coords],
                           dtype=float)
     nrow, ncol = np.max(np.nonzero(binary_mat), axis=1) + 1
@@ -68,7 +65,7 @@ def get_shape_binary_matrix(shape_id):
 def binary_shape_to_id(binary_shape):
     pad_width = (0, 10 - len(binary_shape))
     padded_shape = np.pad(binary_shape, pad_width=pad_width)
-    shape_id = np.flatnonzero(np.all(ID2COORD == padded_shape, axis=1))
+    shape_id = np.flatnonzero(np.all(FilesHandler().id2coord == padded_shape, axis=1))
     if shape_id.size != 1:
         raise ValueError('Was not able to find the desired shape', binary_shape)
 
