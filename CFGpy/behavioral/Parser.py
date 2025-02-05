@@ -288,7 +288,7 @@ def main() -> None:
 
     argparser = argparse.ArgumentParser(description="Parse raw CFG data")
     argparser.add_argument("-i", "--input", dest="input_filename",
-                           help='Filename of raw data CSV')
+                           help='Filename of raw data json')
     argparser.add_argument("-o", "--output", default=PARSER_OUTPUT_FILENAME, dest="output_filename",
                            help='Filename of output json')
     args = argparser.parse_args()

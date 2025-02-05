@@ -7,17 +7,36 @@ The pipeline ends in a CSV file where each row represents a participant that met
 As of v0.0.1, this package can only retrieve raw data from RedMetrics1, and see issue https://github.com/ComDePri/CFGpy/issues/26.
 
 ### Command line
-Given a URL for downloading raw data as CSV from RM1, run the pipeline from a terminal like so:
-```
-python Pipeline.py --url <raw_data_url> --config-path <config_file_path> -o <output_filename>
-```
-Where the output filename argument is optional, and you need to have either the raw_data_url or the config_file_path argument but not both.
-
-Alternatively, you can also run it like this:
+Given a URL for downloading raw data as CSV from RM1, you can run the Pipeline from a terminal like so:
 ```
 python run_pipeline --url <raw_data_url> --config-path <config_file_path> -o <output_filename>
 ```
-Where the arguments are the same as above. 
+Where the output filename argument is optional, and you need to have either the raw_data_url or the config_file_path argument but not both.
+
+
+Given a URL for downloading raw data as CSV from RM1, you can run the Downloader from a terminal like so:
+```
+python download_files --url <raw_data_url> -o <csv_output_filename> 
+```
+Where the output filename argument is optional.
+
+Given the csv output of the Downloader, you can run the Parser from a terminal like so:
+```
+python parse_data -i <csv_downloader_output> -o <json_output_filename> 
+```
+Where the output filename argument is optional.
+
+Given the json output of the Parser, you can run the PostParser from a terminal like so:
+```
+python postparse_data -i <json_parser_output> -o <json_output_filename> 
+```
+Where the output filename argument is optional.
+
+Given the json output of the PostParser, you can run the FeatureExtractor from a terminal like so:
+```
+python extract_features -i <json_postparser_output> -o <csv_output_filename> 
+```
+Where the output filename argument is optional.
 
 ### Python Script
 ```python
