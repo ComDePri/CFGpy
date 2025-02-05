@@ -248,7 +248,7 @@ class FeatureExtractor:
         return pd.DataFrame(relative_features)
 
 
-if __name__ == '__main__':
+def main() -> None:
     import argparse
 
     argparser = argparse.ArgumentParser(description="Extract features from a post-parsed CFG data")
@@ -261,3 +261,8 @@ if __name__ == '__main__':
     fe = FeatureExtractor.from_json(args.input_filename)
     fe.extract(verbose=True)
     fe.dump(args.output_filename)
+    return None
+
+
+if __name__ == '__main__':
+    main()

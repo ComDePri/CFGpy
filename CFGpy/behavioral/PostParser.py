@@ -59,7 +59,7 @@ class PostParser:
         self.config.to_yaml(path)
 
 
-if __name__ == '__main__':
+def main() -> None:
     import argparse
 
     argparser = argparse.ArgumentParser(description="Post-parse CFG data")
@@ -72,3 +72,8 @@ if __name__ == '__main__':
     pp = PostParser.from_json(args.input_filename)
     pp.postparse()
     pp.dump(args.output_filename)
+    return None
+
+
+if __name__ == '__main__':
+    main()

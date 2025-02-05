@@ -162,15 +162,20 @@ class Downloader:
         """
         return self.extra_fields
 
-
-if __name__ == '__main__':
+def main() -> None:
     import argparse
 
     argparser = argparse.ArgumentParser(description="Download CSV from RedMetrics")
-    argparser.add_argument("url", help='Web address of the "Download all pages as CSV"')
+    argparser.add_argument("--url", help='Web address of the "Download all pages as CSV"')
     argparser.add_argument("-o", "--output", default=DOWNLOADER_OUTPUT_FILENAME, dest="output_filename",
                            help='Filename of output CSV')
+    argparser.add_argument("--verbose", action="store_true", help="Enable logs if the flag is provided.")
     args = argparser.parse_args()
 
     d = Downloader(args.url, args.output_filename)
-    d.download()
+    d.download(verbose=args.verbose)
+    return None
+
+
+if __name__ == '__main__':
+    main()
