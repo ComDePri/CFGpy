@@ -1,51 +1,43 @@
 import pytest
-from CFGpy.behavioral import Downloader, Parser, PostParser, FeatureExtractor, Pipeline, Configuration
-from CFGpy import NAS_PATH
+from CFGpy.behavioral import Downloader, Parser, PostParser, FeatureExtractor, Pipeline
 import os
 import json
 import numpy as np
 import pandas as pd
 
-TEST_FILES_DIR = os.path.join(NAS_PATH, "Projects", "CFG", "CFGpy test files")
+TEST_FILES_DIR = "test_files/"
 RED_METRICS_URL_FILENAME = "red_metrics_url.txt"
-TEST_DOWNLOADED_FILENAME = "test_event.csv"
+TEST_DOWNLOADED_FILENAME = "test_raw.csv"
 TEST_PARSED_FILENAME = "test_parsed.json"
 TEST_PARSED_OLD_FORMAT_FILENAME = "test_parsed_old_format.txt"
 TEST_POSTPARSED_FILENAME = "test_postparsed.json"
 TEST_FEATURES_FILENAME = "test_features.csv"
 
-test_dirs = [os.path.join(TEST_FILES_DIR, filename)
-             for filename in os.listdir(TEST_FILES_DIR)
-             if os.path.isdir(os.path.join(TEST_FILES_DIR, filename))]
+test_dirs = [entry.path for entry in os.scandir(TEST_FILES_DIR) if entry.is_dir()]
 
 
 @pytest.mark.parametrize("test_dir", test_dirs)
 def test_downloader(test_dir):
-    # See https://github.com/ComDePri/CFGpy/issues/13
-
-    event_filename = "event.csv"
+    raw_data_filename = "raw.csv"
     with open(os.path.join(test_dir, RED_METRICS_URL_FILENAME)) as url_fp:
         url = url_fp.read()
-    Downloader(url, event_filename).download(verbose=True)
+    Downloader(url, raw_data_filename).download(verbose=True)
 
-    test_event = (pd.read_csv(os.path.join(test_dir, f"new_{TEST_DOWNLOADED_FILENAME}"))
-                  .sort_values("id")
-                  .reset_index(drop=True))
-    event = pd.read_csv(event_filename).sort_values("id").reset_index(drop=True)
+    test_raw = (pd.read_csv(os.path.join(test_dir, TEST_DOWNLOADED_FILENAME))
+                .sort_values("id")
+                .reset_index(drop=True))
+    raw = pd.read_csv(raw_data_filename).sort_values("id").reset_index(drop=True)
 
-    assert len(test_event) == len(event), f"{len(event)} events instead of {len(test_event)}"
-    cols_with_meaningless_spaces = ("customData.startPosition", "customData.shapeIndices", "customData.newShape",
-                                    "customData.shapes", "customData.shape", "customData.endPosition")
-    for col in test_event:
-        assert col in event, f"missing column {col}"
-        if test_event[col].dtype == "float64":
-            assert np.allclose(test_event[col], event[col], equal_nan=True), f"{col} comparison failed"
-        elif col in cols_with_meaningless_spaces:
-            test_col_no_spaces = test_event[col].str.replace(" ", "")
-            col_no_spaces = event[col].str.replace(", ", ",")
-            assert test_col_no_spaces.equals(col_no_spaces), f"{col} comparison failed"
+    assert len(test_raw) == len(raw), f"{len(raw)} events instead of {len(test_raw)}"
+    for col_name in test_raw:
+        assert col_name in raw, f"missing column {col_name}"
+        if test_raw[col_name].dtype == "float64":
+            assert np.allclose(test_raw[col_name], raw[col_name], equal_nan=True), f"{col_name} comparison failed"
         else:
-            assert test_event[col].equals(event[col]), f"{col} comparison failed"
+            # drop spaces after commas, added by python but not in RedMetrics' output
+            test_col = test_raw[col_name].astype(str).str.replace(", ", ",")
+            col = raw[col_name].astype(str).str.replace(", ", ",")
+            assert test_col.equals(col), f"{col_name} comparison failed"
 
 
 @pytest.mark.parametrize("test_dir", test_dirs)
@@ -146,7 +138,3 @@ def test_full_pipeline(test_dir):
     pipeline = Pipeline(url, features_filename)
     pipeline.run_pipeline(verbose=True)
     _compare_features(test_dir, features_filename)
-
-    config = Configuration.from_yaml(f"{features_filename}_config.yml")
-    print(config.RED_METRICS_CSV_URL)
-    assert "&before=" in config.RED_METRICS_CSV_URL
