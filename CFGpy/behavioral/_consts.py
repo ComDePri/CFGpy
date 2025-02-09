@@ -23,8 +23,8 @@ PAGE_REPETITION_LIMIT_REACHED = "Was not able to get all events from page {} aft
 PARSER_OUTPUT_FILENAME = "parsed.json"
 MERGED_ID_KEY = "merged_id"
 DEFAULT_ID = 'No ID Found'
-NOT_A_NEIGHBOR_ERROR = "Found adjacent non neighboring shapes {} and {}, Player id:{}\n" \
-                       "Check the source data to see if the game recorded an illegal move, otherwise it's the parser."
+NOT_A_NEIGHBOR_ERROR = "Found adjacent non-neighboring shapes, indices {}-{}, Player id: {}\n" \
+                       "Check the source data for illegal moves, otherwise this indicates a bug in the pipeline."
 
 # parsed data format
 PARSED_PLAYER_ID_KEY = 'id'

@@ -17,7 +17,6 @@ VANILLA_STEP_COUNTER_PATH = os.path.join(VANILLA_DATA_DIR, "step_counter.json")
 VANILLA_GALLERY_COUNTER_PATH = os.path.join(VANILLA_DATA_DIR, "gallery_counter.json")
 VANILLA_GC_PATH = os.path.join(VANILLA_DATA_DIR, "giant_component.json")
 
-NEIGHBORS = np.load(os.path.join(CFG_RESOURCES_PATH, "neighbors.npy"))
 ID2COORD = np.load(os.path.join(CFG_RESOURCES_PATH, "grid_coords.npy"))
 N_ALL_SHAPES = len(ID2COORD) - 1  # subtract 1 because index 0 in ID2COORD is a placeholder, not a shape
 
@@ -79,17 +78,6 @@ def get_shape_binary_matrix(shape_id):
 
     return binary_mat
 
-def get_node_neighbors(node, is_id=False, return_ids=True):
-    if not is_id:
-        node = binary_shape_to_id(np.array(node))
-    node_neighbors_id = NEIGHBORS[node]
-
-    if return_ids:
-        return node_neighbors_id[np.nonzero(node_neighbors_id)[0]]
-        
-    return [
-        tuple(coord[np.nonzero(coord)[0]]) for coord in ID2COORD[node_neighbors_id[np.nonzero(node_neighbors_id)[0]]]
-    ]
 
 def binary_shape_to_id(binary_shape):
     pad_width = (0, 10 - len(binary_shape))
