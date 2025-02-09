@@ -3,10 +3,9 @@ import pandas as pd
 import json
 import re
 from datetime import datetime, timezone
-from CFGpy.utils.utils import get_node_neighbors
 from CFGpy.behavioral._utils import server_coords_to_binary_shape, prettify_games_json, CFGPipelineException
 from CFGpy.behavioral._consts import (PARSED_PLAYER_ID_KEY, PARSED_TIME_KEY, PARSED_ALL_SHAPES_KEY,
-                                      PARSED_CHOSEN_SHAPES_KEY, MERGED_ID_KEY, DEFAULT_ID, PARSER_OUTPUT_FILENAME, NOT_A_NEIGHBOR_ERROR)
+                                      PARSED_CHOSEN_SHAPES_KEY, MERGED_ID_KEY, DEFAULT_ID, PARSER_OUTPUT_FILENAME)
 from CFGpy.behavioral import Configuration
 
 
@@ -50,8 +49,6 @@ class Parser:
         games_grouped_by_unique_id = prepared_data.groupby(self.config.UNIQUE_INTERNAL_ID_COLUMN)
         hard_filtered_games = games_grouped_by_unique_id.filter(self._apply_hard_filters)
         self.parsed_data = self._parse_all_player_games(hard_filtered_games)
-        self._validate_parsed_data(self.parsed_data)
-
         return self.parsed_data
 
     def dump(self, path=PARSER_OUTPUT_FILENAME, pretty=False):
@@ -119,23 +116,6 @@ class Parser:
     def _apply_hard_filters(self, game):
         return self.is_game_started(game)
 
-    def _validate_parsed_data(self, games):
-        for game in games:
-            self.check_game_for_discontinuities(game)
-
-    def check_game_for_discontinuities(self, game):
-        prev_shape = (1023,)
-        for curr_shape, curr_time, _ in game[PARSED_ALL_SHAPES_KEY][1:]:
-            curr_shape = tuple(curr_shape)
-            neighbors = get_node_neighbors(curr_shape, is_id=False, return_ids=False)
-
-            if prev_shape not in neighbors and prev_shape != curr_shape:
-                error_msg = NOT_A_NEIGHBOR_ERROR.format(prev_shape, curr_shape, game[PARSED_PLAYER_ID_KEY])
-                import ipdb;ipdb.set_trace()
-                raise AssertionError(error_msg)
-
-            prev_shape = curr_shape
-
     def is_game_started(self, game):
         return game[self.config.EVENT_TYPE].str.contains(self.config.TUTORIAL_END_EVENT_TYPE).sum() > 0
 
@@ -153,8 +133,6 @@ class Parser:
 
         assert len(game_data[MERGED_ID_KEY].unique()) == 1
         player_id_field = game_data[MERGED_ID_KEY].iloc[0]
-        if player_id_field == '5a972432873cda0001dc9321':
-            import ipdb;ipdb.set_trace()
         game_start_time = game_data[game_data[self.config.EVENT_TYPE] == self.config.TUTORIAL_END_EVENT_TYPE].iloc[0][
             self.config.PARSER_TIME_COLUMN]
 
@@ -176,7 +154,6 @@ class Parser:
             game_data[self.config.SHAPE_MOVE_COLUMN].isna()].index
         game_data.loc[gallery_save_indices - 1, self.config.GALLERY_SAVE_TIME_COLUMN] = game_data.loc[
             gallery_save_indices, self.config.PARSER_TIME_COLUMN].values
-
         # Now that we have the save time in all move rows, we can get rid of save rows:
         game_data = game_data[game_data[self.config.EVENT_TYPE].isin([self.config.SHAPE_MOVE_EVENT_TYPE])]
 
