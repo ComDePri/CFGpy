@@ -28,7 +28,7 @@ def test_get_files_from_github(files_handler):
     with pytest.raises(FileNotFoundError):
         files_handler.get_raw_file_from_github(file_name=FileNames.VANILLA_DATA, branch="not_a_branch")
 
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(ValueError):
         files_handler.get_raw_file_from_github(file_name="not_a_file", branch=os.getenv("GIT_BRANCH", "main"))
 
 
