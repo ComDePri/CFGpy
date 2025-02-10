@@ -12,7 +12,7 @@ import requests
 
 class FileNames:
 
-    CACHE_DIR: str = user_cache_dir("cfgpy")
+    CACHE_DIR: str = user_cache_dir("ComDePri-CFGpy")
     VANILLA_DIR: str = os.path.join(CACHE_DIR, "vanilla_data")
 
     VANILLA_DATA: str = "vanilla_data/vanilla.json"
@@ -89,7 +89,7 @@ class FilesHandler:
                         f.write(response.text)
                 
         else:
-            print(f"Error: {response.status_code} - {response.text}. The file {file_name} could not be found.")
+            raise FileNotFoundError(f"Error: {response.status_code} - {response.text}")
 
         return None
     
@@ -111,7 +111,7 @@ class FilesHandler:
         return self._vanilla_data
     
     @property
-    def vanilla_features(self) -> dict:
+    def vanilla_features(self) -> pd.DataFrame:
         if not self._vanilla_features:
             self.get_file(file_name=FileNames.VANILLA_FEATURES)
             self._vanilla_features = pd.read_csv(os.path.join(FileNames.CACHE_DIR, FileNames.VANILLA_FEATURES))

@@ -1,14 +1,12 @@
 import numpy as np
 import pandas as pd
-import os
 import json
 import networkx as nx
 from collections import Counter, defaultdict
-from CFGpy.utils.FilesHandler import FilesHandler
+from CFGpy.utils import FilesHandler
 
-SHORTEST_PATHS_DICT_PATH = FilesHandler().shortest_paths_dict
-SHORTEST_PATHS_DICT = {}
-NEW_SHORTEST_PATHS_DICT = {}
+SHORTEST_PATHS_DICT: dict = {}
+NEW_SHORTEST_PATHS_DICT: dict = {}
 
 def get_vanilla():
     """

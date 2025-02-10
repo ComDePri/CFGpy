@@ -24,6 +24,12 @@ def test_get_files_from_github(files_handler):
         assert not os.path.exists(os.path.join(FileNames.CACHE_DIR, f))
         files_handler.get_raw_file_from_github(file_name=f, branch=os.getenv("GIT_BRANCH", "main"))
         assert os.path.exists(os.path.join(FileNames.CACHE_DIR, f))
+    
+    with pytest.raises(FileNotFoundError):
+        files_handler.get_raw_file_from_github(file_name=FileNames.VANILLA_DATA, branch="not_a_branch")
+
+    with pytest.raises(FileNotFoundError):
+        files_handler.get_raw_file_from_github(file_name="not_a_file", branch=os.getenv("GIT_BRANCH", "main"))
 
 
 def test_load_json_data(files_handler):
