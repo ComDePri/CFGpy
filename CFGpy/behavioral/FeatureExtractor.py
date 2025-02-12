@@ -246,23 +246,3 @@ class FeatureExtractor:
             })
 
         return pd.DataFrame(relative_features)
-
-
-def main() -> None:
-    import argparse
-
-    argparser = argparse.ArgumentParser(description="Extract features from a post-parsed CFG data")
-    argparser.add_argument("-i", "--input", dest="input_filename",
-                           help='Filename of post-parsed data JSON')
-    argparser.add_argument("-o", "--output", default=DEFAULT_FINAL_OUTPUT_FILENAME, dest="output_filename",
-                           help='Filename of output CSV')
-    args = argparser.parse_args()
-
-    fe = FeatureExtractor.from_json(args.input_filename)
-    fe.extract(verbose=True)
-    fe.dump(args.output_filename)
-    return None
-
-
-if __name__ == '__main__':
-    main()

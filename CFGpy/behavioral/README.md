@@ -13,31 +13,6 @@ python run_pipeline --url <raw_data_url> --config-path <config_file_path> -o <ou
 ```
 Where the output filename argument is optional, and you need to have either the raw_data_url or the config_file_path argument but not both.
 
-
-Given a URL for downloading raw data as CSV from RM1, you can run the Downloader from a terminal like so:
-```
-python download_files --url <raw_data_url> -o <csv_output_filename> 
-```
-Where the output filename argument is optional.
-
-Given the csv output of the Downloader, you can run the Parser from a terminal like so:
-```
-python parse_data -i <csv_downloader_output> -o <json_output_filename> 
-```
-Where the output filename argument is optional.
-
-Given the json output of the Parser, you can run the PostParser from a terminal like so:
-```
-python postparse_data -i <json_parser_output> -o <json_output_filename> 
-```
-Where the output filename argument is optional.
-
-Given the json output of the PostParser, you can run the FeatureExtractor from a terminal like so:
-```
-python extract_features -i <json_postparser_output> -o <csv_output_filename> 
-```
-Where the output filename argument is optional.
-
 ### Python Script
 ```python
 from CFG.behavioral import Pipeline

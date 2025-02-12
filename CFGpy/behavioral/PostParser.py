@@ -57,23 +57,3 @@ class PostParser:
 
         # dump config
         self.config.to_yaml(path)
-
-
-def main() -> None:
-    import argparse
-
-    argparser = argparse.ArgumentParser(description="Post-parse CFG data")
-    argparser.add_argument("-i", "--input", dest="input_filename",
-                           help='Filename of parsed data JSON')
-    argparser.add_argument("-o", "--output", default=DEFAULT_FINAL_OUTPUT_FILENAME, dest="output_filename",
-                           help='Filename of output JSON')
-    args = argparser.parse_args()
-
-    pp = PostParser.from_json(args.input_filename)
-    pp.postparse()
-    pp.dump(args.output_filename)
-    return None
-
-
-if __name__ == '__main__':
-    main()
