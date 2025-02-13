@@ -1,12 +1,12 @@
 import pytest
-from CFGpy.behavioral import Downloader, Parser, PostParser, FeatureExtractor, Pipeline
+from CFGpy.behavioral import Configuration, Downloader, Parser, PostParser, FeatureExtractor, Pipeline
 import os
 import json
 import numpy as np
 import pandas as pd
 
 TEST_FILES_DIR = "test_files/"
-RED_METRICS_URL_FILENAME = "red_metrics_url.txt"
+CONFIG_FILENAME = "config.yml"
 TEST_DOWNLOADED_FILENAME = "test_raw.csv"
 TEST_PARSED_FILENAME = "test_parsed.json"
 TEST_PARSED_OLD_FORMAT_FILENAME = "test_parsed_old_format.txt"
@@ -19,9 +19,8 @@ test_dirs = [entry.path for entry in os.scandir(TEST_FILES_DIR) if entry.is_dir(
 @pytest.mark.parametrize("test_dir", test_dirs)
 def test_downloader(test_dir):
     raw_data_filename = "raw.csv"
-    with open(os.path.join(test_dir, RED_METRICS_URL_FILENAME)) as url_fp:
-        url = url_fp.read()
-    Downloader(url, raw_data_filename).download(verbose=True)
+    config = Configuration.from_yaml(os.path.join(test_dir, CONFIG_FILENAME))
+    Downloader(output_filename=raw_data_filename, config=config).download(verbose=True)
 
     test_raw = (pd.read_csv(os.path.join(test_dir, TEST_DOWNLOADED_FILENAME))
                 .sort_values("id")
@@ -40,18 +39,30 @@ def test_downloader(test_dir):
             assert test_col.equals(col), f"{col_name} comparison failed"
 
 
+def _compare_parsed(parsed, test_dir):
+    with open(os.path.join(test_dir, TEST_PARSED_FILENAME), "r") as test_parsed_fp:
+        test_parsed = json.load(test_parsed_fp)
+
+    # convert to df and compare by key, for proper float comparison in the start time column:
+    test_parsed_df = pd.DataFrame(test_parsed)
+    parsed_df = pd.DataFrame(parsed)
+    from CFGpy.behavioral._consts import PARSED_PLAYER_ID_KEY, PARSED_TIME_KEY, PARSED_ALL_SHAPES_KEY
+    assert test_parsed_df[PARSED_PLAYER_ID_KEY].equals(parsed_df[PARSED_PLAYER_ID_KEY])
+    assert np.allclose(test_parsed_df[PARSED_TIME_KEY], parsed_df[PARSED_TIME_KEY])
+    assert test_parsed_df[PARSED_ALL_SHAPES_KEY].equals(parsed_df[PARSED_ALL_SHAPES_KEY])
+    # TODO: after parser handles chosen shapes, compare those too
+
+
 @pytest.mark.parametrize("test_dir", test_dirs)
 def test_parser(test_dir):
-    parser = Parser.from_file(os.path.join(test_dir, TEST_DOWNLOADED_FILENAME))
-    parser.parse()
-    parser.dump("parsed.json")
+    parsed_data_filename = "parsed.json"
 
-    with open(os.path.join(test_dir, TEST_PARSED_FILENAME), "r") as test_parsed_fp:
-        test_parsed = test_parsed_fp.read()
-    with open("parsed.json", "r") as parsed_fp:
-        parsed = parsed_fp.read()
+    config = Configuration.from_yaml(os.path.join(test_dir, CONFIG_FILENAME))
+    parser = Parser.from_file(os.path.join(test_dir, TEST_DOWNLOADED_FILENAME), config=config)
+    parsed = parser.parse()
+    parser.dump(parsed_data_filename)
 
-    assert test_parsed == parsed
+    _compare_parsed(parsed, test_dir)
 
 
 @pytest.mark.parametrize("test_dir", test_dirs)
@@ -60,13 +71,15 @@ def test_parser_conversion_to_old_format(test_dir):
         parsed_new_format = json.load(new_format_fp)
 
     parsed_old_format = Parser.translate_parsed_results_to_mathematica(parsed_new_format)
-    with open(r"parsed_old_format.txt", "w") as parsed_old_format_fp:
+    with open("parsed_old_format.txt", "w") as parsed_old_format_fp:
         parsed_old_format_fp.write(parsed_old_format)
 
     with open(os.path.join(test_dir, TEST_PARSED_OLD_FORMAT_FILENAME), "r") as test_parsed_old_format_fp:
         test_parsed_old_format = test_parsed_old_format_fp.read()
 
-    assert test_parsed_old_format == parsed_old_format
+    if test_parsed_old_format != parsed_old_format:
+        # avoid asserting the str comparison, because if it fails python tries printing the strings and takes too long
+        assert False
 
 
 @pytest.mark.parametrize("test_dir", test_dirs)
@@ -76,32 +89,26 @@ def test_parser_conversion_to_new_format(test_dir):
     with open(r"parsed_converted_to_new_format.json", "w") as converted_to_new_format_fp:
         json.dump(converted_to_new_format, converted_to_new_format_fp)
 
-    with open(os.path.join(test_dir, TEST_PARSED_FILENAME), "r") as test_parsed_fp:
-        test_parsed = json.load(test_parsed_fp)
-
-    # convert to df and compare by key, for proper float comparison in the start time column:
-    test_df = pd.DataFrame(test_parsed)
-    converted_df = pd.DataFrame(converted_to_new_format)
-    from CFGpy.behavioral._consts import PARSED_PLAYER_ID_KEY, PARSED_TIME_KEY, PARSED_ALL_SHAPES_KEY
-    assert test_df[PARSED_PLAYER_ID_KEY].equals(converted_df[PARSED_PLAYER_ID_KEY])
-    assert np.allclose(test_df[PARSED_TIME_KEY], converted_df[PARSED_TIME_KEY])
-    assert test_df[PARSED_ALL_SHAPES_KEY].equals(converted_df[PARSED_ALL_SHAPES_KEY])
-    # TODO: after parser handles chosen shapes, compare those too
+    _compare_parsed(converted_to_new_format, test_dir)
 
 
 @pytest.mark.parametrize("test_dir", test_dirs)
 def test_postparser(test_dir):
-    postparser = PostParser.from_json(os.path.join(test_dir, TEST_PARSED_FILENAME))
+    postparsed_data_filename = "postparsed.json"
+
+    config = Configuration.from_yaml(os.path.join(test_dir, CONFIG_FILENAME))
+    postparser = PostParser.from_json(os.path.join(test_dir, TEST_PARSED_FILENAME), config=config)
     postparser.postparse()
-    postparser.dump("postparsed.json")
+    postparser.dump(postparsed_data_filename)
 
     with open(os.path.join(test_dir, TEST_POSTPARSED_FILENAME), "r") as test_postparsed_fp:
         test_postparsed = test_postparsed_fp.read()
-    with open("postparsed.json", "r") as postparsed_fp:
+    with open(postparsed_data_filename, "r") as postparsed_fp:
         postparsed = postparsed_fp.read()
 
-    assert test_postparsed == postparsed
-
+    if test_postparsed != postparsed:
+        # avoid asserting the str comparison, because if it fails python tries printing the strings and takes too long
+        assert False
 
 def _compare_features(test_dir, features_filename):
     test_features = pd.read_csv(os.path.join(test_dir, TEST_FEATURES_FILENAME)).sort_values("ID").reset_index(drop=True)
@@ -119,9 +126,8 @@ def _compare_features(test_dir, features_filename):
 def test_feature_extractor(test_dir):
     features_filename = "features.csv"
 
-    with open(os.path.join(test_dir, TEST_POSTPARSED_FILENAME), "r") as test_postparsed_fp:
-        postparsed_data = json.load(test_postparsed_fp)
-    feature_extractor = FeatureExtractor(postparsed_data)
+    config = Configuration.from_yaml(os.path.join(test_dir, CONFIG_FILENAME))
+    feature_extractor = FeatureExtractor.from_json(os.path.join(test_dir, TEST_POSTPARSED_FILENAME), config=config)
     feature_extractor.extract(verbose=True)
     feature_extractor.dump(features_filename)
 
@@ -131,10 +137,7 @@ def test_feature_extractor(test_dir):
 @pytest.mark.parametrize("test_dir", test_dirs)
 def test_full_pipeline(test_dir):
     features_filename = "features.csv"
-
-    with open(os.path.join(test_dir, RED_METRICS_URL_FILENAME)) as url_fp:
-        url = url_fp.read()
-
-    pipeline = Pipeline(url, features_filename)
+    config = Configuration.from_yaml(os.path.join(test_dir, CONFIG_FILENAME))
+    pipeline = Pipeline(output_filename=features_filename, config=config)
     pipeline.run_pipeline(verbose=True)
     _compare_features(test_dir, features_filename)
