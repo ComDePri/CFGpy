@@ -31,7 +31,7 @@ class PostParser:
         self.config = config if config is not None else Configuration.default()
 
     @classmethod
-    def from_json(cls, path: str, config=Configuration.default()):
+    def from_json(cls, path: str, config=None):
         return cls(load_json(path), config)
 
     def postparse(self):
