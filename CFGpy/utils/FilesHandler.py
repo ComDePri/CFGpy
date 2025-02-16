@@ -1,6 +1,8 @@
+import datetime
 import json
 import os
 from pathlib import Path
+import platform
 import shutil
 from typing import Optional
 import networkx as nx
@@ -48,6 +50,7 @@ class FilesHandler:
             self._shape_network: nx.Graph = None
             self._id2coord: np.ndarray = None
             self._shortest_paths_dict: dict = {}
+            self._new_shortest_paths_dict: dict = {}
             self._initialized = True
     
     @staticmethod
@@ -61,6 +64,51 @@ class FilesHandler:
                 shutil.rmtree(item) 
 
         return None
+    
+    @staticmethod
+    def get_github_file_last_updated_date(repo_owner: str, repo_name: str, file_path: str, branch: Optional[str] = "main") -> datetime:
+        """
+        Fetch the last commit date of a file in a GitHub repository using the GitHub API.
+        """
+        url: str = f"https://api.github.com/repos/{repo_owner}/{repo_name}/commits"
+        params: dict[str, str] = {"path": file_path, "sha": branch}
+        
+        try:
+            response = requests.get(url, params=params)
+            response.raise_for_status()
+            
+            commits: dict = response.json()
+            if not commits:
+                print("No commits found for the file.")
+                return None
+            
+            last_commit_date: str = commits[0]["commit"]["committer"]["date"]
+            return datetime.datetime.strptime(last_commit_date, "%Y-%m-%dT%H:%M:%SZ")
+        
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching GitHub last updated date: {e}")
+            return None
+    
+    @staticmethod
+    def get_file_downloaded_date(*, file_path: str) -> float:
+        """
+        Retrieve the downloaded date of the file in the file system.
+        """
+        try:
+            if platform.system() == "Windows":
+                downloaded_timestamp = os.stat(file_path).st_ctime  # More reliable on Windows
+            else:
+                downloaded_timestamp = os.path.getctime(file_path)  # Works on Linux/macOS
+            return datetime.datetime.fromtimestamp(downloaded_timestamp)
+        except Exception as e:
+            print(f"Error fetching file downloaded date: {e}")
+            return None
+    
+    @staticmethod
+    def re_download_file(*, local_file_path: str, repo_owner: str, repo_name: str, git_file_path: str, branch: Optional[str] = "main") -> bool:
+        git_date = FilesHandler().get_github_file_last_updated_date(repo_owner=repo_owner, repo_name=repo_name, file_path=git_file_path, branch=branch)
+        downloaded_date = FilesHandler().get_file_downloaded_date(file_path=local_file_path)
+        return downloaded_date < git_date
     
     @staticmethod
     def get_raw_file_from_github(*, file_name: str, branch: Optional[str] = "main") -> None: 
@@ -94,8 +142,13 @@ class FilesHandler:
         return None
     
     def get_file(self, *, file_name: str) -> None:
-        if not os.path.exists(os.path.join(FileNames.CACHE_DIR, file_name)):
-            self.get_raw_file_from_github(file_name=file_name, branch=os.getenv("GIT_BRANCH", "main"))
+        local_file_path: str = os.path.join(FileNames.CACHE_DIR, file_name)
+        branch: str = os.getenv("GIT_BRANCH", "main")
+        if not os.path.exists(local_file_path) or self.re_download_file(
+            local_file_path=local_file_path, repo_owner="ComDePri", repo_name="CFGpy", git_file_path=f"CFGpy/files/{file_name}", 
+            branch=branch
+            ):
+            self.get_raw_file_from_github(file_name=file_name, branch=branch)
         return None
     
     def load_json_data(self, *, file_name: str, dir_path: Optional[str] = FileNames.CACHE_DIR) -> dict:
@@ -158,3 +211,8 @@ class FilesHandler:
             self.get_file(file_name=FileNames.SHORTEST_PATHS)
             self._shortest_paths_dict = self.load_json_data(file_name=FileNames.SHORTEST_PATHS)
         return self._shortest_paths_dict
+    
+    
+    def add_to_shortest_paths_dict(self, *, key: str, value: str) -> None:
+        self._new_shortest_paths_dict[key] = value
+        return None

@@ -3,10 +3,8 @@ import pandas as pd
 import json
 import networkx as nx
 from collections import Counter, defaultdict
-from CFGpy.utils import FilesHandler
+from CFGpy.utils.FilesHandler import FilesHandler  # to avoid circular imports, you need the full import here
 
-SHORTEST_PATHS_DICT: dict = {}
-NEW_SHORTEST_PATHS_DICT: dict = {}
 
 def get_vanilla():
     """
@@ -81,12 +79,12 @@ def get_shortest_path_len(shape1: int, shape2: int):
     
     key = f"({int(shape1)}, {int(shape2)})" # JSON doesn't allow tuples as keys, so they're stringified
 
-    if SHORTEST_PATHS_DICT and key in SHORTEST_PATHS_DICT:
-        return SHORTEST_PATHS_DICT[key]
+    if FilesHandler().shortest_paths_dict and key in FilesHandler().shortest_paths_dict:
+        return FilesHandler().shortest_paths_dict[key]
 
     shape_network = FilesHandler().shape_network
     shortest_path_len = nx.shortest_path_length(shape_network, source=shape1, target=shape2)
-    NEW_SHORTEST_PATHS_DICT[key] = shortest_path_len
+    FilesHandler().add_to_shortest_paths_dict(key=key, value=shortest_path_len)
 
     return shortest_path_len
 
