@@ -1,12 +1,12 @@
+from pathlib import Path
 import pytest
 from CFGpy.behavioral import Downloader, Parser, PostParser, FeatureExtractor, Pipeline, Configuration
-from CFGpy import NAS_PATH
 import os
 import json
 import numpy as np
 import pandas as pd
 
-TEST_FILES_DIR = os.path.join(NAS_PATH, "Projects", "CFG", "CFGpy test files")
+TEST_FILES_DIR = os.path.join(Path(__file__).parent, "test_files")
 RED_METRICS_URL_FILENAME = "red_metrics_url.txt"
 TEST_DOWNLOADED_FILENAME = "test_event.csv"
 TEST_PARSED_FILENAME = "test_parsed.json"
