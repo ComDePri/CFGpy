@@ -79,15 +79,13 @@ class FilesHandler:
             
             commits: dict = response.json()
             if not commits:
-                print("No commits found for the file.")
-                return None
+                raise FileNotFoundError(f"No commits found in repo: {repo_name} for the file: {file_path}.")
             
             last_commit_date: str = commits[0]["commit"]["committer"]["date"]
             return datetime.datetime.strptime(last_commit_date, "%Y-%m-%dT%H:%M:%SZ")
         
-        except requests.exceptions.RequestException as e:
-            print(f"Error fetching GitHub last updated date: {e}")
-            return None
+        except Exception as e:
+            raise ValueError(f"Error fetching GitHub last updated date: {e}")
     
     @staticmethod
     def get_file_downloaded_date(*, file_path: str) -> float:
@@ -101,8 +99,7 @@ class FilesHandler:
                 downloaded_timestamp = os.path.getctime(file_path)  # Works on Linux/macOS
             return datetime.datetime.fromtimestamp(downloaded_timestamp)
         except Exception as e:
-            print(f"Error fetching file downloaded date: {e}")
-            return None
+            raise type(e)(f"An error occurred while trying to retrieve the file downloaded date: {e}").with_traceback(e.__traceback__)
     
     @staticmethod
     def re_download_file(*, local_file_path: str, repo_owner: str, repo_name: str, git_file_path: str, branch: Optional[str] = "main") -> bool:

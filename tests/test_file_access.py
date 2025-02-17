@@ -1,8 +1,6 @@
 import os
 from pathlib import Path
 import pytest
-import CFGpy.utils 
-print("hello " + str(dir(CFGpy.utils))) 
 from CFGpy.utils.FilesHandler import FilesHandler, FileNames
 
 
