@@ -143,22 +143,14 @@ class Pipeline:
         return self.features_df
 
 
-def main():
+if __name__ == '__main__':
     import argparse
 
     argparser = argparse.ArgumentParser(description="Run CFG behavioral data pipeline")
-    argparser.add_argument("--url", help='Web address of the "Download all pages as CSV"')
-    argparser.add_argument("--config-path", help='The path to the yml file that contains the configuration')
+    argparser.add_argument("url", help='Web address of the "Download all pages as CSV"')
     argparser.add_argument("-o", "--output", default=DEFAULT_FINAL_OUTPUT_FILENAME, dest="output_filename",
-                        help='Filename of output CSV')
+                           help='Filename of output CSV')
     args = argparser.parse_args()
-    
-    config: Configuration | None = Configuration.from_yaml(yaml_path=args.config_path) if args.config_path else None
-    
-    pl = Pipeline(red_metrics_csv_url=args.url, output_filename=args.output_filename, config=config)
-    
+
+    pl = Pipeline(args.url, args.output_filename)
     pl.run_pipeline()
-
-
-if __name__ == '__main__':
-    main()

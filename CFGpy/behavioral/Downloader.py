@@ -140,7 +140,7 @@ class Downloader:
         self.extra_fields = set(self.custom_data_fields) - set(self.config.DOWNLOADER_FIELD_ORDER)
 
         all_fields = self.config.DOWNLOADER_FIELD_ORDER + tuple(self.extra_fields)
-        with open(self.output_filename, "w", newline="", encoding="utf-8") as output_file:
+        with open(self.output_filename, "w", newline="") as output_file:
             output_file_writer = csv.DictWriter(output_file, fieldnames=all_fields, quoting=csv.QUOTE_ALL)
 
             output_file_writer.writeheader()
@@ -161,3 +161,16 @@ class Downloader:
         Returns the set of extra/unexpected fields found in the data.
         """
         return self.extra_fields
+
+
+if __name__ == '__main__':
+    import argparse
+
+    argparser = argparse.ArgumentParser(description="Download CSV from RedMetrics")
+    argparser.add_argument("url", help='Web address of the "Download all pages as CSV"')
+    argparser.add_argument("-o", "--output", default=DOWNLOADER_OUTPUT_FILENAME, dest="output_filename",
+                           help='Filename of output CSV')
+    args = argparser.parse_args()
+
+    d = Downloader(args.url, args.output_filename)
+    d.download()

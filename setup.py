@@ -20,9 +20,4 @@ setup(
     include_package_data=True,
     install_requires=["numpy", "pandas", "requests", "tqdm", "networkx", "matplotlib",
                       "seaborn", "scipy", "dacite", "PyYAML"],
-    entry_points={
-        "console_scripts": [
-            "run_pipeline=CFGpy.behavioral.Pipeline:main",
-        ],
-    },
 )
