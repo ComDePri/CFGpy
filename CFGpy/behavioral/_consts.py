@@ -17,11 +17,14 @@ NO_DOWNLOADER_URL_ERROR = "RedMetrics URL undefined. Specify URL either as a par
 TWO_DOWNLOADER_URL_ERROR = "RedMetrics URL was defined both as a parameter and in config. Define URL exactly once"
 DOWNLOADER_URL_NO_CSV_ERROR = "URL is incorrect: '{}'\nCopy the address from 'Download all pages as CSV' in RedMetrics"
 EVENTS_PER_PAGE = 500
+PAGE_REPETITION_LIMIT_REACHED = "Was not able to get all events from page {} after {} retries."
 
 # parser
 PARSER_OUTPUT_FILENAME = "parsed.json"
 MERGED_ID_KEY = "merged_id"
 DEFAULT_ID = 'No ID Found'
+NOT_A_NEIGHBOR_ERROR = "Found adjacent non-neighboring shapes, indices {}-{}, Player id: {}\n" \
+                       "Check the source data for illegal moves, otherwise this indicates a bug in the pipeline."
 
 # parsed data format
 PARSED_PLAYER_ID_KEY = 'id'

@@ -40,7 +40,7 @@ class Parser:
         ]
 
     @classmethod
-    def from_file(cls, raw_data_filename: str, config=Configuration.default()):
+    def from_file(cls, raw_data_filename: str, config=None):
         raw_data = pd.read_csv(raw_data_filename)
         return cls(raw_data, config)
 
