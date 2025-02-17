@@ -6,6 +6,7 @@ from CFGpy.behavioral import Configuration
 import json
 
 # TODO: after FilesHandler feature is implemented, delete the following and use FilesHandler().shape_network instead
+#   track FilesHandler's implementation in https://github.com/ComDePri/CFGpy/pull/43
 import os
 import networkx as nx
 from CFGpy.utils import CFG_RESOURCES_PATH
@@ -59,7 +60,8 @@ class PostParser:
                     raise CFGPipelineException(INVALID_SHAPE_ERROR.format(shape_binary_repr, player_id))
 
                 if i > 0 and not is_valid_transition(shapes[i - 1][self.config.SHAPE_ID_IDX], shape_id):
-                    raise CFGPipelineException(NOT_A_NEIGHBOR_ERROR.format(i - 1, i, player_id))
+                    print(CFGPipelineException(NOT_A_NEIGHBOR_ERROR.format(i - 1, i, player_id)))
+                    # the exception is printed and not raised because many gaps are actually in the source data
 
     def handle_empty_moves(self):
         # TODO
