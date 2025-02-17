@@ -7,11 +7,11 @@ The pipeline ends in a CSV file where each row represents a participant that met
 As of v0.0.1, this package can only retrieve raw data from RedMetrics1, and see issue https://github.com/ComDePri/CFGpy/issues/26.
 
 ### Command line
-Given a URL for downloading raw data as CSV from RM1, run the pipeline from a terminal like so:
+Given a URL for downloading raw data as CSV from RM1, you can run the Pipeline from a terminal like so:
 ```
-python Pipeline.py <raw_data_url> -o <output_filename>
+run_pipeline --url <raw_data_url> --config-path <config_file_path> -o <output_filename>
 ```
-Where the output filename argument is optional.
+Where the output filename argument is optional, and you need to have either the raw_data_url or the config_file_path argument but not both.
 
 ### Python Script
 ```python
