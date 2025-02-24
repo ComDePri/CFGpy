@@ -1,3 +1,4 @@
+import lzma
 import json
 import networkx as nx
 import numpy as np
@@ -20,12 +21,17 @@ DEFAULT_COMMUNITY_PRUNING_NUMBER = 0
 DEFAULT_PRUNING_NUMBER = 0
 
 class CommunityFinder():
-    max_community_size = 80
+    max_community_size = 300
     min_community_size = 2
+    min_nodes_in_community = 3
+    distance_coeff = 10
     adj_graph = None
     shared_clusters_graph = None
     superclusters_graph = None
     setlike_types = [set, frozenset]
+    adj_attr = 'adj_weight'
+    shared_clusters_attr = 'shared_clusters_weight'
+    supercluster_attr = 'supercluster_weight'
 
     def __init__(self, graph_building_method, vanilla_data_path=DEFAULT_VANILLA_DATA_PATH, verbose=False):
         self.graph_building_method = graph_building_method
@@ -47,17 +53,17 @@ class CommunityFinder():
     def set_current_graph(self, desired_graph_building_method):
         self.graph_building_method = desired_graph_building_method
         if self.graph_building_method == 'adjacency':
-            self.weight_attr = 'adj_weight'
+            self.weight_attr = self.adj_attr
             self.G = self.adj_graph
             if self.adj_graph is None:
                 self.init_adjacency_graph()
         elif self.graph_building_method == 'shared_clusters':
-            self.weight_attr = 'shared_clusters'
+            self.weight_attr = self.shared_clusters_attr
             self.G = self.shared_clusters_graph
             if self.shared_clusters_graph is None:
                 self.init_shared_cluster_graph()
         elif self.graph_building_method == 'superclusters':
-            self.weight_attr = 'supercluster_weight'
+            self.weight_attr = self.supercluster_attr
             self.G = self.superclusters_graph
             if self.superclusters_graph is None:
                 self.init_supercluster_graph()
@@ -74,27 +80,29 @@ class CommunityFinder():
         else:
             raise NotImplementedError('Graph building method not supported')
         
-    def init_adjacency_graph(self):
+    def init_adjacency_graph(self, set_G=True):
         G = nx.Graph()
         for game in self.vanilla_data:
             gallery_shapes = [action[0] for action in game['actions'] if action[2] is not None]
             for edge in zip(gallery_shapes[:-1], gallery_shapes[1:]):
                 if G.has_edge(*edge):
-                    weight = G.get_edge_data(*edge).get('adj_weight')
+                    weight = G.get_edge_data(*edge).get(self.adj_attr)
                     weight += 1
 
                     attrs = {
-                        edge: {'adj_weight': weight}
+                        edge: {self.adj_attr: weight}
                     }
                     nx.set_edge_attributes(G, attrs)
                 else:
                     G.add_edge(*edge, adj_weight=1)
 
-        self.weight_attr = 'adj_weight'
+        self.weight_attr = self.adj_attr
         self.adj_graph = G
-        self.G = G
+        self.adj_weights = nx.get_edge_attributes(G, self.adj_attr)
+        if set_G:
+            self.G = G
 
-    def init_shared_cluster_graph(self):
+    def init_shared_cluster_graph(self, set_G=True):
         clusters = mb.get_all_clusters(self.vanilla_data)
         G = nx.Graph()
         counter = 0
@@ -105,20 +113,21 @@ class CommunityFinder():
             for edge in combinations(cluster, 2):
                 counter += 1
                 if G.has_edge(*edge):
-                    number_of_shared_clusters = G.get_edge_data(*edge).get('shared_clusters')
+                    number_of_shared_clusters = G.get_edge_data(*edge).get(self.shared_clusters_attr)
                     number_of_shared_clusters += 1
                     attrs = {
-                        edge: {'shared_clusters': number_of_shared_clusters}
+                        edge: {self.shared_clusters_attr: number_of_shared_clusters}
                     }
                     nx.set_edge_attributes(G, attrs)
                 else:
                     G.add_edge(*edge, shared_clusters=1)
 
-        self.weight_attr = 'shared_clusters'
+        self.weight_attr = self.shared_clusters_attr
         self.shared_clusters_graph = G
-        self.G = G
+        if set_G:
+            self.G = G
 
-    def init_supercluster_graph(self, graph_loading_path=CLUSTER_GRAPH):
+    def init_supercluster_graph(self, graph_loading_path=CLUSTER_GRAPH, set_G=True):
         '''
         Builds a graph from exploit clusters/bouts, an edge exists between clusters that share shapes
         The weight is the amount of shared shapes
@@ -126,9 +135,10 @@ class CommunityFinder():
         try:
             with open(graph_loading_path, 'r') as f:
                 G = json_graph.node_link_graph(json.load(f))
-                self.weight_attr = 'supercluster_weight'
+                self.weight_attr = self.supercluster_attr
                 self.superclusters_graph = G
-                self.G = G
+                if set_G:
+                    self.G = G
 
                 return
 
@@ -148,9 +158,10 @@ class CommunityFinder():
                 if pair[0] != pair[1] and supercluster_weight > 0:
                     G.add_edge(tuple(pair[0]), tuple(pair[1]), supercluster_weight=supercluster_weight)
 
-            self.weight_attr = 'supercluster_weight'
+            self.weight_attr = self.supercluster_attr
             self.superclusters_graph = G
-            self.G = G
+            if set_G:
+                self.G = G
             if self.verbose:
                 print('Saving connected clusters calculation')
             with open(graph_loading_path, 'w') as fp:
@@ -183,7 +194,12 @@ class CommunityFinder():
         if type(communities) is cdlib_classes.node_clustering.NodeClustering:
             communities = communities.communities
 
-        self.communities = [comm for comm in communities if len(comm) in range(min_comm_size, max_comm_size)]
+        self.unflattened_communities = False
+        if self.graph_building_method == 'superclusters':
+            self.unflattened_communities = True
+
+        self.communities = communities
+        self.prune_communities((min_comm_size, max_comm_size))
         self.update_community_size_dicts(pruning_number)
 
         return self.communities
@@ -196,16 +212,12 @@ class CommunityFinder():
                 node: community_size_dict[node] for node in community_size_dict
                 if community_size_dict[node] > pruning_number
             }
-            if len(pruned_community_size_dict) >= self.min_community_size:
+            if len(pruned_community_size_dict) >= self.min_nodes_in_community:
                 pruned_community_size_dicts.append(pruned_community_size_dict)
 
         sorted_indices = np.argsort([len(sd) for sd in pruned_community_size_dicts])[::-1]
-        pruned_community_size_dicts = [pruned_community_size_dicts[i] for i in sorted_indices]
+        self.community_size_dicts = [pruned_community_size_dicts[i] for i in sorted_indices]
         self.communities = [self.communities[i] for i in sorted_indices]
-        self.community_size_dicts = pruned_community_size_dicts
-    
-    def prune_communities(self, community_size_range):
-        self.communities = [community for community in self.communities if len(community) in range(*community_size_range)]
 
     def plot_and_save_community_graphs(self, path, subfolder_name):
         if getattr(self, 'community_size_dicts', None) is None:
@@ -257,33 +269,8 @@ class CommunityFinder():
 
         return community_size_dict
 
-    def prune_communities(self, communities, community_size_range):
-        '''
-            Prunes communities based on the amount of nodes in the community
-        '''
-        self.communities = [community for community in communities if len(community) in range(*community_size_range)]
-
-    def merge_and_add_communities(self, community_a, community_b):
-        '''
-            Merges two communities by adding all nodes from community_b to community_a
-        '''
-        if community_a in self.communities:
-            self.communities.remove(community_a)
-
-        if community_b in self.communities:
-            self.communities.remove(community_b)
-
-        if type(community_a) != type(community_b): 
-            error_message = 'Community types mismatch: a is {a}, b is {b}'.format(a=type(community_a), b=type(community_b))
-            raise ValueError(error_message)
-        elif type(community_a) in self.setlike_types and type(community_b) in self.setlike_types:
-            merged_community = community_a.union(community_b)
-        elif type(community_a) is list and type(community_b) is list:
-            merged_community = community_a + community_b
-        else:
-            raise ValueError('Community type {c_type} not supported'.format(c_type=type(community_a)))
-
-        self.communities.append(merged_community)
+    def prune_communities(self, community_size_range):
+        self.communities = [community for community in self.communities if len(community) in range(*community_size_range)]
 
     def get_score_similarity_vector(self, community, score_func):
         '''
@@ -314,43 +301,30 @@ class CommunityFinder():
                 print('There is only one community')
             return
 
-        merged_communities = []
         score_matrix = np.zeros((len(self.communities), len(self.communities)))
-        # Populate the score matrix
         for i, community in enumerate(self.communities):
             score_vector = self.get_score_similarity_vector(community, score_func)
             score_matrix[i] = score_vector
         
-        merge_matrix = score_matrix > threshold
+        merged_communities = []
+        merge_matrix = np.triu(score_matrix > threshold)
         for i, row in enumerate(merge_matrix):
-            if not merge_all and np.sum(row) == 1:
-                continue
+            merged_community = self.get_merged_communities([self.communities[j] for j in np.nonzero(row)[0]])
+            merged_communities.append(merged_community)
 
-            for j, merge in enumerate(row):
-                if merge:
-                    merged_communities.append(self.communities[j])
-                    self.merge_and_add_communities(self.communities[i], self.communities[j])
-        for community in sorted(self.communities, key=lambda x: len(x)):
-            score_vector = self.get_score_similarity_vector(community, score_func)
-            most_similar_community = np.argsort(score_vector)[-2] # Get the most similar community that is not itself
-            if score_vector[most_similar_community] < threshold:
-                continue
-            
-            to_merge = [self.communities[most_similar_community]]
-            if merge_all:
-                for i in np.argsort(score_vector)[::-1][2:]: # Skip the most similar community
-                    if score_vector[i] < threshold:
-                        break
-
-                    to_merge.append(self.communities[i])
-
-            for community_to_merge in to_merge:
-                self.merge_and_add_communities(community, community_to_merge)
-
-            self.merge_communities_based_on_score(threshold, score_func, merge_all)
-            break
-
+        self.communities = merged_communities
         self.update_community_size_dicts(pruning_number)
+
+    @staticmethod
+    def get_merged_communities(communities):
+        '''
+            Merges multiple communities into one community
+        '''
+        merged_community = set()
+        for community in communities:
+            merged_community.update(set(community))
+
+        return merged_community
 
     @staticmethod
     def jaccard_score(a, b):
@@ -362,6 +336,105 @@ class CommunityFinder():
     @staticmethod
     def overlap_score(a, b):
         return len([i for i in a if i in b]) / min(len(a), len(b))
+    
+    def compute_distances_from_graph(self, G, weights):
+        self.distances = {}
+        shortest_paths = nx.all_pairs_shortest_path(G, cutoff=10)
+        for node_and_paths in tqdm(shortest_paths, total=G.number_of_nodes()):
+            node = node_and_paths[0]
+            paths = node_and_paths[1]
+            for other_node, path in paths.items():
+                self.distances[(node, other_node)] = self.distances.get((other_node, node))
+                if self.distances[(node, other_node)] is None:
+                    self.distances[(node, other_node)] = self.get_path_distance(path, weights)
+        
+    def save_distance_graph(self, path):
+        distances_list = []
+        for key, value in self.distances.items():
+            if value == np.inf:
+                value = None
+
+            distances_list.append([list(key), value])
+
+        with lzma.open(path + '.xz', 'w') as f:
+            f.write(json.dumps(distances_list).encode())
+
+    def load_distance_graph(self, path):
+        with lzma.open(path + '.xz', 'r') as f:
+            distances_list = json.loads(f.read())
+            self.distances = {}
+            for key, value in distances_list:
+                if value is None:
+                    value = np.inf
+
+                self.distances[tuple(key)] = value
+
+    def silhouette_score(self, cluster):
+        other_clusters = [c for c in self.communities if c != cluster]
+        if self.unflattened_communities:
+            cluster = [node for sub_cluster in cluster for node in sub_cluster]
+            other_clusters = [[node for sub_cluster in other_cluster for node in sub_cluster] for other_cluster in other_clusters]
+
+        silhouette_scores = []
+        for node in cluster:
+            silhouette_score = self.silhouette_score_data_point(node, cluster, other_clusters)
+            silhouette_scores.append(silhouette_score)
+        
+        return np.mean(silhouette_scores)
+        
+    def silhouette_score_data_point(self, point, own_cluster, other_clusters):
+        if len(own_cluster) == 1:
+            return 0
+
+        a = self.silhouette_score_a(point, own_cluster)
+        b = self.silhouette_score_b(point, other_clusters)
+                                               
+        return (b - a) / max(a, b)
+    
+    def silhouette_score_a(self, point, own_cluster):
+        if len(own_cluster) == 1:
+            raise ValueError('Cannot calculate silhouette score for single node cluster')
+        
+        return 1/(len(own_cluster) - 1) * np.sum([self.distances[(point, other_point)] for other_point in own_cluster if other_point != point])
+
+    def silhouette_score_b(self, point, other_clusters):
+        mean_distances = []
+
+        for other_cluster in other_clusters:
+            mean_distance = 1/len(other_cluster) * np.sum([self.distances[(point, other_point)] for other_point in other_cluster])
+            mean_distances.append(mean_distance)
+            
+        return np.min(mean_distances)
+    
+    def compute_distances_between_nodes(self, G, weight_attr, node, other_node):
+        if node == other_node:
+            return 0
+
+        edge = (node, other_node)
+        weights = nx.get_edge_attributes(G, weight_attr)
+        edge_weight = weights.get(edge, weights.get(edge[::-1]))
+        if edge_weight is not None:
+            return 1/edge_weight
+
+        for path in nx.shortest_simple_paths(G, node, other_node): 
+            # Note: Shortest simple paths can get weights, I can switch it but then I need
+            # to change the multiplication by the distance coefficient since shortest paths no longer take length of path into account
+            if self.get_path_distance(G, path, weight_attr) is not None:
+                return self.get_path_distance(G, path, weight_attr)
+        
+        return np.inf
+
+    def get_path_distance(self, path, weights):
+        distance = 0
+        for i in range(len(path) - 1):
+            edge = (path[i], path[i + 1])
+            weight = weights.get(edge, weights.get(edge[::-1]))
+            if weight is None:
+                return None
+
+            distance += (self.distance_coeff**i)/weight
+
+        return distance
 
     @staticmethod
     def get_affine_trans(i):
@@ -375,10 +448,3 @@ class CommunityFinder():
             new_attributes[edge] = {attr: func(edge_attribute[edge])}
 
         nx.set_edge_attributes(G, new_attributes)
-
-# CommunityFinder workflow: 
-    # load a graph and Add weights and attributes
-    # Prune if needed
-    # Find communities using a community detection algorithm
-    # Prune/Merge communities as needed
-    # Visualize and save the communities
