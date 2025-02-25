@@ -3,7 +3,7 @@ import pandas as pd
 import json
 import networkx as nx
 from collections import Counter, defaultdict
-from CFGpy.utils.FilesHandler import FilesHandler  # to avoid circular imports, you need the full import here
+from CFGpy.utils import FilesHandler
 
 
 def get_vanilla():

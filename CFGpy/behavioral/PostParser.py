@@ -1,17 +1,9 @@
+import json
 from CFGpy.behavioral._utils import load_json, CFGPipelineException, segment_explore_exploit, prettify_games_json
 from CFGpy.behavioral._consts import (PARSED_ALL_SHAPES_KEY, PARSED_PLAYER_ID_KEY, EXPLORE_KEY, EXPLOIT_KEY,
-                                      DEFAULT_FINAL_OUTPUT_FILENAME, INVALID_SHAPE_ERROR, NOT_A_NEIGHBOR_ERROR,
-                                      POSTPARSER_OUTPUT_FILENAME)
+                                      INVALID_SHAPE_ERROR, NOT_A_NEIGHBOR_ERROR, POSTPARSER_OUTPUT_FILENAME)
 from CFGpy.behavioral import Configuration
-import json
-
-# TODO: after FilesHandler feature is implemented, delete the following and use FilesHandler().shape_network instead
-#   track FilesHandler's implementation in https://github.com/ComDePri/CFGpy/pull/43
-import os
-import networkx as nx
-from CFGpy.utils import CFG_RESOURCES_PATH
-
-shape_network = nx.read_adjlist(os.path.join(CFG_RESOURCES_PATH, "all_shapes.adjlist"), nodetype=int)
+from CFGpy.utils import FilesHandler
 
 
 def is_valid_transition(shape1: int, shape2: int) -> bool:
@@ -23,7 +15,7 @@ def is_valid_transition(shape1: int, shape2: int) -> bool:
     :param shape2: shape id, after conversion to int by PostParser.convert_shape_ids
     :return: True if the transition is valid, False if not
     """
-    return shape1 == shape2 or shape_network.has_edge(shape1, shape2)
+    return shape1 == shape2 or FilesHandler().shape_network.has_edge(shape1, shape2)
 
 
 class PostParser:

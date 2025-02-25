@@ -95,7 +95,7 @@ class Downloader:
         found or the repetition limit is reached (in which case, raises an error).
         :param page_i: page index.
         :param goal_n_events: number of events that should be reached with this page.
-        :param repetition_limit: maximum number of retries per page # TODO: move this parameter to config
+        :param repetition_limit: maximum number of retries per page
         :return: a list of events.
         """
         if page_i < 1:
