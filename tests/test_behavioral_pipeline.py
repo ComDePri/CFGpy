@@ -1,13 +1,15 @@
+from pathlib import Path
 import pytest
-from CFGpy.behavioral import Configuration, Downloader, Parser, PostParser, FeatureExtractor, Pipeline
+from CFGpy.behavioral import Downloader, Parser, PostParser, FeatureExtractor, Pipeline, Configuration
 import os
 import json
 import numpy as np
 import pandas as pd
 
-TEST_FILES_DIR = "test_files/"
+TEST_FILES_DIR = os.path.join(Path(__file__).parent, "test_files")
 CONFIG_FILENAME = "config.yml"
 TEST_DOWNLOADED_FILENAME = "test_raw.csv"
+
 TEST_PARSED_FILENAME = "test_parsed.json"
 TEST_PARSED_OLD_FORMAT_FILENAME = "test_parsed_old_format.txt"
 TEST_POSTPARSED_FILENAME = "test_postparsed.json"
