@@ -85,7 +85,7 @@ class FilesHandler:
             return datetime.datetime.strptime(last_commit_date, "%Y-%m-%dT%H:%M:%SZ")
         
         except Exception as e:
-            raise ValueError(f"Error fetching GitHub last updated date: {e}")
+            raise type(e)(f"Error fetching GitHub last updated date: {e}")
     
     @staticmethod
     def get_file_downloaded_date(*, file_path: str) -> float:
