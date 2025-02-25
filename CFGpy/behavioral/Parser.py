@@ -40,7 +40,7 @@ class Parser:
         ]
 
     @classmethod
-    def from_file(cls, raw_data_filename: str, config=Configuration.default()):
+    def from_file(cls, raw_data_filename: str, config=None):
         raw_data = pd.read_csv(raw_data_filename)
         return cls(raw_data, config)
 
@@ -281,18 +281,3 @@ class Parser:
 
         raise CFGPipelineException('Was not able to replace the DateObject with a timestamp in the following game:',
                                    game_string)
-
-
-if __name__ == '__main__':
-    import argparse
-
-    argparser = argparse.ArgumentParser(description="Parse raw CFG data")
-    argparser.add_argument("-i", "--input", dest="input_filename",
-                           help='Filename of raw data CSV')
-    argparser.add_argument("-o", "--output", default=PARSER_OUTPUT_FILENAME, dest="output_filename",
-                           help='Filename of output CSV')
-    args = argparser.parse_args()
-
-    p = Parser.from_file(args.input_filename)
-    p.parse()
-    p.dump(args.output_filename)

@@ -1,7 +1,7 @@
 appdirs~=1.4.4
 numpy~=1.26.4
 pytest~=8.2.1
-setuptools~=68.2.0
+setuptools>=70.0.0
 pandas~=2.2.2
 requests~=2.32.2
 tqdm~=4.66.4

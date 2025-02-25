@@ -21,7 +21,7 @@ class ParsedPlayerData:
 
         self.config = config if config is not None else Configuration.default()
         self.delta_move_times = np.diff(self.shapes_df.iloc[:, self.config.SHAPE_MOVE_TIME_IDX])
-    
+
     def __len__(self):
         return len(self.shapes_df)
 
@@ -232,9 +232,8 @@ class PostparsedDataset(ParsedDataset):
         """
         Expects a list of dicts like the output from Preprocessor.preprocess()
         """
-        super().__init__(input_data)
         self.config = config if config is not None else Configuration.default()
-        super().__init__(input_data) # If this call needs to be removed, call self._reset_state() explicitly
+        super().__init__(input_data)  # If this call needs to be removed, call self._reset_state() explicitly
 
     @classmethod
     def from_json(cls, path: str, config: Configuration = None):
@@ -242,7 +241,7 @@ class PostparsedDataset(ParsedDataset):
 
     def _reset_state(self, input_data):
         self.input_data = input_data
-        self.players_data = [PostparsedPlayerData(player_data) for player_data in self.input_data]
+        self.players_data = [PostparsedPlayerData(player_data, self.config) for player_data in self.input_data]
 
     def get_all_exploit_clusters(self):
         all_exploit_clusters = []
