@@ -1,8 +1,21 @@
+import json
 from CFGpy.behavioral._utils import load_json, CFGPipelineException, segment_explore_exploit, prettify_games_json
 from CFGpy.behavioral._consts import (PARSED_ALL_SHAPES_KEY, PARSED_PLAYER_ID_KEY, EXPLORE_KEY, EXPLOIT_KEY,
-                                      DEFAULT_FINAL_OUTPUT_FILENAME, INVALID_SHAPE_ERROR, POSTPARSER_OUTPUT_FILENAME)
+                                      INVALID_SHAPE_ERROR, NOT_A_NEIGHBOR_ERROR, POSTPARSER_OUTPUT_FILENAME)
 from CFGpy.behavioral import Configuration
-import json
+from CFGpy.utils import FilesHandler
+
+
+def is_valid_transition(shape1: int, shape2: int) -> bool:
+    """
+    Checks whether a transition is a valid path in the CFG.
+    TODO: assumes empty moves are valid. When empty moves handling is implemented, this function can be replaced with
+        shape_network.has_edge(shape1, shape2)
+    :param shape1: shape id, after conversion to int by PostParser.convert_shape_ids
+    :param shape2: shape id, after conversion to int by PostParser.convert_shape_ids
+    :return: True if the transition is valid, False if not
+    """
+    return shape1 == shape2 or FilesHandler().shape_network.has_edge(shape1, shape2)
 
 
 class PostParser:
@@ -11,7 +24,7 @@ class PostParser:
         self.config = config if config is not None else Configuration.default()
 
     @classmethod
-    def from_json(cls, path: str, config=Configuration.default()):
+    def from_json(cls, path: str, config=None):
         return cls(load_json(path), config)
 
     def postparse(self):
@@ -29,13 +42,18 @@ class PostParser:
 
         for player_data in self.all_players_data:
             shapes = player_data[PARSED_ALL_SHAPES_KEY]
-            for shape in shapes:
+            for i, shape in enumerate(shapes):
+                shape_binary_repr = shape[self.config.SHAPE_ID_IDX]
+                player_id = player_data[PARSED_PLAYER_ID_KEY]
                 try:
-                    shape[self.config.SHAPE_ID_IDX] = bin2id(shape[self.config.SHAPE_ID_IDX])
+                    shape_id = bin2id(shape_binary_repr)
+                    shape[self.config.SHAPE_ID_IDX] = shape_id
                 except ValueError:
-                    player_id = player_data[PARSED_PLAYER_ID_KEY]
-                    shape_id = shape[self.config.SHAPE_ID_IDX]
-                    raise CFGPipelineException(INVALID_SHAPE_ERROR.format(shape_id, player_id))
+                    raise CFGPipelineException(INVALID_SHAPE_ERROR.format(shape_binary_repr, player_id))
+
+                if i > 0 and not is_valid_transition(shapes[i - 1][self.config.SHAPE_ID_IDX], shape_id):
+                    print(CFGPipelineException(NOT_A_NEIGHBOR_ERROR.format(i - 1, i, player_id)))
+                    # the exception is printed and not raised because many gaps are actually in the source data
 
     def handle_empty_moves(self):
         # TODO
