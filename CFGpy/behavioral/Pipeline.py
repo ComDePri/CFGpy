@@ -68,6 +68,7 @@ class Pipeline:
         if verbose:
             print("Downloading raw data...")
         self.raw_data = self._download(verbose)
+        self.downloader.dump()
 
     def _parse(self):
         """

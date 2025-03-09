@@ -24,7 +24,8 @@ class Downloader:
         self.json_url = self.csv_url.replace("/event.csv", "/event.json")
         self.downloaded_events_json = []
         self.output_filename = output_filename
-
+        self.downloaded_df = None
+        
         self.players = dict()
         self.custom_data_fields = set()
         self.required_net_request = []
@@ -32,11 +33,14 @@ class Downloader:
 
     def download(self, verbose: bool = False) -> pd.DataFrame:
         self.download_events_json(verbose)
-        output_json = self.create_output(verbose)
-        self.write_csv(output_json, verbose)
-        self.dump_config()
+        raw_data = self.create_output(verbose)
+        self.downloaded_df = self.create_df(raw_data, verbose)
+        self.write_csv(raw_data, verbose)
+        return self.downloaded_df
 
-        return pd.read_csv(self.output_filename)  # why not return output_json? see to-do in create_output
+    def dump(self) -> None:
+        self.dump_config()
+        self.downloaded_df.to_csv(self.output_filename, index=False)
 
     def _validate_url(self) -> None:
         # at least one URL should not be None:
@@ -183,7 +187,17 @@ class Downloader:
     def dump_config(self) -> None:
         self.config.to_yaml(self.output_filename)
 
-    def write_csv(self, output_json, verbose=False) -> None:
+    def create_df(self, output_json, verbose=False) -> pd.DataFrame:
+        """
+        Writes the CSV while ensuring existence and oder of all fields defined in self.config.DOWNLOADER_FIELD_ORDER
+        """
+        if verbose:
+            print("Formatting DataFrame...")
+        self.extra_fields = set(self.custom_data_fields) - set(self.config.DOWNLOADER_FIELD_ORDER)
+        all_fields = self.config.DOWNLOADER_FIELD_ORDER + tuple(self.extra_fields)
+        return pd.DataFrame(output_json, columns=all_fields).reindex(columns=all_fields)
+    
+    def write_csv(self, output_json, verbose=False) -> None: # TODO: remove!!!
         """
         Writes the CSV while ensuring existence and oder of all fields defined in self.config.DOWNLOADER_FIELD_ORDER
         """
@@ -196,9 +210,6 @@ class Downloader:
             output_file_writer.writeheader()
             for output_json_record in output_json:
                 output_file_writer.writerow(output_json_record)
-
-        if verbose:
-            print(f"Wrote CSV to {self.output_filename}")
 
     def get_net_requested_players(self) -> list:
         """
