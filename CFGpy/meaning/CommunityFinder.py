@@ -4,6 +4,7 @@ import networkx as nx
 import numpy as np
 import itertools
 
+from sklearn.cluster import DBSCAN
 from collections import Counter
 from cdlib import algorithms
 from cdlib import classes as cdlib_classes
@@ -80,27 +81,39 @@ class CommunityFinder():
         else:
             raise NotImplementedError('Graph building method not supported')
         
-    def init_adjacency_graph(self, set_G=True):
+    def init_adjacency_graph(self, set_G=True, connect_back=1, connect_back_exponent=2, max_time_diff=720):
         G = nx.Graph()
         for game in self.vanilla_data:
-            gallery_shapes = [action[0] for action in game['actions'] if action[2] is not None]
-            for edge in zip(gallery_shapes[:-1], gallery_shapes[1:]):
-                if G.has_edge(*edge):
-                    weight = G.get_edge_data(*edge).get(self.adj_attr)
-                    weight += 1
-
-                    attrs = {
-                        edge: {self.adj_attr: weight}
-                    }
-                    nx.set_edge_attributes(G, attrs)
-                else:
-                    G.add_edge(*edge, adj_weight=1)
+            gallery_shapes = [action for action in game['actions'] if action[2] is not None]
+            for i in range(connect_back):
+                action_pairs = zip(gallery_shapes[:-1-i], gallery_shapes[1+i:])
+                weight_value = connect_back_exponent**(-i)
+                self.update_edges_in_adjacency_graph(G, action_pairs, weight_value=weight_value, max_time_diff=max_time_diff)
 
         self.weight_attr = self.adj_attr
         self.adj_graph = G
         self.adj_weights = nx.get_edge_attributes(G, self.adj_attr)
         if set_G:
             self.G = G
+    
+    def update_edges_in_adjacency_graph(self, G, action_pairs, weight_value=1, max_time_diff=720):
+        for action_pair in action_pairs:
+            time_diff = action_pair[1][1] - action_pair[0][1]
+            if time_diff > max_time_diff:
+                continue
+
+            edge = (action_pair[0][0], action_pair[1][0])
+
+            if G.has_edge(*edge):
+                weight = G.get_edge_data(*edge).get(self.adj_attr)
+                weight += weight_value
+
+                attrs = {
+                    edge: {self.adj_attr: weight}
+                }
+                nx.set_edge_attributes(G, attrs)
+            else:
+                G.add_edge(*edge, adj_weight=weight_value)
 
     def init_shared_cluster_graph(self, set_G=True):
         clusters = mb.get_all_clusters(self.vanilla_data)
@@ -180,6 +193,9 @@ class CommunityFinder():
     def transform_weights(self, func):
         self.transform_graph_attribute(self.G, self.weight_attr, func)
 
+    def transform_weights_to_new_attr(self, func, new_attr):
+        self.transform_to_new_graph_attribute(self.G, self.weight_attr, new_attr, func)
+
     def find_communities(self, method, filter_largest_cc=True):
         graph_for_community_search = self.G
         if filter_largest_cc:
@@ -201,7 +217,6 @@ class CommunityFinder():
         self.communities = communities
         self.prune_communities((min_comm_size, max_comm_size))
         self.update_community_size_dicts(pruning_number)
-
         return self.communities
 
     def update_community_size_dicts(self, pruning_number):
@@ -282,6 +297,11 @@ class CommunityFinder():
             communities = [
                 set([node for cluster in other_community for node in cluster]) for other_community in communities
             ]
+
+        return self.calculate_score_similarity_vector_for_community(community, communities, score_func)
+
+    @staticmethod
+    def calculate_score_similarity_vector_for_community(community, communities, score_func):
         score_vector = np.zeros(len(communities))
         for i, other_community in enumerate(communities):
             if community == other_community:
@@ -291,6 +311,7 @@ class CommunityFinder():
             score_vector[i] = score_func(community, other_community)
 
         return score_vector
+
 
     def merge_communities_based_on_score(self, threshold, score_func, pruning_number=DEFAULT_PRUNING_NUMBER):
         '''
@@ -314,6 +335,23 @@ class CommunityFinder():
 
         self.communities = merged_communities
         self.update_community_size_dicts(pruning_number)
+
+    def normalize_weights_overlap_adjacency(self):
+        gallery_shapes = []
+        for game in self.vanilla_data:
+            gallery_shapes += [action[0] for action in game['actions'] if action[2] is not None]
+
+        gallery_shapes = Counter(gallery_shapes)
+
+        attrs = {}
+        self.normalized_weight_attr = 'normalized_' + self.weight_attr
+        for edge in self.G.edges:
+            edge_weight = self.G.get_edge_data(*edge).get(self.weight_attr, 0)
+            normalized_weight = edge_weight / min(gallery_shapes[edge[0]], gallery_shapes[edge[1]])
+            attrs[edge] = {self.normalized_weight_attr: normalized_weight}
+        
+        nx.set_edge_attributes(self.G, attrs)
+
 
     @staticmethod
     def get_merged_communities(communities):
@@ -340,7 +378,10 @@ class CommunityFinder():
     def compute_distances_from_graph(self, G, weights):
         self.distances = {}
         shortest_paths = nx.all_pairs_shortest_path(G, cutoff=10)
-        for node_and_paths in tqdm(shortest_paths, total=G.number_of_nodes()):
+        if self.verbose:
+            shortest_paths = tqdm(shortest_paths, total=G.number_of_nodes())
+            print('Computing distances')
+        for node_and_paths in shortest_paths:
             node = node_and_paths[0]
             paths = node_and_paths[1]
             for other_node, path in paths.items():
@@ -348,9 +389,23 @@ class CommunityFinder():
                 if self.distances[(node, other_node)] is None:
                     self.distances[(node, other_node)] = self.get_path_distance(path, weights)
         
+        if self.verbose:
+            print('Distances computed.\nAdding infinite distances')
+            nodes = tqdm(G.nodes)
+        
+        for node in nodes:
+            for other_node in G.nodes:
+                if (node, other_node) not in self.distances:
+                    self.distances[(node, other_node)] = np.inf
+        
     def save_distance_graph(self, path):
         distances_list = []
-        for key, value in self.distances.items():
+        items = self.distances.items()
+        if self.verbose:
+            print('Saving distances')
+            items = tqdm(self.distances.items())
+
+        for key, value in items:
             if value == np.inf:
                 value = None
 
@@ -369,13 +424,16 @@ class CommunityFinder():
 
                 self.distances[tuple(key)] = value
 
-    def silhouette_score(self, cluster):
+    def silhouette_score(self, cluster, n_communities):
         other_clusters = [c for c in self.communities if c != cluster]
+        other_clusters = other_clusters[:n_communities]
         if self.unflattened_communities:
-            cluster = [node for sub_cluster in cluster for node in sub_cluster]
-            other_clusters = [[node for sub_cluster in other_cluster for node in sub_cluster] for other_cluster in other_clusters]
+            cluster = set([node for sub_cluster in cluster for node in sub_cluster])
+            other_clusters = [set([node for sub_cluster in other_cluster for node in sub_cluster]) for other_cluster in other_clusters]
 
         silhouette_scores = []
+        if self.verbose:
+            cluster = tqdm(cluster)
         for node in cluster:
             silhouette_score = self.silhouette_score_data_point(node, cluster, other_clusters)
             silhouette_scores.append(silhouette_score)
@@ -437,6 +495,20 @@ class CommunityFinder():
         return distance
 
     @staticmethod
+    def dbscan_community_search(G, eps, min_samples, weight, change_weights_to_inverse=False):
+        if change_weights_to_inverse:
+            new_weight = 'inverse_' + weight
+            CommunityFinder.transform_to_new_graph_attribute(G, weight, new_weight, lambda x: 1/x if x != 0 else np.inf)
+            weight = new_weight
+
+        adj_mat = nx.adjacency_matrix(G, weight=weight)
+        clustering = DBSCAN(eps=eps, min_samples=min_samples, metric='precomputed').fit(adj_mat)
+
+        nodes = np.array(list(G.nodes))
+
+        return [nodes[np.where(clustering.labels_ == i)].tolist() for i in range(max(clustering.labels_)+1)]
+
+    @staticmethod
     def get_affine_trans(i):
         return lambda x: x - i + 1
     
@@ -446,5 +518,14 @@ class CommunityFinder():
         new_attributes = {}
         for edge in G.edges:
             new_attributes[edge] = {attr: func(edge_attribute[edge])}
+
+        nx.set_edge_attributes(G, new_attributes)
+
+    @staticmethod
+    def transform_to_new_graph_attribute(G, attr, new_attr, func):
+        edge_attribute = nx.get_edge_attributes(G, attr)
+        new_attributes = {}
+        for edge in G.edges:
+            new_attributes[edge] = {new_attr: func(edge_attribute[edge])}
 
         nx.set_edge_attributes(G, new_attributes)
