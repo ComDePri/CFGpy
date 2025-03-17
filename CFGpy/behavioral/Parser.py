@@ -70,9 +70,15 @@ class Parser:
             data[key] = data[self.config.PARSER_JSON_COLUMN].apply(lambda json_dict: json_dict.get(key))
 
         data[self.config.SHAPE_MOVE_COLUMN] = data[self.config.SHAPE_MOVE_COLUMN].apply(
-            lambda val: val if type(val) is list else np.nan)
+            lambda val: val if isinstance(val, list) 
+            else json.loads(val) if isinstance(val, str) 
+            else np.nan
+            )
         data[self.config.SHAPE_SAVE_COLUMN] = data[self.config.SHAPE_SAVE_COLUMN].apply(
-            lambda val: val if type(val) is list else np.nan)
+            lambda val: val if isinstance(val, list) 
+            else json.loads(val) if isinstance(val, str) 
+            else np.nan
+            )
 
         data = self.merge_id_columns(data)
         data[self.config.PARSER_TIME_COLUMN] = pd.to_datetime(data[self.config.PARSER_TIME_COLUMN],
@@ -91,8 +97,11 @@ class Parser:
             data['customData.endPosition'].apply(lambda x: len(json.loads(x)) == 10 if type(x) is str else False))
         data.loc[switched_column_indices, 'customData.shape'] = data.loc[
             switched_column_indices, 'customData.endPosition']
-        data['customData.shape'] = data['customData.shape'].apply( # TODO: this is causing problems
-            lambda x: x if type(x) is list else []).apply(lambda x: str(x) if len(x) == 10 else np.nan)
+        data['customData.shape'] = data['customData.shape'].apply(
+            lambda x: x if isinstance(x, list) 
+            else json.loads(x) if isinstance(x, str) 
+            else []).apply(lambda x: str(x) if len(x) == 10 else np.nan
+        )
 
         return data
 

@@ -35,7 +35,6 @@ class Downloader:
         self.download_events_json(verbose)
         raw_data = self.create_output(verbose)
         self.downloaded_df = self.create_df(raw_data, verbose)
-        self.write_csv(raw_data, verbose)
         return self.downloaded_df
 
     def dump(self) -> None:
@@ -139,13 +138,6 @@ class Downloader:
         return player
 
     def create_output(self, verbose=False) -> list:
-        # TODO: this is not really creating the final output, since write_csv() does more work to format it. The logic
-        #  from write_csv may be implemented here to create an equivalent pandas DataFrame, and then write_csv can be
-        #  replaced by calling to_csv on that DataFrame. This will also make the return statement in self.download
-        #  cleaner: instead of writing a CSV and then reading it just to be able to return it in the correct format,
-        #  self will have a correctly formatted DataFrame to return from download
-        #  after doing this, Downloader should only write to disk using a dump method, which will also dump config
-
         output_json = []
 
         event_iterator = self.downloaded_events_json
@@ -196,20 +188,6 @@ class Downloader:
         self.extra_fields = set(self.custom_data_fields) - set(self.config.DOWNLOADER_FIELD_ORDER)
         all_fields = self.config.DOWNLOADER_FIELD_ORDER + tuple(self.extra_fields)
         return pd.DataFrame(output_json, columns=all_fields).reindex(columns=all_fields)
-    
-    def write_csv(self, output_json, verbose=False) -> None: # TODO: remove!!!
-        """
-        Writes the CSV while ensuring existence and oder of all fields defined in self.config.DOWNLOADER_FIELD_ORDER
-        """
-        self.extra_fields = set(self.custom_data_fields) - set(self.config.DOWNLOADER_FIELD_ORDER)
-
-        all_fields = self.config.DOWNLOADER_FIELD_ORDER + tuple(self.extra_fields)
-        with open(self.output_filename, "w", newline="", encoding="utf-8") as output_file:
-            output_file_writer = csv.DictWriter(output_file, fieldnames=all_fields, quoting=csv.QUOTE_ALL)
-
-            output_file_writer.writeheader()
-            for output_json_record in output_json:
-                output_file_writer.writerow(output_json_record)
 
     def get_net_requested_players(self) -> list:
         """
