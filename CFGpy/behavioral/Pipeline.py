@@ -5,12 +5,14 @@ from CFGpy.behavioral._utils import CFGPipelineException
 
 
 class Pipeline:
-    def __init__(self, red_metrics_csv_url: str | None = None, output_filename=DEFAULT_FINAL_OUTPUT_FILENAME,
+    def __init__(self, red_metrics_data_url: str | None = None, rm2_game_id: str | None = None, output_filename=DEFAULT_FINAL_OUTPUT_FILENAME,
                  config: Configuration = None):
         self.output_filename = output_filename
-        self.config = config if config is not None else Configuration.default()
-        self.red_metrics_csv_url = red_metrics_csv_url
-
+        
+        self.red_metrics_data_url = red_metrics_data_url
+        self.rm2_game_id = rm2_game_id
+        self.config = config or Configuration.default(is_rm2=self.is_rm2) 
+        
         self.downloader = None
         self.raw_data = None
         self.parser = None
@@ -36,14 +38,22 @@ class Pipeline:
             .format(f"{now.microsecond // 1000:0>3}")  # fills in millisecond info, 0-padded to three digits
         )
         return now_str
-
+    
+    @property
+    def is_rm2(self) -> bool:
+        return self.rm2_game_id is not None or (self.red_metrics_data_url and "v2" in self.red_metrics_data_url)
+    
     def _add_url_to_config(self):
-        csv_url = self.downloader.csv_url
-        if "&before=" not in csv_url:
+        data_url = self.downloader.data_url
+        
+        if not self.is_rm2 and "&before=" not in data_url:
             now_str = self._get_now_str()
-            csv_url += f"&before={now_str}"
-
-        self.config.RED_METRICS_CSV_URL = csv_url
+            data_url += f"&before={now_str}"
+        
+        if self.is_rm2:
+            self.config.RED_METRICS_JSON_URL = data_url
+        else:
+            self.config.RED_METRICS_CSV_URL = data_url
 
     def _download(self, verbose):
         """
@@ -62,7 +72,7 @@ class Pipeline:
         if self.raw_data is not None:
             raise CFGPipelineException("Raw data already downloaded")
 
-        self.downloader = Downloader(self.red_metrics_csv_url, config=self.config)
+        self.downloader = Downloader(data_url=self.red_metrics_data_url, rm2_game_id=self.rm2_game_id, config=self.config)
         self._add_url_to_config()
 
         if verbose:
@@ -75,7 +85,7 @@ class Pipeline:
         This method contains the parsing process exclusively. This can be overridden by deriving classes.
         :return: parsed data
         """
-        self.parser = Parser(self.raw_data, self.config)
+        self.parser = Parser(raw_data=self.raw_data, config=self.config)
         return self.parser.parse()
 
     def parse(self, verbose):
@@ -99,7 +109,7 @@ class Pipeline:
         This method contains the post-parsing process exclusively. This can be overridden by deriving classes.
         :return: post-parsed data
         """
-        self.postparser = PostParser(self.parsed_data, self.config)
+        self.postparser = PostParser(parsed_data=self.parsed_data, config=self.config)
         return self.postparser.postparse()
 
     def postparse(self, verbose):
@@ -118,7 +128,7 @@ class Pipeline:
         self.postparsed_data = self._postparse()
 
     def _extract_features(self, verbose):
-        self.feature_extractor = FeatureExtractor(self.postparsed_data, self.config)
+        self.feature_extractor = FeatureExtractor(preprocessed_data=self.postparsed_data, config=self.config)
         return self.feature_extractor.extract(verbose)
 
     def extract_features(self, verbose):
@@ -149,6 +159,7 @@ def main():
 
     argparser = argparse.ArgumentParser(description="Run CFG behavioral data pipeline")
     argparser.add_argument("--url", help='Web address of the "Download all pages as CSV"')
+    argparser.add_argument("--rm2-game-id", help='The game id of the game on RedMetrics2')
     argparser.add_argument("--config-path", help='The path to the yml file that contains the configuration')
     argparser.add_argument("-o", "--output", default=DEFAULT_FINAL_OUTPUT_FILENAME, dest="output_filename",
                         help='Filename of output CSV')
@@ -156,7 +167,7 @@ def main():
     
     config: Configuration | None = Configuration.from_yaml(yaml_path=args.config_path) if args.config_path else None
     
-    pl = Pipeline(red_metrics_csv_url=args.url, output_filename=args.output_filename, config=config)
+    pl = Pipeline(red_metrics_data_url=args.url, rm2_game_id=args.rm2_game_id, output_filename=args.output_filename, config=config)
     
     pl.run_pipeline()
 

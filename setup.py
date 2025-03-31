@@ -16,7 +16,7 @@ setup(
     project_urls={},
     license='MIT',
     packages=find_packages(),
-    package_data={'': ["behavioral/default_config.yml"]},
+    package_data={'': ["behavioral/default_config.yml", "behavioral/default_rm2_config.yml"]},
     include_package_data=True,
     install_requires=["appdirs", "numpy", "pandas", "requests", "tqdm", "networkx", "matplotlib",
                       "seaborn", "scipy", "dacite", "PyYAML"],

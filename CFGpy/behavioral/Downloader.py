@@ -1,27 +1,34 @@
 import csv
+import getpass
+from typing import Optional
 import requests
 from tqdm import tqdm
 import pandas as pd
-from CFGpy.behavioral._consts import (DOWNLOADER_OUTPUT_FILENAME, NO_DOWNLOADER_URL_ERROR, DOWNLOADER_URL_NO_CSV_ERROR,
-                                      TWO_DOWNLOADER_URL_ERROR, EVENTS_PER_PAGE, PAGE_REPETITION_LIMIT_REACHED)
+from CFGpy.behavioral._consts import (DOWNLOADER_OUTPUT_FILENAME, NO_DOWNLOADER_INPUT_ERROR, DOWNLOADER_URL_NO_CSV_ERROR,
+                                      MULTIPLE_DOWNLOADER_INPUTS_ERROR, CONFIG_URL_MISMATCH_ERROR, EVENTS_PER_PAGE, PAGE_REPETITION_LIMIT_REACHED)
 from CFGpy.behavioral._utils import CFGPipelineException
 from CFGpy.behavioral import Configuration
 
 
 class Downloader:
-    def __init__(self, csv_url: str | None = None, output_filename: str = DOWNLOADER_OUTPUT_FILENAME,
-                 config: Configuration = None) -> None:
+    def __init__(self, *, data_url: str | None = None, rm2_game_id: str | None = None, rm2_email: str | None = None, rm2_password: str | None = None, 
+                 output_filename: str = DOWNLOADER_OUTPUT_FILENAME, config: Configuration = None) -> None:
         """
         Init a Downloader object.
-        :param csv_url: Web address of the "Download all pages as CSV" in RedMetrics. Optional. If None, URL is expected
-                         as part of config.
+        :param csv_url: Web address of the "Download all pages as CSV" in RedMetrics. Optional. If None, either the rm2_game_id must be 
+        provided or the URL is expected as part of config.
+        :param rm2_game_id: The game id of the game whose data you want to download from RedMetrics2. If None, 
         :param output_filename: filename for output.
         :param config: a Configuration file. If this defines a RedMetrics URL, `csv_url` shouldn't.
         """
         self.config = config if config is not None else Configuration.default()
-        self.csv_url = csv_url
-        self._validate_url()
-        self.json_url = self.csv_url.replace("/event.csv", "/event.json")
+        self.data_url = self.config.RED_METRICS_CSV_URL or self.config.RED_METRICS_JSON_URL or data_url
+        self.rm2_game_id: str = rm2_game_id
+        self.rm2_email = rm2_email
+        self.rm2_password = rm2_password
+        self.is_rm2 = self._is_rm2()
+        self._validate_input()
+        self.json_url = self.data_url.replace("/event.csv", "/event.json") if not self.is_rm2 and self.json_url else self.data_url
         self.downloaded_events_json = []
         self.output_filename = output_filename
         self.downloaded_df = None
@@ -32,30 +39,44 @@ class Downloader:
         self.extra_fields = set()
 
     def download(self, verbose: bool = False) -> pd.DataFrame:
-        self.download_events_json(verbose)
-        raw_data = self.create_output(verbose)
+        raw_data: list[dict] = self._download_from_rm2(verbose=verbose) if self.is_rm2 else self._download_from_rm1(verbose=verbose)
         self.downloaded_df = self.create_df(raw_data, verbose)
         return self.downloaded_df
-
+    
+    def _download_from_rm1(self, verbose: bool = False) -> list[dict]:
+        self.download_events_json(verbose)
+        return self.create_output(verbose)
+    
+    def _download_from_rm2(self, verbose: bool = False) -> list[dict]:
+        self.downloaded_events_json = self.download_data_from_rm2(verbose=verbose) 
+        return self.create_rm2_output(verbose=verbose)
+    
     def dump(self) -> None:
         self.dump_config()
         self.downloaded_df.to_csv(self.output_filename, index=False)
 
-    def _validate_url(self) -> None:
+    def _validate_input(self) -> None:
+        
+        none_count: int = [self.data_url, self.config.RED_METRICS_CSV_URL, self.config.RED_METRICS_JSON_URL, self.rm2_game_id].count(None)
+        
         # at least one URL should not be None:
-        if self.csv_url is None and self.config.RED_METRICS_CSV_URL is None:
-            raise ValueError(NO_DOWNLOADER_URL_ERROR)
+        if none_count < 1:
+            raise ValueError(NO_DOWNLOADER_INPUT_ERROR)
 
         # at most one URL should not be None:
-        if self.csv_url is not None and self.config.RED_METRICS_CSV_URL is not None:
-            raise ValueError(TWO_DOWNLOADER_URL_ERROR)
-
-        self.csv_url = self.config.RED_METRICS_CSV_URL if self.csv_url is None else self.csv_url
+        if  none_count < 2:
+            raise ValueError(MULTIPLE_DOWNLOADER_INPUTS_ERROR)
 
         # URL should point to an event.csv file:
-        if not "/event.csv" in self.csv_url:
-            raise ValueError(DOWNLOADER_URL_NO_CSV_ERROR.format(self.csv_url))
-
+        if self.data_url and not self.is_rm2 and not "/event.csv" in self.data_url:
+            raise ValueError(DOWNLOADER_URL_NO_CSV_ERROR.format(self.data_url))
+        
+        if (self.is_rm2 and not self.config.is_rm2) or (not self.is_rm2 and self.config.is_rm2):
+            raise ValueError(CONFIG_URL_MISMATCH_ERROR)
+    
+    def _is_rm2(self) -> bool:
+        return self.rm2_game_id is not None or (self.data_url and "v2" in self.data_url)
+    
     def _get_page(self, page_i: int) -> requests.Response:
         """
         Gets a page of events in JSON format, using the RedMetrics1 API (https://github.com/CyberCRI/RedMetrics/blob/master/API.md)
@@ -146,20 +167,10 @@ class Downloader:
             event_iterator = tqdm(event_iterator, desc="events")
 
         for event in event_iterator:
-            # filter to common fields
-            output_json_record = {k: v for (k, v) in event.items() if k in self.config.DOWNLOADER_COMMON_FIELDS}
-
-            # add event's custom data fields
-            if self.config.EVENT_CUSTOM_DATA_KEY in event:
-                if isinstance(event[self.config.EVENT_CUSTOM_DATA_KEY], dict):
-                    # Add each key as a custom data field
-                    for key, value in event[self.config.EVENT_CUSTOM_DATA_KEY].items():
-                        keyName = f"{self.config.EVENT_CUSTOM_DATA_KEY}.{key}"
-                        self.custom_data_fields.add(keyName)
-                        output_json_record[keyName] = value
-                else:
-                    self.custom_data_fields.add(self.config.EVENT_CUSTOM_DATA_KEY)
-
+            
+            # process single event 
+            output_json_record: dict = self._process_event(event=event)
+        
             # add player's fields
             player_id = event[self.config.EVENT_PLAYER_ID_KEY]
             player = self._get_player(player_id)
@@ -175,6 +186,23 @@ class Downloader:
             output_json.append(output_json_record)
 
         return output_json
+    
+    def _process_event(self, event: dict) -> dict:
+        # filter to common fields
+        output_json_record = {k: v for (k, v) in event.items() if k in self.config.DOWNLOADER_COMMON_FIELDS}
+
+        # add event's custom data fields
+        if self.config.EVENT_CUSTOM_DATA_KEY in event:
+            if isinstance(event[self.config.EVENT_CUSTOM_DATA_KEY], dict):
+                # Add each key as a custom data field
+                for key, value in event[self.config.EVENT_CUSTOM_DATA_KEY].items():
+                    keyName = f"{self.config.EVENT_CUSTOM_DATA_KEY}.{key}"
+                    self.custom_data_fields.add(keyName)
+                    output_json_record[keyName] = value
+            else:
+                self.custom_data_fields.add(self.config.EVENT_CUSTOM_DATA_KEY)
+                
+        return output_json_record
 
     def dump_config(self) -> None:
         self.config.to_yaml(self.output_filename)
@@ -200,3 +228,73 @@ class Downloader:
         Returns the set of extra/unexpected fields found in the data.
         """
         return self.extra_fields
+    
+    def login_to_session(self, session: requests.Session, email: str, password: str, verbose: Optional[bool] = False) -> None:
+        
+        if verbose:
+            print("Logging into RedMetrics2...")
+            
+        login_url: str = "https://api.creativeforagingtask.com/v2/login"
+        login_data: dict = {
+            "email": email,
+            "password": password,
+        }
+        
+        response = session.post(login_url, data=login_data)
+
+        if response.status_code == 200:
+            if verbose:
+                print("Successfully logged into RedMetrics2.")
+        else:
+            print(f"Login failed: {response.text}")
+
+    def download_data(self, session: requests.Session, verbose: Optional[bool] = False) -> dict:
+        
+        if verbose:
+            print("Downloading data from RedMetrics2...")
+            
+        dowload_url: str = f"https://api.creativeforagingtask.com/v2/game/{self.rm2_game_id}/data.json" if self.rm2_game_id else self.json_url
+        response = session.get(dowload_url)
+
+        if not response.status_code == 200:
+            msg = f"Error: {response.status_code} - failed to download data for game: {self.rm2_game_id}."
+            print(msg)
+            raise(ValueError(msg))
+        
+        if verbose:
+                print("Data successfully downloaded from RedMetrics2.")
+                
+        return response.json()
+
+    def download_data_from_rm2(self, verbose: Optional[bool] = False) -> dict:
+        
+        session = requests.Session()
+        
+        if self.rm2_email is None or self.rm2_password is None:
+            self.rm2_email = input("Please enter your RedMetrics2 email: ") 
+            self.rm2_password = getpass.getpass(prompt="Enter your RedMetrics2 password: ")
+        self.login_to_session(session=session, email=self.rm2_email, password=self.rm2_password, verbose=verbose)
+        return self.download_data(session=session, verbose=verbose)
+    
+    def create_rm2_output(self, verbose: Optional[bool] = False) -> pd.DataFrame:
+       
+        sessions_iterator = self.downloaded_events_json.get("sessions")
+        
+        if verbose:
+            print("\nHandling events...")
+            sessions_iterator = tqdm(sessions_iterator, desc="sessions")
+            
+        output_json: list[dict] = []
+        
+        for session in sessions_iterator:
+            playerCustomData: dict = session.get("customData")
+            playerID: str = session.get("id")
+            events: list[dict] = session.get("events")
+            for event in events:
+                output_json_record: dict = self._process_event(event=event)
+                output_json_record[self.config.RAW_PLAYER_CUSTOM_DATA] = playerCustomData
+                output_json_record[self.config.RAW_PLAYER_ID] = playerID
+                output_json.append(output_json_record)
+                
+        return output_json
+
