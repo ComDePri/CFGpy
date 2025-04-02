@@ -1,4 +1,5 @@
 import csv
+from typing import Optional
 import requests
 from tqdm import tqdm
 import pandas as pd
@@ -33,8 +34,7 @@ class Downloader:
 
     def download(self, verbose: bool = False) -> pd.DataFrame:
         self.download_events_json(verbose)
-        raw_data = self.create_output(verbose)
-        self.downloaded_df = self.create_df(raw_data, verbose)
+        self.downloaded_df = self.create_downloader_output(verbose)
         return self.downloaded_df
 
     def dump(self) -> None:
@@ -179,16 +179,57 @@ class Downloader:
     def dump_config(self) -> None:
         self.config.to_yaml(self.output_filename)
 
-    def create_df(self, output_json, verbose=False) -> pd.DataFrame:
+    def create_downloader_output(self, verbose=False) -> pd.DataFrame:
         """
-        Writes the CSV while ensuring existence and oder of all fields defined in self.config.DOWNLOADER_FIELD_ORDER
+        Writes the CSV while ensuring existence and order of all fields defined in self.config.DOWNLOADER_FIELD_ORDER
         """
+        output_json = []
+
+        event_iterator = self.downloaded_events_json
+        if verbose:
+            print("\nHandling events...")
+            event_iterator = tqdm(event_iterator, desc="events")
+
+        for event in event_iterator:
+            output_json_record = {k: v for (k, v) in event.items() if k in self.config.DOWNLOADER_COMMON_FIELDS} # filter to common fields
+            output_json_record = self._add_events_custom_data(event=event, output_json_record=output_json_record)
+            output_json_record = self._add_player_data(event=event, output_json_record=output_json_record)
+            output_json.append(output_json_record)
+            
+        return self._create_df(output_json=output_json)
+    
+    def _add_events_custom_data(self, *, event: dict, output_json_record: dict) -> dict:
+        if self.config.EVENT_CUSTOM_DATA_KEY in event:
+            if isinstance(event[self.config.EVENT_CUSTOM_DATA_KEY], dict):
+                # Add each key as a custom data field
+                for key, value in event[self.config.EVENT_CUSTOM_DATA_KEY].items():
+                    keyName = f"{self.config.EVENT_CUSTOM_DATA_KEY}.{key}"
+                    self.custom_data_fields.add(keyName)
+                    output_json_record[keyName] = value
+            else:
+                    self.custom_data_fields.add(self.config.EVENT_CUSTOM_DATA_KEY)
+        return output_json_record
+    
+    def _add_player_data(self, *, event: dict, output_json_record: dict) -> dict:
+        player_id = event[self.config.EVENT_PLAYER_ID_KEY]
+        player = self._get_player(player_id)
+
+        output_json_record[self.config.RAW_PLAYER_ID] = player_id
+        output_json_record[self.config.RAW_PLAYER_BIRTHDATE] = player.get("birthDate")
+        output_json_record[self.config.RAW_PLAYER_REGION] = player.get("region")
+        output_json_record[self.config.RAW_PLAYER_COUNTRY] = player.get("country")
+        output_json_record[self.config.RAW_PLAYER_GENDER] = player.get("gender")
+        output_json_record[self.config.RAW_PLAYER_EXTERNAL_ID] = player.get("externalId")
+        output_json_record[self.config.RAW_PLAYER_CUSTOM_DATA] = player.get("customData")
+        return output_json_record
+    
+    def _create_df(self, *, output_json: dict, verbose: Optional[bool] = False) -> pd.DataFrame:
         if verbose:
             print("Formatting DataFrame...")
         self.extra_fields = set(self.custom_data_fields) - set(self.config.DOWNLOADER_FIELD_ORDER)
         all_fields = self.config.DOWNLOADER_FIELD_ORDER + tuple(self.extra_fields)
         return pd.DataFrame(output_json, columns=all_fields).reindex(columns=all_fields)
-
+    
     def get_net_requested_players(self) -> list:
         """
         Returns the list of players that required a network request.
