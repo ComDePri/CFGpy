@@ -1,9 +1,0 @@
-start,end,phase
-0.0,100.27,explore
-144.654,182.47,explore
-219.688,332.862,explore
-757.494,828.766,explore
-100.27,144.654,exploit
-182.47,219.688,exploit
-332.862,757.494,exploit
-828.766,888.598,exploit

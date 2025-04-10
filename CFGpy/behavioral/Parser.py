@@ -32,10 +32,10 @@ class Parser:
         'userTime',
     ]
     default_id_columns = [
-        'playerExternalId',
-        'userProvidedId',
-        'userId',
-        'prolificId'
+        #'playerExternalId',
+        'userProvidedId'#,
+        #'userId',
+        #'prolificId'
     ]
     default_id = 'No ID Found'
 

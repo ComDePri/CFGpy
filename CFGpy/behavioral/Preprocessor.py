@@ -4,7 +4,7 @@ from CFGpy.utils import binary_matrix_to_shape_id as bin2id
 from itertools import groupby
 import json
 
-DEFAULT_OUTPUT_FILENAME = "output/preprocessed.json"
+DEFAULT_OUTPUT_FILENAME = PATH_FROM_REP_ROOT + "preprocessed.json"
 
 
 class Preprocessor:
@@ -89,6 +89,8 @@ class Preprocessor:
     def add_explore_exploit(self):
         for player_data in self.all_players_data:
             if player_data["id"] == "999999":
+                player_data[EXPLORE_KEY] = [(0, len(player_data["actions"]))]
+                player_data[EXPLOIT_KEY] = []
                 continue
             explore, exploit, robust_median_value, robust_threshold_value = segment_explore_exploit(player_data[PARSED_ALL_SHAPES_KEY])
             player_data[EXPLORE_KEY] = explore

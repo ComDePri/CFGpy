@@ -10,7 +10,6 @@ from CFGpy.utils import plot_shape, utils
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-PATH_FROM_REP_ROOT="output/"
 
 class ParsedPlayerData:
     def __init__(self, player_data):
@@ -23,8 +22,10 @@ class ParsedPlayerData:
         self.delta_move_times = np.diff(self.shapes_df.iloc[:, SHAPE_MOVE_TIME_IDX])
 
         # Roey's additions for the subject-specific pace threshold
-        self.robust_median_exploit_pace = player_data['robust_median_exploit_pace']
-        self.robust_threshold_exploit_pace = player_data['robust_threshold_exploit_pace']
+        # Only run the following two lines if 'robust_median_exploit_pace' actually exists
+        if 'robust_median_exploit_pace' in player_data:
+            self.robust_median_exploit_pace = player_data['robust_median_exploit_pace']
+            self.robust_threshold_exploit_pace = player_data['robust_threshold_exploit_pace']
 
     def __len__(self):
         return len(self.shapes_df)
@@ -37,8 +38,10 @@ class ParsedPlayerData:
         return last_action_time
 
     def get_max_pause_duration(self):
-        return max(self.delta_move_times[3:-4])
-
+        try:
+            return max(self.delta_move_times[3:-4])
+        except ValueError: # TODO: This shouldn't happen, but I saw it happen for test games with ID 999999
+            return 0
     def get_steps(self):
         shape_ids = self.shapes_df.iloc[:, SHAPE_ID_IDX]
         without_empty_moves = [shape_id for shape_id, group in groupby(shape_ids)]
@@ -189,6 +192,9 @@ class PreprocessedPlayerData(ParsedPlayerData):
 
         shape_indices = [0] + list(np.flatnonzero(self.get_gallery_mask()))
         actual_path_lengths = np.diff(shape_indices)
+        if len(actual_path_lengths)==0:
+            print('Skipping subject with now explore/exploit lengths. Returning -1,-1') # TODO: Add subject ID
+            return -1,-1
         actual_path_lengths[0] += 1  # TODO: for backwards compatibility, waiting for Yuval's answer to drop this
         shape_ids = self.shapes_df.iloc[shape_indices, SHAPE_ID_IDX]
         shortest_path_lengths = [get_shortest_path_len(shape1, shape2) for shape1, shape2 in pairwise(shape_ids)]

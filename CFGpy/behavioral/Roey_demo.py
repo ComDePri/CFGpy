@@ -4,19 +4,25 @@ import pandas as pd
 from CFGpy.behavioral import Downloader, Parser, Preprocessor
 from CFGpy.behavioral.MRIParser import MRIParser
 from CFGpy.behavioral.Preprocessor import DEFAULT_OUTPUT_FILENAME
-from CFGpy.behavioral.data_structs import PreprocessedPlayerData, PATH_FROM_REP_ROOT
+from CFGpy.behavioral.data_structs import PreprocessedPlayerData
 from CFGpy.behavioral._consts import *
 from pptx import Presentation
 from pptx.util import Inches
 import json # Roey added for saving the vanilla after more preprocessing
+import shutil
 
-CSV_URL = "https://api.creativeforagingtask.com/v1/event.csv?game=4cb46367-7555-\
-42cb-8915-152c3f3efdfb&entityType=event&after=2021-05-23T10:51:00.\
-000Z"  # link Roey sent
+# (1) CSV URL for MRI games inside the scanner
+CSV_URL = "https://api.creativeforagingtask.com/v1/event.csv?game=4cb46367-7555-42cb-8915-152c3f3efdfb&entityType=event&after=2021-05-23T10:51:00.000Z"
 CSV_FILE_PATH = "/home/roey/Documents/CFG_data/event.csv"
-ROY_TEST_JASON = "/home/roey/PycharmProjects/CFGpy/CFGpy/behavioral/test_file1.json"
+# (2) CSV URL for MRI games outside the scanner (go to https://creativeforagingtask.com/v1/search and search for the game version "FCDBrainHebrewOnlyScan")
+#CSV_URL = 'https://api.creativeforagingtask.com/v1/event.csv?game=01b164da-9cef-4dbf-aefb-17627442abe7&gameVersion=4f865647-2064-4af4-a18f-153ec24d6a5f&entityType=event'
+#CSV_FILE_PATH = "/home/roey/Documents/CFG_data/event_play_outside_scanner.csv"
+#ROY_TEST_JASON = "/home/roey/PycharmProjects/CFGpy/CFGpy/behavioral/test_file1.json"
 
-PPT_OUTPUT_PATH = 'output/'
+PPT_OUTPUT_PATH = PATH_FROM_REP_ROOT # PATH_FROM_REP_ROOT loaded from consts above. Usually simply 'output/'
+# If PPT_OUTPUT_PATH doesn't exist, create it
+if not os.path.exists(PPT_OUTPUT_PATH):
+    os.makedirs(PPT_OUTPUT_PATH)
 
 def __from_raw_data(raw_data):
     parser = MRIParser(raw_data)
@@ -107,11 +113,14 @@ def create_players_cluster_times_csv(preprocessed_data, output_folder=PATH_FROM_
 
     for player_data in preprocessed_data:
         if not player_data[PARSED_PLAYER_ID_KEY].startswith("9999"):  # skip the non-player data
+            player_id = player_data[PARSED_PLAYER_ID_KEY]
+            if not player_id in ['089', '096']:  # TODO: &&& REMOVE
+                continue
+
             data = PreprocessedPlayerData(player_data)
 
             # explore_times, exploit_times = data.get_cluster_times()
             #
-            player_id = player_data[PARSED_PLAYER_ID_KEY]
             csv_file_path = os.path.join(output_folder, f"Player_{player_id}_cluster_times.csv")
 
             # Save DataFrame to CSV
@@ -215,23 +224,57 @@ def create_all_shapes_presentation(preprocessed_data):
 if __name__ == '__main__':
     # NOTE: Change here to one of 3 options for loading the data
 
-    # Load vanilla to preprocess it with the MRI algorithm and dump it into a new json file
+    # A) Load vanilla to preprocess it with the MRI algorithm and dump it into a new json file
     #preprocessed_data = from_json("/Volumes/HartLabNAS/Projects/CFG/vanilla_data/vanilla.json")
     #path = "/Volumes/HartLabNAS/Projects/CFG/vanilla_data/vanilla_shuffled_noMRIFix.json"
     #with open(path, "w") as out_file:
     #    json.dump(preprocessed_data, out_file)
 
-    # Load data from url & save new JSON
+    # B) [[Default option, but see C]] Load data from url & save new JSON
     #preprocessed_data = from_url(CSV_URL)
 
-    # Load data from csv
+    # C) Load data from csv
+    # Add a missing "startsearch" line for subject 104 (due to server communication error)
+    # NOTE: This is not critical, since this is a game we exclude anyway. They saved at almost every step.
+    # Define the source and destination file paths
+    CSV_FILE_PATH_SAVED_FROM_URL = '/home/roey/PycharmProjects/CFGpy/CFGpy/behavioral/event.csv'
+    CSV_FILE_PATH = '/home/roey/PycharmProjects/CFGpy/CFGpy/behavioral/event_manual_startsearch_added_player_104.csv'
+    # Copy the contents of the original file to the new file
+    shutil.copy(CSV_FILE_PATH_SAVED_FROM_URL, CSV_FILE_PATH)
+    # Add the new line to the copied file
+    line_to_add = 'f0eb2088-8f0eb2088-8a06-4482-a86f-7ce841f059f6,2025-03-11T10:29:26.043Z,2025-02-04T11:21:17.785Z,b241162a-93db-4213-9741-c9a825521506,db71df4c-6030-4602-be46-24ad4237f734,,,,,104,"{""expId"":""LeapsFCDBrain"",""userId"":""104"",""userAgent"":""Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"",""userProvidedId"":""104""}",startsearch,,,,,,,,,,,,'
+    with open(CSV_FILE_PATH, 'a') as f:
+        f.write(line_to_add)
+
+
+    # NOTE: Or use the CSV with the added startsearch line for subject 104 who is missing it on the server, probably due to network issues:
+    ########CSV_FILE_PATH = '/home/roey/PycharmProjects/CFGpy/CFGpy/behavioral/event_manual_startsearch_added_player_104.csv'
     #preprocessed_data = from_file(CSV_FILE_PATH)
+    ###exit()
 
     # Load processed data from json
-    preprocessed_data = from_json(DEFAULT_OUTPUT_FILENAME)
+    # A - this worked
+    ### preprocessed_data = from_json(DEFAULT_OUTPUT_FILENAME)
+    # B - checking this option
+    pp = Preprocessor.from_json(DEFAULT_OUTPUT_FILENAME)
+    preprocessed_data = pp.preprocess()
+    pp.remove_bad_games()
+    # END OF B
 
+
+    ## ROY G. MODIFIED CODE
+
+#####    # For plotting specific Vanilla games (this is a little strange, because here we load a "postparsed" dataset, which means it was analyzed with a more recent version of the CFG pipeline, where we have Parser and PostParser classes, which are not present in the dev branch), and not Preprocessor and MeasurerCalculator.
+    #####    import json
+    #####    json_file = '/Volumes/HartLabNAS/Projects/CFG/vanilla_data/vanilla.json'
+    #####    with open(json_file, 'r') as file:
+    #####        preprocessed_data = json.load(file)
+    #####        print('Done.')
+    #####    # Just for testing, extract two games (the code will fail if it's only a single game)
+    #####    preprocessed_data = preprocessed_data[0:2]
     # Sort by ID
     preprocessed_data = sorted(preprocessed_data, key=lambda x: x["id"])  # sort by subjects' ID
+
 
     def create_presentation_with_all_shapes_plot():
         prs_all_shapes =create_all_shapes_presentation(preprocessed_data)
@@ -243,15 +286,19 @@ if __name__ == '__main__':
         plot_by_delta_t = True # change this from False --> True: for choosing weather it'll create presentation by delta_t or steps
         prs_game = create_players_game_presentation(preprocessed_data, delta_t=plot_by_delta_t)
         if not plot_by_delta_t:
-            prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_paceSpecific_5mad_rmvEmptyTimeAllSteps_efficiencyLessThan1DELETE.pptx"
+            #prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_paceSpecific_5mad_rmvEmptyTimeAllSteps_efficiencyLessThan1DELETE.pptx"
+            prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation.pptx"
         else:
-            prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_paceSpecific_5mad_rmvEmptyTimeAllSteps_efficiencyLessThan1_delta_tDELETE.pptx"
+            #prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation_efficiency{MIN_EFFICIENCY_FOR_EXPLOIT}_paceSpecific_5mad_rmvEmptyTimeAllSteps_efficiencyLessThan1_delta_tDELETE.pptx"
+            prs_game_name = f"{PPT_OUTPUT_PATH}games_presentation.pptx"
 
         prs_game.save(prs_game_name)
         print(f"PowerPoint presentation saved as '{prs_game_name}'")
 
     def create_players_cluster_times():
         output_folder = PATH_FROM_REP_ROOT+"clusters_times_csvs/"
+        #output_folder = PATH_FROM_REP_ROOT + "clusters_times_csvs/"
+
         create_players_cluster_times_csv(preprocessed_data, output_folder)
         print(f"csv's with players cluster saved in folder: '{output_folder}'")
 
@@ -260,6 +307,11 @@ if __name__ == '__main__':
         create_empty_moves_csv(preprocessed_data, output_folder)
         print(f"csv's with players cluster saved in folder: '{output_folder}'")
 
-    # create_presentation_with_both_plots()
+    # Change here to determine what the script will do
+    ###create_presentation_with_both_plots()
+    ###create_presentation_with_all_shapes_plot()
+    cluster_times_dir = os.path.join(PPT_OUTPUT_PATH,'clusters_times_csvs/')
+    if not os.path.exists(cluster_times_dir):
+        os.makedirs(cluster_times_dir)
     create_players_cluster_times()
-    create_players_empty_moves_times()
+    #create_players_empty_moves_times()

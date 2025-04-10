@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import os
 from datetime import datetime
 from CFGpy.behavioral.data_structs import PreprocessedDataset
 from CFGpy.behavioral._consts import *
@@ -146,6 +147,10 @@ class MeasureCalculator:
             last_action_time = player_data.get_last_action_time()
             n_moves = len(player_data)
             n_galleries = sum(is_gallery)
+            if n_galleries==0:
+                print(f"Player {player_data.id} has no galleries, skipping...")
+                continue
+
             explore_efficiency, exploit_efficiency = player_data.get_efficiency()
 
             absolute_measures.append({
@@ -165,7 +170,8 @@ class MeasureCalculator:
                 MEDIAN_EXPLORE_LENGTH_KEY: np.median(explore_lengths),
                 MEDIAN_EXPLOIT_LENGTH_KEY: np.median(exploit_lengths),
                 "exp speed": sum(explore_lengths) / time_in_explore,
-                "scav speed": sum(exploit_lengths) / time_in_exploit,
+                "scav speed": sum(exploit_lengths) / time_in_exploit if time_in_exploit != 0 else None,
+
                 LONGEST_PAUSE_KEY: player_data.get_max_pause_duration()
             })
 
@@ -217,19 +223,28 @@ if __name__ == '__main__':
     from Preprocessor import Preprocessor
 
     # change this to mach locally
-    PERSONAL_PATH_TO_FOLDER = "/Users/avivgreenburg/Library/CloudStorage/GoogleDrive-aviv.greenburg@mail.huji.ac.il/My Drive/שלי/לימודים/Uni_2020-2024/forth_year/lab/"
-
+    #PERSONAL_PATH_TO_FOLDER = "/Users/avivgreenburg/Library/CloudStorage/GoogleDrive-aviv.greenburg@mail.huji.ac.il/My Drive/שלי/לימודים/Uni_2020-2024/forth_year/lab/"
     #OUTPUT_FOLDER = PERSONAL_PATH_TO_FOLDER+"CFGpy/CFGpy/behavioral/output"
+
     #JASON = PERSONAL_PATH_TO_FOLDER+"CFGpy/CFGpy/behavioral/output/preprocessed.json"
-    #pp = Preprocessor.from_json(JASON)
-    pp = Preprocessor.from_json(DEFAULT_OUTPUT_FILENAME)
-    OUTPUT_FOLDER = 'output/'
+    JASON = os.path.join(PATH_FROM_REP_ROOT,"preprocessed.json")
+    #JASON = "/home/roey/PycharmProjects/CFGpy/CFGpy/behavioral/output/games_outside_scanner/preprocessed.json"
+    # (1) Use a specific json file:
+    pp = Preprocessor.from_json(JASON)
+    # (2) Or use the default json file:
+    #pp = Preprocessor.from_json(DEFAULT_OUTPUT_FILENAME)
+    #OUTPUT_FOLDER = 'output/games_outside_scanner'
+    OUTPUT_FOLDER = PATH_FROM_REP_ROOT
 
     preprocessed_data = pp.preprocess()
     pp.remove_bad_games()
     mc = MeasureCalculator(preprocessed_data)
     mc.calc()
-    # mc.dump(args.output_filename)
+    #OUTPUT_FILENAME = "/home/roey/PycharmProjects/CFGpy/CFGpy/behavioral/output/games_outside_scanner/preprocessed_measurements.csv"
+    OUTPUT_FILENAME = OUTPUT_FOLDER + "preprocessed_measurements.csv"
+    mc.dump(OUTPUT_FILENAME)
+    #mc.dump(args.output_filename)
+    print('Done calculating measures.')
 
     def save_median_lengths_to_csv(measure_calculator, path):
         """
@@ -239,9 +254,7 @@ if __name__ == '__main__':
         median_lengths_df = measure_calculator.output_df[[MEASURES_ID_KEY, MEDIAN_EXPLORE_LENGTH_KEY, MEDIAN_EXPLOIT_LENGTH_KEY]]
         median_lengths_df.to_csv(path, index=False)
 
-
-    save_median_lengths_to_csv(mc, f'{OUTPUT_FOLDER}/median_lengths_efficiency08_to_09999.csv')
-
+    save_median_lengths_to_csv(mc, f'{OUTPUT_FOLDER}/median_lengths.csv')
 
     def from_json(jason_path):
         preprocessor = Preprocessor.from_json(jason_path)
