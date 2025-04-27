@@ -37,7 +37,9 @@ class Downloader:
         self.downloaded_df = self.create_downloader_output(verbose)
         return self.downloaded_df
 
-    def dump(self) -> None:
+    def dump(self, verbose: Optional[bool] = False) -> None:
+        if verbose:
+            print(f"Wrote CSV to {self.output_filename}")
         self.dump_config()
         self.downloaded_df.to_csv(self.output_filename, index=False)
 
