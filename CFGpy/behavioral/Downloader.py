@@ -1,4 +1,3 @@
-import csv
 from typing import Optional
 import requests
 from tqdm import tqdm
