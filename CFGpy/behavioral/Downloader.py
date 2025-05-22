@@ -39,24 +39,29 @@ class Downloader:
         self.extra_fields = set()
 
     def download(self, verbose: bool = False) -> pd.DataFrame:
-        raw_data: list[dict] = self._download_from_rm2(verbose=verbose) if self.is_rm2 else self._download_from_rm1(verbose=verbose)
-        self.downloaded_df = self.create_df(raw_data, verbose)
+        self._download_from_rm2(verbose=verbose) if self.is_rm2 else self._download_from_rm1(verbose=verbose)
+        self.downloaded_df = self.create_downloader_output(verbose=verbose)
         return self.downloaded_df
     
-    def _download_from_rm1(self, verbose: bool = False) -> list[dict]:
+    def _download_from_rm1(self, verbose: bool = False) -> None:
         self.download_events_json(verbose)
-        return self.create_output(verbose)
+        return None
     
-    def _download_from_rm2(self, verbose: bool = False) -> list[dict]:
+    def _download_from_rm2(self, verbose: bool = False) -> None:
         self.downloaded_events_json = self.download_data_from_rm2(verbose=verbose) 
-        return self.create_rm2_output(verbose=verbose)
-    
-    def dump(self) -> None:
+        return None
+
+    def dump(self, verbose: Optional[bool] = False) -> None:
+        if verbose:
+            print(f"Wrote CSV to {self.output_filename}")
         self.dump_config()
         self.downloaded_df.to_csv(self.output_filename, index=False)
 
-    def _validate_input(self) -> None:
+    def dump_config(self) -> None:
+        self.config.to_yaml(self.output_filename)
         
+    def _validate_input(self) -> None:
+
         none_count: int = [self.data_url, self.config.RED_METRICS_CSV_URL, self.config.RED_METRICS_JSON_URL, self.rm2_game_id].count(None)
         
         # at least one URL should not be None:
@@ -158,7 +163,7 @@ class Downloader:
 
         return player
 
-    def create_output(self, verbose=False) -> list:
+    def create_rm1_output(self, verbose=False) -> list:
         output_json = []
 
         event_iterator = self.downloaded_events_json
@@ -172,16 +177,7 @@ class Downloader:
             output_json_record: dict = self._process_event(event=event)
         
             # add player's fields
-            player_id = event[self.config.EVENT_PLAYER_ID_KEY]
-            player = self._get_player(player_id)
-
-            output_json_record[self.config.RAW_PLAYER_ID] = player_id
-            output_json_record[self.config.RAW_PLAYER_BIRTHDATE] = player.get("birthDate")
-            output_json_record[self.config.RAW_PLAYER_REGION] = player.get("region")
-            output_json_record[self.config.RAW_PLAYER_COUNTRY] = player.get("country")
-            output_json_record[self.config.RAW_PLAYER_GENDER] = player.get("gender")
-            output_json_record[self.config.RAW_PLAYER_EXTERNAL_ID] = player.get("externalId")
-            output_json_record[self.config.RAW_PLAYER_CUSTOM_DATA] = player.get("customData")
+            output_json_record = self._add_player_data(event=event, output_json_record=output_json_record)
 
             output_json.append(output_json_record)
 
@@ -192,6 +188,15 @@ class Downloader:
         output_json_record = {k: v for (k, v) in event.items() if k in self.config.DOWNLOADER_COMMON_FIELDS}
 
         # add event's custom data fields
+        output_json_record = self._add_events_custom_data(event=event, output_json_record=output_json_record)
+        
+        return output_json_record
+
+    def create_downloader_output(self, verbose=False) -> pd.DataFrame:
+        output_json = self.create_rm2_output if self.is_rm2 else self.create_rm1_output(verbose=verbose)
+        return self._create_df(output_json=output_json)
+    
+    def _add_events_custom_data(self, *, event: dict, output_json_record: dict) -> dict:
         if self.config.EVENT_CUSTOM_DATA_KEY in event:
             if isinstance(event[self.config.EVENT_CUSTOM_DATA_KEY], dict):
                 # Add each key as a custom data field
@@ -200,23 +205,29 @@ class Downloader:
                     self.custom_data_fields.add(keyName)
                     output_json_record[keyName] = value
             else:
-                self.custom_data_fields.add(self.config.EVENT_CUSTOM_DATA_KEY)
-                
+                    self.custom_data_fields.add(self.config.EVENT_CUSTOM_DATA_KEY)
         return output_json_record
+    
+    def _add_player_data(self, *, event: dict, output_json_record: dict) -> dict:
+        player_id = event[self.config.EVENT_PLAYER_ID_KEY]
+        player = self._get_player(player_id)
 
-    def dump_config(self) -> None:
-        self.config.to_yaml(self.output_filename)
-
-    def create_df(self, output_json, verbose=False) -> pd.DataFrame:
-        """
-        Writes the CSV while ensuring existence and oder of all fields defined in self.config.DOWNLOADER_FIELD_ORDER
-        """
+        output_json_record[self.config.RAW_PLAYER_ID] = player_id
+        output_json_record[self.config.RAW_PLAYER_BIRTHDATE] = player.get("birthDate")
+        output_json_record[self.config.RAW_PLAYER_REGION] = player.get("region")
+        output_json_record[self.config.RAW_PLAYER_COUNTRY] = player.get("country")
+        output_json_record[self.config.RAW_PLAYER_GENDER] = player.get("gender")
+        output_json_record[self.config.RAW_PLAYER_EXTERNAL_ID] = player.get("externalId")
+        output_json_record[self.config.RAW_PLAYER_CUSTOM_DATA] = player.get("customData")
+        return output_json_record
+    
+    def _create_df(self, *, output_json: dict, verbose: Optional[bool] = False) -> pd.DataFrame:
         if verbose:
             print("Formatting DataFrame...")
         self.extra_fields = set(self.custom_data_fields) - set(self.config.DOWNLOADER_FIELD_ORDER)
         all_fields = self.config.DOWNLOADER_FIELD_ORDER + tuple(self.extra_fields)
         return pd.DataFrame(output_json, columns=all_fields).reindex(columns=all_fields)
-
+    
     def get_net_requested_players(self) -> list:
         """
         Returns the list of players that required a network request.
@@ -278,7 +289,7 @@ class Downloader:
     
     def create_rm2_output(self, verbose: Optional[bool] = False) -> pd.DataFrame:
        
-        sessions_iterator = self.downloaded_events_json.get("sessions")
+        sessions_iterator = self.downloaded_events_json.get("sessions", {})
         
         if verbose:
             print("\nHandling events...")

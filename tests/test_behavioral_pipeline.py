@@ -22,8 +22,10 @@ test_dirs = [entry.path for entry in os.scandir(TEST_FILES_DIR) if entry.is_dir(
 def test_downloader(test_dir):
     raw_data_filename = "raw.csv"
     config = Configuration.from_yaml(os.path.join(test_dir, CONFIG_FILENAME))
-    Downloader(output_filename=raw_data_filename, config=config).download(verbose=True)
-
+    downloader = Downloader(output_filename=raw_data_filename, config=config)
+    downloader.download(verbose=True)
+    downloader.dump()
+    
     test_raw = (pd.read_csv(os.path.join(test_dir, TEST_DOWNLOADED_FILENAME))
                 .sort_values("id")
                 .reset_index(drop=True))
