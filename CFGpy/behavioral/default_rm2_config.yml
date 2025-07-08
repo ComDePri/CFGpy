@@ -46,7 +46,7 @@
     "customData.endPosition",
   ],
   TUTORIAL_END_EVENT_TYPE: "startSearch",
-  SHAPE_MOVE_EVENT_TYPE: "movedblock",
+  SHAPE_MOVE_EVENT_TYPE: "movedBlock",
   GALLERY_SAVE_EVENT_TYPE: "added shape to gallery",
 
   ## Parsing

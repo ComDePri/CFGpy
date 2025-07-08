@@ -223,7 +223,7 @@ class FeatureExtractor:
             is_explore_given_gallery = player_data.get_explore_mask()[is_gallery]
             is_exploit_given_gallery = ~is_explore_given_gallery
             exploit_clusters = player_data.get_exploit_clusters()
-            n_clusters_in_GC = sum([self.is_cluster_in_GC(cluster, GC) for cluster in exploit_clusters])
+            n_clusters_in_GC = sum([self.is_cluster_in_GC(cluster, GC) for cluster in exploit_clusters]) if GC else 0
             frac_clusters_in_GC = (n_clusters_in_GC / len(player_data.exploit_slices)
                                    if player_data.exploit_slices else None)
 

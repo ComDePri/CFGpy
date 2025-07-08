@@ -41,7 +41,7 @@ class Pipeline:
     
     @property
     def is_rm2(self) -> bool:
-        return self.rm2_game_id is not None or (self.red_metrics_data_url and "v2" in self.red_metrics_data_url)
+        return self.rm2_game_id is not None or (self.red_metrics_data_url and "/v2/" in self.red_metrics_data_url)
     
     def _add_url_to_config(self):
         data_url = self.downloader.data_url

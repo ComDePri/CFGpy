@@ -1,4 +1,3 @@
-import csv
 import getpass
 from typing import Optional
 import requests
@@ -80,7 +79,7 @@ class Downloader:
             raise ValueError(CONFIG_URL_MISMATCH_ERROR)
     
     def _is_rm2(self) -> bool:
-        return self.rm2_game_id is not None or (self.data_url and "v2" in self.data_url)
+        return self.rm2_game_id is not None or (self.data_url and "/v2/" in self.data_url)
     
     def _get_page(self, page_i: int) -> requests.Response:
         """
@@ -193,7 +192,7 @@ class Downloader:
         return output_json_record
 
     def create_downloader_output(self, verbose=False) -> pd.DataFrame:
-        output_json = self.create_rm2_output if self.is_rm2 else self.create_rm1_output(verbose=verbose)
+        output_json = self.create_rm2_output(verbose=verbose) if self.is_rm2 else self.create_rm1_output(verbose=verbose)
         return self._create_df(output_json=output_json)
     
     def _add_events_custom_data(self, *, event: dict, output_json_record: dict) -> dict:
@@ -308,4 +307,3 @@ class Downloader:
                 output_json.append(output_json_record)
                 
         return output_json
-
