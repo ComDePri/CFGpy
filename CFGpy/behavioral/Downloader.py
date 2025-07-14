@@ -1,4 +1,5 @@
 import getpass
+import os
 from typing import Optional
 import requests
 from tqdm import tqdm
@@ -10,7 +11,7 @@ from CFGpy.behavioral import Configuration
 
 
 class Downloader:
-    def __init__(self, *, data_url: str | None = None, rm2_game_id: str | None = None, rm2_email: str | None = None, rm2_password: str | None = None, 
+    def __init__(self, *, data_url: str | None = None, rm2_game_id: str | None = None, 
                  output_filename: str = DOWNLOADER_OUTPUT_FILENAME, config: Configuration = None) -> None:
         """
         Init a Downloader object.
@@ -23,8 +24,6 @@ class Downloader:
         self.config = config if config is not None else Configuration.default()
         self.data_url = self.config.RED_METRICS_CSV_URL or self.config.RED_METRICS_JSON_URL or data_url
         self.rm2_game_id: str = rm2_game_id
-        self.rm2_email = rm2_email
-        self.rm2_password = rm2_password
         self.is_rm2 = self._is_rm2()
         self._validate_input()
         self.json_url = self.data_url.replace("/event.csv", "/event.json") if not self.is_rm2 and self.json_url else self.data_url
@@ -280,10 +279,9 @@ class Downloader:
         
         session = requests.Session()
         
-        if self.rm2_email is None or self.rm2_password is None:
-            self.rm2_email = input("Please enter your RedMetrics2 email: ") 
-            self.rm2_password = getpass.getpass(prompt="Enter your RedMetrics2 password: ")
-        self.login_to_session(session=session, email=self.rm2_email, password=self.rm2_password, verbose=verbose)
+        rm2_email = os.getenv("RM2_EMAIL") or input("Please enter your RedMetrics2 email: ") 
+        rm2_password = os.getenv("RM2_PASSWORD") or getpass.getpass(prompt="Enter your RedMetrics2 password: ")
+        self.login_to_session(session=session, email=rm2_email, password=rm2_password, verbose=verbose)
         return self.download_data(session=session, verbose=verbose)
     
     def create_rm2_output(self, verbose: Optional[bool] = False) -> pd.DataFrame:
