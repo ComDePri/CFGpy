@@ -11,10 +11,11 @@ from pptx.util import Inches
 import json # Roey added for saving the vanilla after more preprocessing
 import shutil
 
-# (1) CSV URL for MRI games inside the scanner
+# *** NOTE: DO NOT FORGET TO SET THE SEGMENTATION ALGORITHM IN CONSTANTS.PY ***
+# (1) CSV URL for MRI games INSIDE the scanner (use MRI segmentation algorithm in constants.py)
 CSV_URL = "https://api.creativeforagingtask.com/v1/event.csv?game=4cb46367-7555-42cb-8915-152c3f3efdfb&entityType=event&after=2021-05-23T10:51:00.000Z"
 CSV_FILE_PATH = "/home/roey/Documents/CFG_data/event.csv"
-# (2) CSV URL for MRI games outside the scanner (go to https://creativeforagingtask.com/v1/search and search for the game version "FCDBrainHebrewOnlyScan")
+# (2) CSV URL for MRI games OUTSIDE the scanner (use non-MRI segmentation algorithm in constants.py) (go to https://creativeforagingtask.com/v1/search and search for the game version "FCDBrainHebrewOnlyScan")
 #CSV_URL = 'https://api.creativeforagingtask.com/v1/event.csv?game=01b164da-9cef-4dbf-aefb-17627442abe7&gameVersion=4f865647-2064-4af4-a18f-153ec24d6a5f&entityType=event'
 #CSV_FILE_PATH = "/home/roey/Documents/CFG_data/event_play_outside_scanner.csv"
 #ROY_TEST_JASON = "/home/roey/PycharmProjects/CFGpy/CFGpy/behavioral/test_file1.json"
@@ -114,8 +115,8 @@ def create_players_cluster_times_csv(preprocessed_data, output_folder=PATH_FROM_
     for player_data in preprocessed_data:
         if not player_data[PARSED_PLAYER_ID_KEY].startswith("9999"):  # skip the non-player data
             player_id = player_data[PARSED_PLAYER_ID_KEY]
-            if not player_id in ['089', '096']:  # TODO: &&& REMOVE
-                continue
+            #if not player_id in ['089', '096']:  # TODO: &&& REMOVE
+            #    continue
 
             data = PreprocessedPlayerData(player_data)
 
@@ -231,34 +232,37 @@ if __name__ == '__main__':
     #    json.dump(preprocessed_data, out_file)
 
     # B) [[Default option, but see C]] Load data from url & save new JSON
-    #preprocessed_data = from_url(CSV_URL)
+    preprocessed_data = from_url(CSV_URL)
+
+    # Print the unique id's in preprocessed_data
+    #print("Unique IDs in preprocessed_data:")
 
     # C) Load data from csv
     # Add a missing "startsearch" line for subject 104 (due to server communication error)
     # NOTE: This is not critical, since this is a game we exclude anyway. They saved at almost every step.
     # Define the source and destination file paths
-    CSV_FILE_PATH_SAVED_FROM_URL = '/home/roey/PycharmProjects/CFGpy/CFGpy/behavioral/event.csv'
-    CSV_FILE_PATH = '/home/roey/PycharmProjects/CFGpy/CFGpy/behavioral/event_manual_startsearch_added_player_104.csv'
+    ###CSV_FILE_PATH_SAVED_FROM_URL = '/home/roey/PycharmProjects/CFGpy/CFGpy/behavioral/event.csv'
+    ###CSV_FILE_PATH = '/home/roey/PycharmProjects/CFGpy/CFGpy/behavioral/event_manual_startsearch_added_player_104.csv'
     # Copy the contents of the original file to the new file
-    shutil.copy(CSV_FILE_PATH_SAVED_FROM_URL, CSV_FILE_PATH)
+    ###shutil.copy(CSV_FILE_PATH_SAVED_FROM_URL, CSV_FILE_PATH)
     # Add the new line to the copied file
-    line_to_add = 'f0eb2088-8f0eb2088-8a06-4482-a86f-7ce841f059f6,2025-03-11T10:29:26.043Z,2025-02-04T11:21:17.785Z,b241162a-93db-4213-9741-c9a825521506,db71df4c-6030-4602-be46-24ad4237f734,,,,,104,"{""expId"":""LeapsFCDBrain"",""userId"":""104"",""userAgent"":""Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"",""userProvidedId"":""104""}",startsearch,,,,,,,,,,,,'
-    with open(CSV_FILE_PATH, 'a') as f:
-        f.write(line_to_add)
+    ###line_to_add = 'f0eb2088-8f0eb2088-8a06-4482-a86f-7ce841f059f6,2025-03-11T10:29:26.043Z,2025-02-04T11:21:17.785Z,b241162a-93db-4213-9741-c9a825521506,db71df4c-6030-4602-be46-24ad4237f734,,,,,104,"{""expId"":""LeapsFCDBrain"",""userId"":""104"",""userAgent"":""Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"",""userProvidedId"":""104""}",startsearch,,,,,,,,,,,,'
+    ###with open(CSV_FILE_PATH, 'a') as f:
+    ###    f.write(line_to_add)
 
 
     # NOTE: Or use the CSV with the added startsearch line for subject 104 who is missing it on the server, probably due to network issues:
-    ########CSV_FILE_PATH = '/home/roey/PycharmProjects/CFGpy/CFGpy/behavioral/event_manual_startsearch_added_player_104.csv'
-    #preprocessed_data = from_file(CSV_FILE_PATH)
+    ###CSV_FILE_PATH = '/home/roey/PycharmProjects/CFGpy/CFGpy/behavioral/event_manual_startsearch_added_player_104.csv'
+    ###preprocessed_data = from_file(CSV_FILE_PATH)
     ###exit()
 
     # Load processed data from json
     # A - this worked
     ### preprocessed_data = from_json(DEFAULT_OUTPUT_FILENAME)
     # B - checking this option
-    pp = Preprocessor.from_json(DEFAULT_OUTPUT_FILENAME)
-    preprocessed_data = pp.preprocess()
-    pp.remove_bad_games()
+    ###pp = Preprocessor.from_json(DEFAULT_OUTPUT_FILENAME)
+    ###preprocessed_data = pp.preprocess()
+    ###pp.remove_bad_games()
     # END OF B
 
 
@@ -296,7 +300,7 @@ if __name__ == '__main__':
         print(f"PowerPoint presentation saved as '{prs_game_name}'")
 
     def create_players_cluster_times():
-        output_folder = PATH_FROM_REP_ROOT+"clusters_times_csvs/"
+        output_folder = os.path.join(PATH_FROM_REP_ROOT,"clusters_times_csvs/")
         #output_folder = PATH_FROM_REP_ROOT + "clusters_times_csvs/"
 
         create_players_cluster_times_csv(preprocessed_data, output_folder)
@@ -308,8 +312,8 @@ if __name__ == '__main__':
         print(f"csv's with players cluster saved in folder: '{output_folder}'")
 
     # Change here to determine what the script will do
-    ###create_presentation_with_both_plots()
-    ###create_presentation_with_all_shapes_plot()
+    create_presentation_with_both_plots()
+    create_presentation_with_all_shapes_plot()
     cluster_times_dir = os.path.join(PPT_OUTPUT_PATH,'clusters_times_csvs/')
     if not os.path.exists(cluster_times_dir):
         os.makedirs(cluster_times_dir)

@@ -277,3 +277,6 @@ if __name__ == '__main__':
 #     mc = MeasureCalculator(preprocessed_data)
 #     mc.calc()
 #     mc.dump(args.output_filename)
+
+# NOTE: Unfortunately Player 17 from outside the scanner was saved in the "inside" scanner databse in RedMetrics1.
+# Therefore, I now manually move their data from the pipeline output files to the correct files.
