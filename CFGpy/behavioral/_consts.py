@@ -16,10 +16,9 @@ CONFIG_DUMP_EXTENSION = ".yml"
 DOWNLOADER_OUTPUT_FILENAME = "event.csv"
 NO_DOWNLOADER_INPUT_ERROR = "RedMetrics input undefined. Specify RedMetrics1 URL either as a parameter or in config or provide a game id from RedMetrics2."
 MULTIPLE_DOWNLOADER_INPUTS_ERROR = "RedMetrics input was defined in multiple ways. Define RedMetrics1 URL exactly once - either as a parameter or in the config, or provide a game id from RedMetrics2."
-DOWNLOADER_URL_NO_CSV_ERROR = "URL is incorrect: '{}'\nCopy the address from 'Download all pages as CSV' in RedMetrics1"
 CONFIG_URL_MISMATCH_ERROR = "The config and the url or game id must both be RedMetrics1 or RedMetrics2"
-EVENTS_PER_PAGE = 500
-PAGE_REPETITION_LIMIT_REACHED = "Was not able to get all events from page {} after {} retries."
+PER_PAGE = 10000
+MAX_PAGES = 1000
 
 # parser
 PARSER_OUTPUT_FILENAME = "parsed.json"

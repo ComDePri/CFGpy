@@ -9,32 +9,46 @@ of the standard [Creative Foraging Game measures](https://comdepri.slab.com/post
 As of v1.0.0, this package can only retrieve raw data from RedMetrics1, and see
 issue https://github.com/ComDePri/CFGpy/issues/26.
 
+As of v2.0.0, this package can be used to retrieve data from RedMetrics2. 
+
 ### Command line
 
-Given a URL for downloading raw data as CSV from RedMetrics1, you can run the Pipeline from a terminal like so:
+The Pipeline can be run from the terminal as follows:
 
 ```
-run_pipeline --url <raw_data_url> --config-path <config_file_path> -o <output_filename>
+run_pipeline --url <raw_data_url> --rm2-game-id <rm2_game_id> --config-path <config_file_path> -o <output_filename>
 ```
 
-Where `output_filename` and `config_file_path` are optional. `raw_data_url` can be omitted if `config_file_path` is present
-and the config file includes the raw data URL.
+Where `output_filename` and `config_file_path` are optional and `raw_data_url` is the URL used to download data from RedMetrics1/RedMetrics2. 
+For both RedMetrics1 and RedMetrics2 `raw_data_url` can be omitted if `config_file_path` is present and the config file includes the raw data URL.
+For RedMetrics2 `rm2_game_id` can be used instead of `raw_data_url`, in which case `raw_data_url` can be omitted. 
 
 ### Python Script
 
 ```python
 from CFGpy.behavioral import Pipeline
 
-Pipeline(raw_data_url, output_filename).run_pipeline()
+Pipeline(red_metrics_data_url=red_metrics_data_url, rm2_game_id=rm2_game_id, output_filename=output_filename, config=config).run_pipeline()
 ```
+Where either `red_metrics_data_url` or `rm2_game_id` must be provided for RedMetrics2 but not both and, `output_filename` and `config` are optionl parameters. For RedMetrics1 `red_metrics_data_url` must be provided. 
 
-Alternatively, pass the raw data URL as part of a configuration object:
+The raw data URL can also be passed as part of a configuration object:
 
+For RedMetrics1:
 ```python
 from CFGpy.behavioral import Configuration, Pipeline
 
 config = Configuration.default()
 config.RED_METRICS_CSV_URL = csv_url
+Pipeline(config=config, output_filename=output_filename).run_pipeline()
+```
+
+For RedMetrics2:
+```python
+from CFGpy.behavioral import Configuration, Pipeline
+
+config = Configuration.default()
+config.RED_METRICS_JSON_URL = csv_url
 Pipeline(config=config, output_filename=output_filename).run_pipeline()
 ```
 
@@ -53,7 +67,7 @@ Below is an overview of the different modules composing the pipeline and their f
 
 ### Downloader
 
-Downloads raw data from the RedMetrics1 server.
+Downloads raw data from the RedMetrics1/RedMetrics2 server.
 
 ### Parser
 

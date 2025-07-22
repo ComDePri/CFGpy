@@ -64,7 +64,6 @@ class Configuration:
             'RAW_PLAYER_GENDER',
             'RAW_PLAYER_EXTERNAL_ID',
             'RAW_SECTION',
-            'RED_METRICS_CSV_URL'
         ]
         rm2_required = [
             'RAW_SERVER_TIME',
@@ -73,8 +72,6 @@ class Configuration:
             'RAW_PLAYER_ID',
             'RAW_COORDINATES',
             'EVENT_TYPE',
-            'RED_METRICS_JSON_URL',
-            'RED_METRICS_GAME_ID'
         ]
 
         missing_fields = []
@@ -153,6 +150,9 @@ class Configuration:
     MIN_GAME_DURATION_SEC: float
     MAX_PAUSE_DURATION_SEC: float
     MAX_ZSCORE_FOR_OUTLIERS: float
+    
+    GAME_NAME: str | None = None
+    GAME_ID: str | None = None
     
     DOWNLOAD_PLAYER_REQUEST: str = None
     RAW_GAME_VERSION: str = None

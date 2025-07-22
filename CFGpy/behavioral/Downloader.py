@@ -1,307 +1,44 @@
-import getpass
-import os
+from abc import ABC, abstractmethod
 from typing import Optional
-import requests
-from tqdm import tqdm
 import pandas as pd
-from CFGpy.behavioral._consts import (DOWNLOADER_OUTPUT_FILENAME, NO_DOWNLOADER_INPUT_ERROR, DOWNLOADER_URL_NO_CSV_ERROR,
-                                      MULTIPLE_DOWNLOADER_INPUTS_ERROR, CONFIG_URL_MISMATCH_ERROR, EVENTS_PER_PAGE, PAGE_REPETITION_LIMIT_REACHED)
-from CFGpy.behavioral._utils import CFGPipelineException
 from CFGpy.behavioral import Configuration
+from CFGpy.behavioral._consts import DOWNLOADER_OUTPUT_FILENAME, MULTIPLE_DOWNLOADER_INPUTS_ERROR, NO_DOWNLOADER_INPUT_ERROR
 
 
-class Downloader:
-    def __init__(self, *, data_url: str | None = None, rm2_game_id: str | None = None, 
-                 output_filename: str = DOWNLOADER_OUTPUT_FILENAME, config: Configuration = None) -> None:
-        """
-        Init a Downloader object.
-        :param csv_url: Web address of the "Download all pages as CSV" in RedMetrics. Optional. If None, either the rm2_game_id must be 
-        provided or the URL is expected as part of config.
-        :param rm2_game_id: The game id of the game whose data you want to download from RedMetrics2. If None, 
-        :param output_filename: filename for output.
-        :param config: a Configuration file. If this defines a RedMetrics URL, `csv_url` shouldn't.
-        """
-        self.config = config if config is not None else Configuration.default()
-        self.data_url = self.config.RED_METRICS_CSV_URL or self.config.RED_METRICS_JSON_URL or data_url
-        self.rm2_game_id: str = rm2_game_id
-        self.is_rm2 = self._is_rm2()
-        self._validate_input()
-        self.json_url = self.data_url.replace("/event.csv", "/event.json") if not self.is_rm2 and self.json_url else self.data_url
-        self.downloaded_events_json = []
-        self.output_filename = output_filename
-        self.downloaded_df = None
+class Downloader(ABC):
+    def __init__(self, *, game_name: str | None = None, game_id: str | None = None, output_filename: str = DOWNLOADER_OUTPUT_FILENAME, config: Configuration = None) -> None:
+        self._validate_input(input=[game_id, game_name, self._config.GAME_ID, self._config.GAME_NAME])
+        self._game_name = game_name or self._config.GAME_NAME
+        self._game_id: str = game_id or self._config.GAME_ID
+        self._output_filename = output_filename
+        self._config = config
+        self._downloaded_df: Optional[pd.DataFrame] = None
+        self._extra_fields = set()
+
+    @abstractmethod
+    def download(self, *args, **kwargs) -> pd.DataFrame:
+        pass
         
-        self.players = dict()
-        self.custom_data_fields = set()
-        self.required_net_request = []
-        self.extra_fields = set()
-
-    def download(self, verbose: bool = False) -> pd.DataFrame:
-        self._download_from_rm2(verbose=verbose) if self.is_rm2 else self._download_from_rm1(verbose=verbose)
-        self.downloaded_df = self.create_downloader_output(verbose=verbose)
-        return self.downloaded_df
-    
-    def _download_from_rm1(self, verbose: bool = False) -> None:
-        self.download_events_json(verbose)
-        return None
-    
-    def _download_from_rm2(self, verbose: bool = False) -> None:
-        self.downloaded_events_json = self.download_data_from_rm2(verbose=verbose) 
-        return None
-
-    def dump(self, verbose: Optional[bool] = False) -> None:
-        if verbose:
-            print(f"Wrote CSV to {self.output_filename}")
-        self.dump_config()
-        self.downloaded_df.to_csv(self.output_filename, index=False)
-
-    def dump_config(self) -> None:
-        self.config.to_yaml(self.output_filename)
-        
-    def _validate_input(self) -> None:
-
-        none_count: int = [self.data_url, self.config.RED_METRICS_CSV_URL, self.config.RED_METRICS_JSON_URL, self.rm2_game_id].count(None)
+    def _validate_input(self, input: list[str]) -> None:
+        none_count: int = input.count(None)
         
         # at least one URL should not be None:
         if none_count < 1:
             raise ValueError(NO_DOWNLOADER_INPUT_ERROR)
 
         # at most one URL should not be None:
-        if  none_count < 2:
+        if  none_count > 1:
             raise ValueError(MULTIPLE_DOWNLOADER_INPUTS_ERROR)
-
-        # URL should point to an event.csv file:
-        if self.data_url and not self.is_rm2 and not "/event.csv" in self.data_url:
-            raise ValueError(DOWNLOADER_URL_NO_CSV_ERROR.format(self.data_url))
         
-        if (self.is_rm2 and not self.config.is_rm2) or (not self.is_rm2 and self.config.is_rm2):
-            raise ValueError(CONFIG_URL_MISMATCH_ERROR)
+        return None
     
-    def _is_rm2(self) -> bool:
-        return self.rm2_game_id is not None or (self.data_url and "/v2/" in self.data_url)
-    
-    def _get_page(self, page_i: int) -> requests.Response:
-        """
-        Gets a page of events in JSON format, using the RedMetrics1 API (https://github.com/CyberCRI/RedMetrics/blob/master/API.md)
-        :param page_i: page index
-        :return: a Response object, see RedMetrics1 API for info.
-        """
-        params = {"page": page_i, "perPage": EVENTS_PER_PAGE, 'orderBy': 'userTime:asc'}
-        response = requests.get(self.json_url, params)
-        response.raise_for_status()
+    def dump(self, verbose: Optional[bool] = False) -> None:
+        
+        if self._downloaded_df is None:
+            raise ValueError("No data to dump. Run download() first.")
 
-        return response
-
-    def download_events_json(self, verbose: bool = False) -> None:
-        """
-        Populates self.downloaded_events_json from RedMetrics1.
-        :param verbose: whether to output progress info during download.
-        """
         if verbose:
-            print("Download events...")
-
-        first_page = self._get_page(1)
-        page_count = int(first_page.headers["x-page-count"])
-        total_results = int(first_page.headers['x-Total-Count'])
-
-        page_iterator = range(1, page_count + 1)
-        if verbose:
-            page_iterator = tqdm(page_iterator, desc="page")
-        for page_i in page_iterator:
-            goal_n_events = page_i * EVENTS_PER_PAGE if page_i < page_count else total_results
-            self.downloaded_events_json += self._get_page_events(page_i, goal_n_events)
-
-            assert self.downloaded_events_json == [event for i, event in enumerate(self.downloaded_events_json) if
-                                                   event not in self.downloaded_events_json[:i]]
-            # TODO: assertion can be dropped if sure that no duplicates find their way in
-
-    def _get_page_events(self, page_i: int, goal_n_events: int, repetition_limit: int = 5) -> list:
-        """
-        Retrieves the page's events from RedMetrics1.
-        Deals with inconsistent paging by repeatedly downloading this and the previous page, until all events are
-        found or the repetition limit is reached (in which case, raises an error).
-        :param page_i: page index.
-        :param goal_n_events: number of events that should be reached with this page.
-        :param repetition_limit: maximum number of retries per page
-        :return: a list of events.
-        """
-        if page_i < 1:
-            raise ValueError(f"RedMetrics1 page indexing is 1-based. Got invalid page index {page_i}")
-
-        existing_event_ids = [event['id'] for event in self.downloaded_events_json]
-        n_missing_events = goal_n_events - len(self.downloaded_events_json)
-        discovered_events = []
-        for repetition in range(repetition_limit + 1):  # add 1 because the first iteration is not a repetition
-            extra_events = []
-            if page_i > 1 and repetition:  # no need to check previous page on the first try, only in repetitions
-                extra_events = self._get_page(page_i - 1).json()
-            new_events = self._get_page(page_i).json() + extra_events
-
-            # add events discovered in this iteration and remove duplicates:
-            discovered_events += [event for event in new_events if event['id'] not in existing_event_ids]
-            discovered_events = [event for i, event in enumerate(discovered_events) if
-                                 event not in discovered_events[:i]]
-
-            if len(discovered_events) == n_missing_events:
-                return discovered_events
-
-        raise CFGPipelineException(PAGE_REPETITION_LIMIT_REACHED.format(page_i, repetition_limit))
-
-    def _get_player(self, player_id: str) -> dict:
-        """
-        Get the player in cache, or make a network request
-        """
-        if player_id in self.players:
-            player = self.players[player_id]
-        else:
-            r = requests.get(self.config.DOWNLOAD_PLAYER_REQUEST.format(player_id))
-            player = r.json()
-            self.players[player_id] = player
-            self.required_net_request.append(player_id)
-
-        return player
-
-    def create_rm1_output(self, verbose=False) -> list:
-        output_json = []
-
-        event_iterator = self.downloaded_events_json
-        if verbose:
-            print("\nHandling events...")
-            event_iterator = tqdm(event_iterator, desc="events")
-
-        for event in event_iterator:
+            print(f"Wrote CSV to {self._output_filename}")
             
-            # process single event 
-            output_json_record: dict = self._process_event(event=event)
-        
-            # add player's fields
-            output_json_record = self._add_player_data(event=event, output_json_record=output_json_record)
-
-            output_json.append(output_json_record)
-
-        return output_json
-    
-    def _process_event(self, event: dict) -> dict:
-        # filter to common fields
-        output_json_record = {k: v for (k, v) in event.items() if k in self.config.DOWNLOADER_COMMON_FIELDS}
-
-        # add event's custom data fields
-        output_json_record = self._add_events_custom_data(event=event, output_json_record=output_json_record)
-        
-        return output_json_record
-
-    def create_downloader_output(self, verbose=False) -> pd.DataFrame:
-        output_json = self.create_rm2_output(verbose=verbose) if self.is_rm2 else self.create_rm1_output(verbose=verbose)
-        return self._create_df(output_json=output_json)
-    
-    def _add_events_custom_data(self, *, event: dict, output_json_record: dict) -> dict:
-        if self.config.EVENT_CUSTOM_DATA_KEY in event:
-            if isinstance(event[self.config.EVENT_CUSTOM_DATA_KEY], dict):
-                # Add each key as a custom data field
-                for key, value in event[self.config.EVENT_CUSTOM_DATA_KEY].items():
-                    keyName = f"{self.config.EVENT_CUSTOM_DATA_KEY}.{key}"
-                    self.custom_data_fields.add(keyName)
-                    output_json_record[keyName] = value
-            else:
-                    self.custom_data_fields.add(self.config.EVENT_CUSTOM_DATA_KEY)
-        return output_json_record
-    
-    def _add_player_data(self, *, event: dict, output_json_record: dict) -> dict:
-        player_id = event[self.config.EVENT_PLAYER_ID_KEY]
-        player = self._get_player(player_id)
-
-        output_json_record[self.config.RAW_PLAYER_ID] = player_id
-        output_json_record[self.config.RAW_PLAYER_BIRTHDATE] = player.get("birthDate")
-        output_json_record[self.config.RAW_PLAYER_REGION] = player.get("region")
-        output_json_record[self.config.RAW_PLAYER_COUNTRY] = player.get("country")
-        output_json_record[self.config.RAW_PLAYER_GENDER] = player.get("gender")
-        output_json_record[self.config.RAW_PLAYER_EXTERNAL_ID] = player.get("externalId")
-        output_json_record[self.config.RAW_PLAYER_CUSTOM_DATA] = player.get("customData")
-        return output_json_record
-    
-    def _create_df(self, *, output_json: dict, verbose: Optional[bool] = False) -> pd.DataFrame:
-        if verbose:
-            print("Formatting DataFrame...")
-        self.extra_fields = set(self.custom_data_fields) - set(self.config.DOWNLOADER_FIELD_ORDER)
-        all_fields = self.config.DOWNLOADER_FIELD_ORDER + tuple(self.extra_fields)
-        return pd.DataFrame(output_json, columns=all_fields).reindex(columns=all_fields)
-    
-    def get_net_requested_players(self) -> list:
-        """
-        Returns the list of players that required a network request.
-        """
-        return self.required_net_request
-
-    def get_extra_fields(self) -> set:
-        """
-        Returns the set of extra/unexpected fields found in the data.
-        """
-        return self.extra_fields
-    
-    def login_to_session(self, session: requests.Session, email: str, password: str, verbose: Optional[bool] = False) -> None:
-        
-        if verbose:
-            print("Logging into RedMetrics2...")
-            
-        login_url: str = "https://api.creativeforagingtask.com/v2/login"
-        login_data: dict = {
-            "email": email,
-            "password": password,
-        }
-        
-        response = session.post(login_url, data=login_data)
-
-        if response.status_code == 200:
-            if verbose:
-                print("Successfully logged into RedMetrics2.")
-        else:
-            print(f"Login failed: {response.text}")
-
-    def download_data(self, session: requests.Session, verbose: Optional[bool] = False) -> dict:
-        
-        if verbose:
-            print("Downloading data from RedMetrics2...")
-            
-        dowload_url: str = f"https://api.creativeforagingtask.com/v2/game/{self.rm2_game_id}/data.json" if self.rm2_game_id else self.json_url
-        response = session.get(dowload_url)
-
-        if not response.status_code == 200:
-            msg = f"Error: {response.status_code} - failed to download data for game: {self.rm2_game_id}."
-            print(msg)
-            raise(ValueError(msg))
-        
-        if verbose:
-                print("Data successfully downloaded from RedMetrics2.")
-                
-        return response.json()
-
-    def download_data_from_rm2(self, verbose: Optional[bool] = False) -> dict:
-        
-        session = requests.Session()
-        
-        rm2_email = os.getenv("RM2_EMAIL") or input("Please enter your RedMetrics2 email: ") 
-        rm2_password = os.getenv("RM2_PASSWORD") or getpass.getpass(prompt="Enter your RedMetrics2 password: ")
-        self.login_to_session(session=session, email=rm2_email, password=rm2_password, verbose=verbose)
-        return self.download_data(session=session, verbose=verbose)
-    
-    def create_rm2_output(self, verbose: Optional[bool] = False) -> pd.DataFrame:
-       
-        sessions_iterator = self.downloaded_events_json.get("sessions", {})
-        
-        if verbose:
-            print("\nHandling events...")
-            sessions_iterator = tqdm(sessions_iterator, desc="sessions")
-            
-        output_json: list[dict] = []
-        
-        for session in sessions_iterator:
-            playerCustomData: dict = session.get("customData")
-            playerID: str = session.get("id")
-            events: list[dict] = session.get("events")
-            for event in events:
-                output_json_record: dict = self._process_event(event=event)
-                output_json_record[self.config.RAW_PLAYER_CUSTOM_DATA] = playerCustomData
-                output_json_record[self.config.RAW_PLAYER_ID] = playerID
-                output_json.append(output_json_record)
-                
-        return output_json
+        self._config.to_yaml(self._output_filename)
+        self._downloaded_df.to_csv(self._output_filename, index=False)

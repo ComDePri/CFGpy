@@ -22,8 +22,8 @@
   RAW_SHAPE: &RAW_SHAPE "customData.shape",
 
   ## Downloading
-  RED_METRICS_JSON_URL: null,  # Web address of the "Download data"
-  RED_METRICS_GAME_ID: null, # ID of the game (under the name of the game on RedMetrics2)
+  GAME_NAME: null,  # Name of the game 
+  GAME_ID: null, # ID of the game (under the name of the game on RedMetrics2)
   DOWNLOADER_COMMON_FIELDS: [
     *EVENT_ID_KEY, *RAW_SERVER_TIME, *RAW_USER_TIME, *EVENT_TYPE, *RAW_COORDINATES],
   DOWNLOADER_FIELD_ORDER: [
