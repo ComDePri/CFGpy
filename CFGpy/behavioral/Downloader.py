@@ -7,9 +7,8 @@ from CFGpy.behavioral._consts import DOWNLOADER_OUTPUT_FILENAME, MULTIPLE_DOWNLO
 
 class Downloader(ABC):
     def __init__(self, *, game_name: str | None = None, game_id: str | None = None, output_filename: str = DOWNLOADER_OUTPUT_FILENAME, config: Configuration = None) -> None:
-        self._validate_input(input=[game_id, game_name, self._config.GAME_ID, self._config.GAME_NAME])
-        self._game_name = game_name or self._config.GAME_NAME
-        self._game_id: str = game_id or self._config.GAME_ID
+        self._game_name = game_name or config.GAME_NAME
+        self._game_id: str = game_id or config.GAME_ID
         self._output_filename = output_filename
         self._config = config
         self._downloaded_df: Optional[pd.DataFrame] = None
@@ -20,14 +19,14 @@ class Downloader(ABC):
         pass
         
     def _validate_input(self, input: list[str]) -> None:
-        none_count: int = input.count(None)
+        count: int  = len(input) - input.count(None)
         
         # at least one URL should not be None:
-        if none_count < 1:
+        if count < 1:
             raise ValueError(NO_DOWNLOADER_INPUT_ERROR)
 
         # at most one URL should not be None:
-        if  none_count > 1:
+        if  count > 2:
             raise ValueError(MULTIPLE_DOWNLOADER_INPUTS_ERROR)
         
         return None

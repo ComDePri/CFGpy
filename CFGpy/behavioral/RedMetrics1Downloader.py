@@ -18,9 +18,9 @@ class RedMetrics1Downloader(Downloader):
         """
         super().__init__(game_name=game_name, game_id=game_id, output_filename=output_filename, 
                          config=config if config is not None else Configuration.default())
-        self._validate_input(input=[game_id, game_name, self._config.GAME_ID, self._config.GAME_NAME, game_version_ids])
+        self._validate_input(input=[game_id, game_name, game_version_ids, self._config.GAME_ID, self._config.GAME_NAME, self._config.GAME_VERSION_IDS])
         self._validate_config()
-        self._game_version_ids = game_version_ids
+        self._game_version_ids = self._config.GAME_VERSION_IDS or game_version_ids
         self._engine = create_engine(
             f'postgresql+psycopg2://{os.getenv("DB_USER")}:{os.getenv("DB_PASSWORD")}@{os.getenv("DB_HOST")}:{os.getenv("DB_PORT")}/{os.getenv("DB_NAME")}'
         )

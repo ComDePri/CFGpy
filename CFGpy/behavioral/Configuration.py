@@ -56,6 +56,7 @@ class Configuration:
 
         # Check required fields
         rm1_required = [
+            'GAME_VERSION_IDS',
             'DOWNLOAD_PLAYER_REQUEST',
             'RAW_GAME_VERSION',
             'RAW_PLAYER_BIRTHDATE',
@@ -65,24 +66,10 @@ class Configuration:
             'RAW_PLAYER_EXTERNAL_ID',
             'RAW_SECTION',
         ]
-        rm2_required = [
-            'RAW_SERVER_TIME',
-            'RAW_USER_TIME',
-            'RAW_PLAYER_CUSTOM_DATA',
-            'RAW_PLAYER_ID',
-            'RAW_COORDINATES',
-            'EVENT_TYPE',
-        ]
 
         missing_fields = []
         if not self.is_rm2:
-            # rm1 mode: all rm1 fields must exist
             for field in rm1_required:
-                if not hasattr(self, field):
-                    missing_fields.append(field)
-        else:
-            # rm2 mode: all rm2-specific fields must exist
-            for field in rm2_required:
                 if not hasattr(self, field):
                     missing_fields.append(field)
 
@@ -153,6 +140,7 @@ class Configuration:
     
     GAME_NAME: str | None = None
     GAME_ID: str | None = None
+    GAME_VERSION_IDS: list[str] | None = None
     
     DOWNLOAD_PLAYER_REQUEST: str = None
     RAW_GAME_VERSION: str = None
@@ -161,9 +149,6 @@ class Configuration:
     RAW_PLAYER_COUNTRY: str = None
     RAW_PLAYER_GENDER: str = None
     RAW_PLAYER_EXTERNAL_ID: str = None
-    RED_METRICS_CSV_URL: str | None = None
-    RED_METRICS_JSON_URL: str | None = None
-    RED_METRICS_GAME_ID: str | None = None
     RAW_SECTION: str = None
     
     is_rm2: bool = False

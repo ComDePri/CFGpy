@@ -1,17 +1,20 @@
 from datetime import datetime, timezone
-from CFGpy.behavioral import Downloader, Parser, PostParser, FeatureExtractor, Configuration
+from CFGpy.behavioral import Downloader, RedMetrics1Downloader, RedMetrics2Downloader, Parser, PostParser, FeatureExtractor, Configuration
 from CFGpy.behavioral._consts import DEFAULT_FINAL_OUTPUT_FILENAME
 from CFGpy.behavioral._utils import CFGPipelineException
 
 
 class Pipeline:
-    def __init__(self, red_metrics_data_url: str | None = None, rm2_game_id: str | None = None, output_filename=DEFAULT_FINAL_OUTPUT_FILENAME,
-                 config: Configuration = None):
-        self.output_filename = output_filename
+    def __init__(self, game_name: str | None = None, game_id: str | None = None, game_version_ids: list[str] | None = None, is_rm2: bool = True, 
+                 output_filename=DEFAULT_FINAL_OUTPUT_FILENAME, config: Configuration = None):
+       
+        self._game_name = game_name
+        self._game_id: str = game_id
+        self._game_version_ids = game_version_ids
+        self._is_rm2 = is_rm2
         
-        self.red_metrics_data_url = red_metrics_data_url
-        self.rm2_game_id = rm2_game_id
-        self.config = config or Configuration.default(is_rm2=self.is_rm2) 
+        self.output_filename = output_filename
+        self.config = config or Configuration.default(is_rm2=is_rm2) 
         
         self.downloader = None
         self.raw_data = None
@@ -39,30 +42,24 @@ class Pipeline:
         )
         return now_str
     
-    @property
-    def is_rm2(self) -> bool:
-        return self.rm2_game_id is not None or (self.red_metrics_data_url and "/v2/" in self.red_metrics_data_url)
+    def _add_input_params_to_config(self):
+        self.config.GAME_NAME = self.downloader._game_name
+        self.config.GAME_ID = self.downloader._game_id
+        if not self._is_rm2:
+            self.config.GAME_VERSION_IDS = self.downloader._game_version_ids
+            
+    def _get_downloader(self) -> Downloader:
+        return (RedMetrics2Downloader(game_name=self._game_name, game_id=self._game_id, config=self.config) if self._is_rm2 
+                else RedMetrics1Downloader(game_name=self._game_name, game_id=self._game_id, game_version_ids=self._game_version_ids, config=self.config))
     
-    def _add_url_to_config(self):
-        data_url = self.downloader.data_url
-        
-        if not self.is_rm2 and "&before=" not in data_url:
-            now_str = self._get_now_str()
-            data_url += f"&before={now_str}"
-        
-        if self.is_rm2:
-            self.config.RED_METRICS_JSON_URL = data_url
-        else:
-            self.config.RED_METRICS_CSV_URL = data_url
-
     def _download(self, verbose):
         """
         This method contains the downloading process exclusively. This can be overridden by deriving classes.
         :param verbose: whether to print info during the downloading process
         :return: raw data
         """
-        return self.downloader.download(verbose)
-
+        return self.downloader.download(verbose=verbose)
+    
     def download(self, verbose=True):
         """
         Wraps raw data downloading with extra necessary functionality.
@@ -72,8 +69,8 @@ class Pipeline:
         if self.raw_data is not None:
             raise CFGPipelineException("Raw data already downloaded")
 
-        self.downloader = Downloader(data_url=self.red_metrics_data_url, rm2_game_id=self.rm2_game_id, config=self.config)
-        self._add_url_to_config()
+        self.downloader = self._get_downloader()
+        self._add_input_params_to_config()
 
         if verbose:
             print("Downloading raw data...")
@@ -148,10 +145,10 @@ class Pipeline:
             print(f"Results written successfully to: {self.output_filename}")
 
     def run_pipeline(self, verbose=True):
-        self.download(verbose)
-        self.parse(verbose)
-        self.postparse(verbose)
-        self.extract_features(verbose)
+        self.download(verbose=verbose)
+        self.parse(verbose=verbose)
+        self.postparse(verbose=verbose)
+        self.extract_features(verbose=verbose)
         return self.features_df
 
 
@@ -159,16 +156,19 @@ def main():
     import argparse
 
     argparser = argparse.ArgumentParser(description="Run CFG behavioral data pipeline")
-    argparser.add_argument("--url", help='Web address of the "Download all pages as CSV"')
-    argparser.add_argument("--rm2-game-id", help='The game id of the game on RedMetrics2')
+    argparser.add_argument("--game-name", help='The name of the name.')
+    argparser.add_argument("--game-id", help='The id of the game.')
+    argparser.add_argument("--game-version-ids", nargs="+", help='A list of the game version ids that you want to download.')
     argparser.add_argument("--config-path", help='The path to the yml file that contains the configuration')
     argparser.add_argument("-o", "--output", default=DEFAULT_FINAL_OUTPUT_FILENAME, dest="output_filename",
                         help='Filename of output CSV')
+    argparser.add_argument("--rm1", action="store_true", help="Use RM1 data")
     args = argparser.parse_args()
     
     config: Configuration | None = Configuration.from_yaml(yaml_path=args.config_path) if args.config_path else None
     
-    pl = Pipeline(red_metrics_data_url=args.url, rm2_game_id=args.rm2_game_id, output_filename=args.output_filename, config=config)
+    pl = Pipeline(game_name=args.game_name, game_id=args.game_id, game_version_ids=args.game_version_ids, is_rm2=(not args.rm1), 
+                  output_filename=args.output_filename, config=config)
     
     pl.run_pipeline()
 

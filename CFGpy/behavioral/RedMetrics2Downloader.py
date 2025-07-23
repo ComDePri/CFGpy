@@ -28,7 +28,7 @@ class RedMetrics2Downloader(Downloader):
             raise ValueError(CONFIG_URL_MISMATCH_ERROR)
         return None
         
-    def download(self, verbose: bool = False) -> pd.DataFrame:
+    def download(self, *, verbose: bool = False) -> pd.DataFrame:
         
         self._downloaded_events_json = self._download_data_from_rm2(verbose=verbose) 
         output_json = self._create_rm2_output(verbose=verbose) 
