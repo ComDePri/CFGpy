@@ -13,7 +13,7 @@ import sys
 class Configuration:
 
     @classmethod
-    def default(cls, is_rm2: bool = False):
+    def default(cls, is_rm2: bool = True):
         config_filename = RM2_CONFIG_FILENAME if is_rm2 else CONFIG_FILENAME 
         if sys.version_info[1] >= 9:
             config_path = ir.files(CONFIG_PACKAGE).joinpath(config_filename)

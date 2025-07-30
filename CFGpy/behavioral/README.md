@@ -16,46 +16,89 @@ As of v2.0.0, this package can be used to retrieve data from RedMetrics2.
 The Pipeline can be run from the terminal as follows:
 
 ```
-run_pipeline --url <raw_data_url> --rm2-game-id <rm2_game_id> --config-path <config_file_path> -o <output_filename>
+run_pipeline --game-name <game-name> --game-id <game_id> --game-version-ids <game_version_id_1> <game_version_id_2> <...> --config-path <config_file_path> -o <output_filename> --rm1
 ```
 
-Where `output_filename` and `config_file_path` are optional and `raw_data_url` is the URL used to download data from RedMetrics1/RedMetrics2. 
-For both RedMetrics1 and RedMetrics2 `raw_data_url` can be omitted if `config_file_path` is present and the config file includes the raw data URL.
-For RedMetrics2 `rm2_game_id` can be used instead of `raw_data_url`, in which case `raw_data_url` can be omitted. 
+`output_filename` and `config_file_path` are optional. 
+Either `game_name`, `game_id` or as many `game_version_ids` as you want (if you are using RedMetrics1) must be provided - but only one of them. Alternatively, if one of them is present in the configuration file, then none of them may be provided.
+The flag `--rm1` must be present if you are using RedMetrics1 and not if you are using RedMetrics2.
+
+In addition, if you are using RedMetrics1 then the following environment variables must be set:
+DB_USER
+DB_PASSWORD
+DB_HOST
+DB_PORT
+DB_NAME
+where the values for these variables can be accessed on slab.
+
+If you are using RedMetrics2, you can set the following environment variables to avoid being prompted for you email and password to your RedMetrics2 account every time:
+RM2_EMAIL
+RM2_PASSWORD
+
+To set an environment variable in a linux terminal, you can use the following command:
+```
+export MY_VAR='some_value'
+```
+Note: for passwords, it is better to use single inverted commas because the terminal has a hard time with special characters. 
 
 ### Python Script
 
 ```python
 from CFGpy.behavioral import Pipeline
 
-Pipeline(red_metrics_data_url=red_metrics_data_url, rm2_game_id=rm2_game_id, output_filename=output_filename, config=config).run_pipeline()
+Pipeline(game_name=game_name, game_id=game_id, output_filename=output_filename, game_version_ids=game_version_ids is_rm2=is_rm2, config=config).run_pipeline()
 ```
-Where either `red_metrics_data_url` or `rm2_game_id` must be provided for RedMetrics2 but not both and, `output_filename` and `config` are optionl parameters. For RedMetrics1 `red_metrics_data_url` must be provided. 
+`output_filename` and `config` are optional parameters.
+Either `game_name`, `game_id` or as many `game_version_ids` as you want (if you are using RedMetrics1) must be provided - but only one of them. Alternatively, if one of them is present in the configuration file, then none of them may be provided.
 
-The raw data URL can also be passed as part of a configuration object:
+The game name or id(s) can also be passed as part of a configuration object:
 
-For RedMetrics1:
+Game name:
 ```python
 from CFGpy.behavioral import Configuration, Pipeline
 
 config = Configuration.default()
-config.RED_METRICS_CSV_URL = csv_url
+config.GAME_NAME = game_name
 Pipeline(config=config, output_filename=output_filename).run_pipeline()
 ```
 
-For RedMetrics2:
+Game id:
 ```python
 from CFGpy.behavioral import Configuration, Pipeline
 
 config = Configuration.default()
-config.RED_METRICS_JSON_URL = csv_url
+config.GAME_ID = game_id
 Pipeline(config=config, output_filename=output_filename).run_pipeline()
 ```
 
-In all cases, `output_filename` is optional.
+Game version ids (for RedMetrics1 only):
 
-> 📝 When a pipeline finishes, it outputs its configuration to enable full reproducibility. The outputted configuration will
-> always include the raw data URL (even if the inputted configuration did not), and can be loaded into python
+```python
+from CFGpy.behavioral import Configuration, Pipeline
+
+config = Configuration.default(is_rm2=False)
+config.GAME_VERSION_IDS = game_version_ids
+Pipeline(config=config, output_filename=output_filename).run_pipeline()
+```
+
+For RedMetrics1, the parameter `is_rm2` must be set to False for Configuration.default(is_rm2=False) otherwise, the configuration with default to RedMetrics2.
+
+In addition, if you are using RedMetrics1 then the following environment variables must be set:
+DB_USER
+DB_PASSWORD
+DB_HOST
+DB_PORT
+DB_NAME
+where the values for these variables can be accessed on slab.
+
+If you are using RedMetrics2, you can set the following environment variables to avoid being prompted for you email and password to your RedMetrics2 account every time:
+RM2_EMAIL
+RM2_PASSWORD
+
+You can set the environment variables in the terminal or you can use an env file and load it using the python-dotenv library. 
+
+> 📝 When a pipeline finishes, it outputs its configuration to enable full reproducibility. 
+> The outputted configuration will always include the game name, id or version ids (even if the inputted configuration did not), and can be loaded into python.
 > using `config = Configuration.from_yaml(config_filename)`
 
 ## Modules and Logic
