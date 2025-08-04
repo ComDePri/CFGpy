@@ -13,7 +13,8 @@ import shutil
 
 # *** NOTE: DO NOT FORGET TO SET THE SEGMENTATION ALGORITHM IN CONSTANTS.PY ***
 # (1) CSV URL for MRI games INSIDE the scanner (use MRI segmentation algorithm in constants.py)
-CSV_URL = "https://api.creativeforagingtask.com/v1/event.csv?game=4cb46367-7555-42cb-8915-152c3f3efdfb&entityType=event&after=2021-05-23T10:51:00.000Z"
+#CSV_URL = "https://api.creativeforagingtask.com/v1/event.csv?game=4cb46367-7555-42cb-8915-152c3f3efdfb&entityType=event&after=2021-05-23T10:51:00.000Z"
+CSV_URL = "https://api.creativeforagingtask.com/v1/event.csv?game=4cb46367-7555-42cb-8915-152c3f3efdfb&entityType=event&after=2025-04-28T10:51:00.000Z"
 CSV_FILE_PATH = "/home/roey/Documents/CFG_data/event.csv"
 # (2) CSV URL for MRI games OUTSIDE the scanner (use non-MRI segmentation algorithm in constants.py) (go to https://creativeforagingtask.com/v1/search and search for the game version "FCDBrainHebrewOnlyScan")
 #CSV_URL = 'https://api.creativeforagingtask.com/v1/event.csv?game=01b164da-9cef-4dbf-aefb-17627442abe7&gameVersion=4f865647-2064-4af4-a18f-153ec24d6a5f&entityType=event'
@@ -204,7 +205,7 @@ def create_all_shapes_presentation(preprocessed_data):
     # Plot each subject's game OR add to presentation
     for player_data in preprocessed_data:
 
-        if not player_data[PARSED_PLAYER_ID_KEY].startswith("9999"):  # skip the non-player data
+        if not player_data[PARSED_PLAYER_ID_KEY].startswith("999999"):  # skip the non-player data. TODO: Roey: Make 9999 again
             data = PreprocessedPlayerData(player_data)
 
             shapesImagePath = data.plot_shapes()
@@ -233,6 +234,11 @@ if __name__ == '__main__':
 
     # B) [[Default option, but see C]] Load data from url & save new JSON
     preprocessed_data = from_url(CSV_URL)
+
+    # Dump as json file
+    path = "/home/roey/PycharmProjects/CFGpy/CFGpy/behavioral/data_from_RM1.json"
+    with open(path, "w") as out_file:
+        json.dump(preprocessed_data, out_file)
 
     # Print the unique id's in preprocessed_data
     #print("Unique IDs in preprocessed_data:")
