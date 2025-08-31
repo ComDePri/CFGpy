@@ -20,16 +20,8 @@ run_pipeline --game-name <game-name> --game-id <game_id> --game-version-ids <gam
 ```
 
 `output_filename` and `config_file_path` are optional. 
-Either `game_name`, `game_id` or as many `game_version_ids` as you want (if you are using RedMetrics1) must be provided - but only one of them. Alternatively, if one of them is present in the configuration file, then none of them may be provided.
+Either `game_name`, `game_id` or as many `game_version_ids` (if you are using RedMetrics1) as you want must be provided - but only one of them. Alternatively, if one of them is present in the configuration file, then none of them may be provided.
 The flag `--rm1` must be present if you are using RedMetrics1 and not if you are using RedMetrics2.
-
-In addition, if you are using RedMetrics1 then the following environment variables must be set:
-DB_USER
-DB_PASSWORD
-DB_HOST
-DB_PORT
-DB_NAME
-where the values for these variables can be accessed on slab.
 
 If you are using RedMetrics2, you can set the following environment variables to avoid being prompted for you email and password to your RedMetrics2 account every time:
 RM2_EMAIL

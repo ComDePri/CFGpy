@@ -5,14 +5,12 @@ import pandas as pd
 from pathlib import Path
 from CFGpy.behavioral._consts import (DOWNLOADER_OUTPUT_FILENAME, CONFIG_URL_MISMATCH_ERROR)
 from CFGpy.behavioral import Configuration, Downloader
-from CFGpy.utils._nas_path import NAS_PATH
-
-CSV_PATH = os.path.join(NAS_PATH, "Projects", "CFG", "all_data_from_aws", "redmetrics") # TODO: change to correct path
+from CFGpy.utils._nas_path import get_nas_path
 
 class RedMetrics1Downloader(Downloader):
     def __init__(self, *, game_name: str | None = None, game_id: str | None = None, game_version_ids: list[str] | None = None, 
                  output_filename: str = DOWNLOADER_OUTPUT_FILENAME, config: Configuration = None,
-                 csv_directory: str = CSV_PATH) -> None:
+                 csv_directory: str = None) -> None:
         """
         Init a LocalCSVDownloader object that reads from local CSV files instead of database.
         :param game_name: The game name of the game whose data you want to download from local CSV files.
@@ -24,10 +22,14 @@ class RedMetrics1Downloader(Downloader):
         """
         super().__init__(game_name=game_name, game_id=game_id, output_filename=output_filename, 
                          config=config if config is not None else Configuration.default(is_rm2=False))
+
         self._validate_input(input=[game_id, game_name, game_version_ids, self._config.GAME_ID, self._config.GAME_NAME, self._config.GAME_VERSION_IDS])
         self._validate_config()
         self._game_version_ids = self._config.GAME_VERSION_IDS or game_version_ids
-        self._csv_directory = Path(csv_directory)
+        self.nas_path = get_nas_path()
+        # self.csv_path = os.path.join(NAS_PATH, "Projects", "CFG", "all_data_from_aws", "redmetrics") # TODO: change to correct path
+        self.csv_path = os.path.join(self.nas_path, "personal_folders", "roni.eisenberg")
+        self._csv_directory = Path(csv_directory if csv_directory else self.csv_path)
         self._load_csv_files()
 
     def _load_csv_files(self):

@@ -20,6 +20,3 @@ def get_nas_path():
                     f"environment variable.\nFor details, see https://comdepri.slab.com/posts/connecting-to-nas-ir4z367g"
 
     raise NotADirectoryError(error_msg)
-
-
-NAS_PATH = get_nas_path()
