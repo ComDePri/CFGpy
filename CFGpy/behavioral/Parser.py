@@ -23,7 +23,7 @@ class Parser:
 
     def __init__(self, *, raw_data: pd.DataFrame, is_rm2: bool = False, config: Configuration = None):
         self.raw_data = raw_data
-        self.config = config or Configuration.default(is_rm2=is_rm2)
+        self.config = config or Configuration.default(is_rm1=is_rm2)
         self.parsed_data = None
 
         self.include_in_id = list(self.config.INCLUDE_IN_PARSER_ID)

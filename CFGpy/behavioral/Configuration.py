@@ -13,14 +13,14 @@ import sys
 class Configuration:
 
     @classmethod
-    def default(cls, is_rm2: bool = True):
-        config_filename = RM2_CONFIG_FILENAME if is_rm2 else CONFIG_FILENAME 
+    def default(cls, is_rm1: bool = True):
+        config_filename = RM2_CONFIG_FILENAME if is_rm1 else CONFIG_FILENAME 
         if sys.version_info[1] >= 9:
             config_path = ir.files(CONFIG_PACKAGE).joinpath(config_filename)
         else:
             config_path = ir.path(CONFIG_PACKAGE, config_filename)
         config = cls.from_yaml(config_path)
-        config.is_rm2 = is_rm2
+        config.is_rm1 = is_rm1
         return config
 
     @classmethod
@@ -68,13 +68,13 @@ class Configuration:
         ]
 
         missing_fields = []
-        if not self.is_rm2:
+        if not self.is_rm1:
             for field in rm1_required:
                 if not hasattr(self, field):
                     missing_fields.append(field)
 
         if missing_fields:
-            raise ValueError(f"Missing required fields for {'rm2' if self.is_rm2 else 'rm1'}: {missing_fields}")
+            raise ValueError(f"Missing required fields for {'rm2' if self.is_rm1 else 'rm1'}: {missing_fields}")
 
     def _add_CFGpy_version(self):
         if self.CFGPY_VERSION is None:
@@ -151,4 +151,4 @@ class Configuration:
     RAW_PLAYER_EXTERNAL_ID: str = None
     RAW_SECTION: str = None
     
-    is_rm2: bool = False
+    is_rm1: bool = False

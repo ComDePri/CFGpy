@@ -4,48 +4,57 @@ from typing import Optional
 import requests
 from tqdm import tqdm
 import pandas as pd
-from CFGpy.behavioral._consts import (DOWNLOADER_OUTPUT_FILENAME, CONFIG_URL_MISMATCH_ERROR)
-from CFGpy.behavioral import Configuration, Downloader
+from CFGpy.behavioral._consts import (DATA_RETRIEVER_OUTPUT_FILENAME, CONFIG_URL_MISMATCH_ERROR)
+from CFGpy.behavioral import Configuration, DataRetriever
 
 
-class RedMetrics2Downloader(Downloader):
-    def __init__(self, *, game_name: str | None = None, game_id: str | None = None, output_filename: str = DOWNLOADER_OUTPUT_FILENAME, config: Configuration = None) -> None:
+class RedMetrics2DataRetriever(DataRetriever):
+    def __init__(self, *, game_name: str | None = None, game_id: str | None = None, output_filename: str = DATA_RETRIEVER_OUTPUT_FILENAME, 
+                 config: Configuration = None) -> None:
         """
-        Init a RedMetrics2Downloader object.
-        :param game_id: The game name of the game whose data you want to download from RedMetrics2.
-        :param game_id: The game id of the game whose data you want to download from RedMetrics2.
+        Init a RedMetrics2DataRetriever object.
+        :param game_id: The game name of the game whose data you want to retrieve from RedMetrics2.
+        :param game_id: The game id of the game whose data you want to retrieve from RedMetrics2.
         :param output_filename: filename for output.
         :param config: a Configuration file.
         """
         super().__init__(game_name=game_name, game_id=game_id, output_filename=output_filename, 
-                         config=config if config is not None else Configuration.default(is_rm2=True))
+                         config=config if config is not None else Configuration.default(is_rm1=True))
         self._validate_input(input=[game_id, game_name, self._config.GAME_ID, self._config.GAME_NAME])
         self._validate_config()
-        self._downloaded_events_json = []
+        self._retrieved_events_json = []
+        self._session = None
+    
+    @property
+    def session(self) -> requests.Session:
+        if self._session is None:
+            self._init_session()
+        return self._session
     
     def _validate_config(self) -> None:
-        if not self._config.is_rm2:
+        if not self._config.is_rm1:
             raise ValueError(CONFIG_URL_MISMATCH_ERROR)
         return None
         
-    def download(self, *, verbose: bool = False) -> pd.DataFrame:
+    def retrieve_data(self, *, verbose: bool = False) -> pd.DataFrame:
         
-        self._downloaded_events_json = self._download_data_from_rm2(verbose=verbose) 
+        self._retrieved_events_json = self._download_data_from_rm2(verbose=verbose) 
         output_json = self._create_rm2_output(verbose=verbose) 
-        self._downloaded_df = self._create_df(output_json=output_json)
+        self._retrieved_df = self._create_df(output_json=output_json)
         
-        return self._downloaded_df
-
-    def _download_data_from_rm2(self, verbose: Optional[bool] = False) -> dict:
+        return self._retrieved_df
+    
+    def _init_session(self, verbose: Optional[bool] = False) -> None:
         
-        session = requests.Session()
-        
+        self._session = requests.Session()
         rm2_email = os.getenv("RM2_EMAIL") or input("Please enter your RedMetrics2 email: ") 
         rm2_password = os.getenv("RM2_PASSWORD") or getpass.getpass(prompt="Enter your RedMetrics2 password: ")
-        self._login_to_session(session=session, email=rm2_email, password=rm2_password, verbose=verbose)
-        return self._download_data(session=session, verbose=verbose)
+        self._login_to_session(email=rm2_email, password=rm2_password, verbose=verbose)
+        
+        return None
+
     
-    def _login_to_session(self, session: requests.Session, email: str, password: str, verbose: Optional[bool] = False) -> None:
+    def _login_to_session(self, email: str, password: str, verbose: Optional[bool] = False) -> None:
         
         if verbose:
             print("Logging into RedMetrics2...")
@@ -56,7 +65,7 @@ class RedMetrics2Downloader(Downloader):
             "password": password,
         }
         
-        response = session.post(login_url, data=login_data)
+        response = self.session.post(login_url, data=login_data)
 
         if response.status_code == 200:
             if verbose:
@@ -64,16 +73,16 @@ class RedMetrics2Downloader(Downloader):
         else:
             print(f"Login failed: {response.text}")
 
-    def _download_data(self, session: requests.Session, verbose: Optional[bool] = False) -> dict:
+    def _download_data_from_rm2(self, verbose: Optional[bool] = False) -> dict:
         
         if verbose:
             print("Downloading data from RedMetrics2...")
         
         if self._game_name:
-            self._game_id = self._get_rm2_game_id(session=session, verbose=verbose)
+            self._game_id = self._get_rm2_game_id(session=self.session, verbose=verbose)
             
         download_url: str = f"https://api.creativeforagingtask.com/v2/game/{self._game_id}/data.json"
-        response = session.get(url=download_url)
+        response = self.session.get(url=download_url)
 
         if not response.status_code == 200:
             msg = f"Error: {response.status_code} - failed to download data for game: {self._game_id}."
@@ -108,7 +117,7 @@ class RedMetrics2Downloader(Downloader):
     
     def _create_rm2_output(self, verbose: Optional[bool] = False) -> pd.DataFrame:
        
-        sessions_iterator = self._downloaded_events_json.get("sessions", {})
+        sessions_iterator = self._retrieved_events_json.get("sessions", {})
         
         if verbose:
             print("\nHandling events...")

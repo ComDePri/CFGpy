@@ -1,22 +1,22 @@
 from datetime import datetime, timezone
-from CFGpy.behavioral import Downloader, RedMetrics1Downloader, RedMetrics2Downloader, Parser, PostParser, FeatureExtractor, Configuration
+from CFGpy.behavioral import DataRetriever, RedMetrics1DataRetriever, RedMetrics2DataRetriever, Parser, PostParser, FeatureExtractor, Configuration
 from CFGpy.behavioral._consts import DEFAULT_FINAL_OUTPUT_FILENAME
 from CFGpy.behavioral._utils import CFGPipelineException
 
 
 class Pipeline:
-    def __init__(self, game_name: str | None = None, game_id: str | None = None, game_version_ids: list[str] | None = None, is_rm2: bool = True, 
+    def __init__(self, game_name: str | None = None, game_id: str | None = None, game_version_ids: list[str] | None = None, is_rm1: bool = False, 
                  output_filename=DEFAULT_FINAL_OUTPUT_FILENAME, config: Configuration = None):
        
         self._game_name = game_name
         self._game_id: str = game_id
         self._game_version_ids = game_version_ids
-        self._is_rm2 = is_rm2
+        self._is_rm1 = is_rm1
         
         self.output_filename = output_filename
-        self.config = config or Configuration.default(is_rm2=is_rm2) 
+        self.config = config or Configuration.default(is_rm1=is_rm1) 
         
-        self.downloader = None
+        self.data_retriever = None
         self.raw_data = None
         self.parser = None
         self.parsed_data = None
@@ -43,22 +43,22 @@ class Pipeline:
         return now_str
     
     def _add_input_params_to_config(self):
-        self.config.GAME_NAME = self.downloader._game_name
-        self.config.GAME_ID = self.downloader._game_id
-        if not self._is_rm2:
-            self.config.GAME_VERSION_IDS = self.downloader._game_version_ids
+        self.config.GAME_NAME = self.data_retriever._game_name
+        self.config.GAME_ID = self.data_retriever._game_id
+        if self._is_rm1:
+            self.config.GAME_VERSION_IDS = self.data_retriever._game_version_ids
             
-    def _get_downloader(self) -> Downloader:
-        return (RedMetrics2Downloader(game_name=self._game_name, game_id=self._game_id, config=self.config) if self._is_rm2 
-                else RedMetrics1Downloader(game_name=self._game_name, game_id=self._game_id, game_version_ids=self._game_version_ids, config=self.config))
+    def _get_downloader(self) -> DataRetriever:
+        return (RedMetrics2DataRetriever(game_name=self._game_name, game_id=self._game_id, config=self.config) if not self._is_rm1 
+                else RedMetrics1DataRetriever(game_name=self._game_name, game_id=self._game_id, game_version_ids=self._game_version_ids, config=self.config))
     
-    def _download(self, verbose):
+    def _retrieve_data(self, verbose):
         """
         This method contains the downloading process exclusively. This can be overridden by deriving classes.
         :param verbose: whether to print info during the downloading process
         :return: raw data
         """
-        return self.downloader.download(verbose=verbose)
+        return self.data_retriever.retrieve_data(verbose=verbose)
     
     def download(self, verbose=True):
         """
@@ -69,14 +69,14 @@ class Pipeline:
         if self.raw_data is not None:
             raise CFGPipelineException("Raw data already downloaded")
 
-        self.downloader = self._get_downloader()
+        self.data_retriever = self._get_downloader()
         self._add_input_params_to_config()
 
         if verbose:
             print("Downloading raw data...")
             
-        self.raw_data = self._download(verbose=verbose)
-        self.downloader.dump(verbose=verbose)
+        self.raw_data = self._retrieve_data(verbose=verbose)
+        self.data_retriever.dump(verbose=verbose)
 
     def _parse(self):
         """
@@ -167,7 +167,7 @@ def main():
     
     config: Configuration | None = Configuration.from_yaml(yaml_path=args.config_path) if args.config_path else None
     
-    pl = Pipeline(game_name=args.game_name, game_id=args.game_id, game_version_ids=args.game_version_ids, is_rm2=(not args.rm1), 
+    pl = Pipeline(game_name=args.game_name, game_id=args.game_id, game_version_ids=args.game_version_ids, is_rm1=(not args.rm1), 
                   output_filename=args.output_filename, config=config)
     
     pl.run_pipeline()

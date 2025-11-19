@@ -40,7 +40,7 @@ def _get_frac_uniquely_covered(player_objects, objects_not_uniquely_covered):
 class FeatureExtractor:
     def __init__(self, *, preprocessed_data,  is_rm2: bool = False, config: Configuration = None):
         self.input_data = PostparsedDataset(input_data=preprocessed_data, config=config)
-        self.config = config if config is not None else Configuration.default(is_rm2=is_rm2)
+        self.config = config if config is not None else Configuration.default(is_rm1=is_rm2)
         self.all_absolute_features = None
         self.output_df = None
         self.exclusions = pd.DataFrame(columns=[FEATURES_ID_KEY, EXCLUSION_REASON_KEY])
