@@ -19,9 +19,9 @@ def is_valid_transition(shape1: int, shape2: int) -> bool:
 
 
 class PostParser:
-    def __init__(self, *, parsed_data, is_rm2: bool = False, config: Configuration = None):
+    def __init__(self, *, parsed_data, is_rm1: bool = False, config: Configuration = None):
         self.all_players_data = parsed_data
-        self.config = config or Configuration.default(is_rm1=is_rm2)
+        self.config = config or Configuration.default(is_rm1=is_rm1)
 
     @classmethod
     def from_json(cls, path: str, config=None):

@@ -38,7 +38,7 @@ Note: for passwords, it is better to use single inverted commas because the term
 ```python
 from CFGpy.behavioral import Pipeline
 
-Pipeline(game_name=game_name, game_id=game_id, output_filename=output_filename, game_version_ids=game_version_ids is_rm2=is_rm2, config=config).run_pipeline()
+Pipeline(game_name=game_name, game_id=game_id, output_filename=output_filename, game_version_ids=game_version_ids is_rm1=is_rm1, config=config).run_pipeline()
 ```
 `output_filename` and `config` are optional parameters.
 Either `game_name`, `game_id` or as many `game_version_ids` as you want (if you are using RedMetrics1) must be provided - but only one of them. Alternatively, if one of them is present in the configuration file, then none of them may be provided.
@@ -68,7 +68,7 @@ Game version ids (for RedMetrics1 only):
 ```python
 from CFGpy.behavioral import Configuration, Pipeline
 
-config = Configuration.default(is_rm2=False)
+config = Configuration.default(is_rm1=True)
 config.GAME_VERSION_IDS = game_version_ids
 Pipeline(config=config, output_filename=output_filename).run_pipeline()
 ```
@@ -100,9 +100,9 @@ Below is an overview of the different modules composing the pipeline and their f
 > 📝 To learn more about the different types of data mentioned here,
 > see [CFG data types and structure](https://comdepri.slab.com/posts/b90dhs98)
 
-### Downloader
+### DataRetriever
 
-Downloads raw data from the RedMetrics1/RedMetrics2 server.
+Retrieves raw data from the RedMetrics1/RedMetrics2 server.
 
 ### Parser
 
@@ -201,7 +201,7 @@ For the example above, a solution may look something like this:
 ```python
 parsed_united = []
 for url in urls:
-    raw_data = Downloader(url).download()
+    raw_data = DataRetriever(url).retrieve_data()
     parsed = Parser(raw_data).parse()
     parsed_united += parsed
 

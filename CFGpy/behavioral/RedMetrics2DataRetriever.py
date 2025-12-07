@@ -32,7 +32,7 @@ class RedMetrics2DataRetriever(DataRetriever):
         return self._session
     
     def _validate_config(self) -> None:
-        if not self._config.is_rm1:
+        if self._config.is_rm1:
             raise ValueError(CONFIG_URL_MISMATCH_ERROR)
         return None
         

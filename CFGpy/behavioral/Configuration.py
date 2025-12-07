@@ -1,4 +1,6 @@
 from dataclasses import dataclass, asdict
+
+from numpy._core.numeric import False_
 from CFGpy._version import __version__ as CFGpy_version
 from CFGpy.behavioral._consts import CONFIG_PACKAGE, CONFIG_FILENAME, RM2_CONFIG_FILENAME, CFGPY_VERSION_ERROR, CONFIG_DUMP_EXTENSION
 from CFGpy.behavioral._utils import server_coords_to_binary_shape
@@ -13,8 +15,8 @@ import sys
 class Configuration:
 
     @classmethod
-    def default(cls, is_rm1: bool = True):
-        config_filename = RM2_CONFIG_FILENAME if is_rm1 else CONFIG_FILENAME 
+    def default(cls, is_rm1: bool = False):
+        config_filename = RM2_CONFIG_FILENAME if not is_rm1 else CONFIG_FILENAME 
         if sys.version_info[1] >= 9:
             config_path = ir.files(CONFIG_PACKAGE).joinpath(config_filename)
         else:
@@ -68,13 +70,13 @@ class Configuration:
         ]
 
         missing_fields = []
-        if not self.is_rm1:
+        if self.is_rm1:
             for field in rm1_required:
                 if not hasattr(self, field):
                     missing_fields.append(field)
 
         if missing_fields:
-            raise ValueError(f"Missing required fields for {'rm2' if self.is_rm1 else 'rm1'}: {missing_fields}")
+            raise ValueError(f"Missing required fields for {'rm2' if not self.is_rm1 else 'rm1'}: {missing_fields}")
 
     def _add_CFGpy_version(self):
         if self.CFGPY_VERSION is None:
