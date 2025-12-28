@@ -13,42 +13,27 @@
   EVENT_CUSTOM_DATA_KEY: "customData",
   EVENT_PLAYER_ID_KEY: "player",
   RAW_PLAYER_ID: &RAW_PLAYER_ID "playerId",
-  RAW_SERVER_TIME: &RAW_SERVER_TIME "serverTime",
-  RAW_USER_TIME: &RAW_USER_TIME "userTime",
-  RAW_GAME_VERSION: &RAW_GAME_VERSION "gameVersion",
-  RAW_PLAYER_BIRTHDATE: &RAW_PLAYER_BIRTHDATE "playerBirthdate",
-  RAW_PLAYER_REGION: &RAW_PLAYER_REGION "playerRegion",
-  RAW_PLAYER_COUNTRY: &RAW_PLAYER_COUNTRY "playerCountry",
-  RAW_PLAYER_GENDER: &RAW_PLAYER_GENDER "playerGender",
-  RAW_PLAYER_EXTERNAL_ID: &RAW_PLAYER_EXTERNAL_ID "playerExternalId",
+  RAW_SERVER_TIME: &RAW_SERVER_TIME "serverTimestamp",
+  RAW_USER_TIME: &RAW_USER_TIME "userTimestamp",
   RAW_PLAYER_CUSTOM_DATA: &RAW_PLAYER_CUSTOM_DATA "playerCustomData",
   EVENT_TYPE: &EVENT_TYPE "type",
   RAW_COORDINATES: &RAW_COORDINATES "coordinates",
-  RAW_SECTION: &RAW_SECTION "section",
   RAW_NEW_SHAPE: &RAW_NEW_SHAPE "customData.newShape",
   RAW_SHAPE: &RAW_SHAPE "customData.shape",
 
   ## Downloading
   GAME_NAME: null,  # Name of the game 
-  GAME_ID: null, # ID of the game
-  GAME_VERSION_IDS: null, # A list of the game versions
+  GAME_ID: null, # ID of the game (under the name of the game on RedMetrics2)
   DOWNLOADER_COMMON_FIELDS: [
-    *EVENT_ID_KEY, *RAW_SERVER_TIME, *RAW_USER_TIME, *RAW_GAME_VERSION, *EVENT_TYPE, *RAW_COORDINATES, *RAW_SECTION ],
+    *EVENT_ID_KEY, *RAW_SERVER_TIME, *RAW_USER_TIME, *EVENT_TYPE, *RAW_COORDINATES],
   DOWNLOADER_FIELD_ORDER: [
     *EVENT_ID_KEY,
     *RAW_SERVER_TIME,
     *RAW_USER_TIME,
-    *RAW_GAME_VERSION,
     *RAW_PLAYER_ID,
-    *RAW_PLAYER_BIRTHDATE,
-    *RAW_PLAYER_REGION,
-    *RAW_PLAYER_COUNTRY,
-    *RAW_PLAYER_GENDER,
-    *RAW_PLAYER_EXTERNAL_ID,
     *RAW_PLAYER_CUSTOM_DATA,
     *EVENT_TYPE,
     *RAW_COORDINATES,
-    *RAW_SECTION,
     "customData.startPosition",
     "customData.shapeIndices",
     "customData.shapeIndex",
@@ -60,17 +45,17 @@
     *RAW_SHAPE,
     "customData.endPosition",
   ],
-  TUTORIAL_END_EVENT_TYPE: "startsearch", # in very old data versions, this is 'tutorial complete'
-  SHAPE_MOVE_EVENT_TYPE: "movedblock",
+  TUTORIAL_END_EVENT_TYPE: "startSearch",
+  SHAPE_MOVE_EVENT_TYPE: "movedBlock",
   GALLERY_SAVE_EVENT_TYPE: "added shape to gallery",
 
   ## Parsing
   FIRST_SHAPE_SERVER_COORDS: "[[0,0],[1,0],[2,0],[4,0],[5,0],[6,0],[3,0],[7,0],[8,0],[9,0]]",
   UNIQUE_INTERNAL_ID_COLUMN: *RAW_PLAYER_ID,
-  PARSER_ID_COLUMNS: [ *RAW_PLAYER_EXTERNAL_ID, "userProvidedId", "userId", "prolificId" ],
+  PARSER_ID_COLUMNS: [ "userProvidedId", "userId", "prolificId" ],
   INCLUDE_IN_PARSER_ID: [ ],
   SERVER_DATE_FORMAT: "%Y-%m-%dT%H:%M:%S.%fZ",
-  PARSER_TIME_COLUMN: &PARSER_TIME_COLUMN "userTime", # RAW_USER_TIME
+  PARSER_TIME_COLUMN: &PARSER_TIME_COLUMN "userTimestamp", # RAW_USER_TIME
   PARSER_JSON_COLUMN: *RAW_PLAYER_CUSTOM_DATA,
   SHAPE_MOVE_COLUMN: &SHAPE_MOVE_COLUMN "customData.newShape", # RAW_NEW_SHAPE
   SHAPE_SAVE_COLUMN: *RAW_SHAPE,

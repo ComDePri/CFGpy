@@ -8,16 +8,17 @@ Please do not change this file unless you're absolutely sure you know what you'r
 # configuration
 CONFIG_PACKAGE = "CFGpy.behavioral"
 CONFIG_FILENAME = "default_config.yml"
+RM2_CONFIG_FILENAME = "default_rm2_config.yml"
 CFGPY_VERSION_ERROR = "Configuration file requires CFGpy version {}. Installed version is {}"
 CONFIG_DUMP_EXTENSION = ".yml"
 
-# downloader
-DOWNLOADER_OUTPUT_FILENAME = "event.csv"
-NO_DOWNLOADER_URL_ERROR = "RedMetrics URL undefined. Specify URL either as a parameter or in config"
-TWO_DOWNLOADER_URL_ERROR = "RedMetrics URL was defined both as a parameter and in config. Define URL exactly once"
-DOWNLOADER_URL_NO_CSV_ERROR = "URL is incorrect: '{}'\nCopy the address from 'Download all pages as CSV' in RedMetrics"
-EVENTS_PER_PAGE = 500
-PAGE_REPETITION_LIMIT_REACHED = "Was not able to get all events from page {} after {} retries."
+# data retriever
+DATA_RETRIEVER_OUTPUT_FILENAME = "event.csv"
+NO_DATA_RETRIEVER_INPUT_ERROR = "RedMetrics input undefined. Specify RedMetrics1 URL either as a parameter or in config or provide a game id from RedMetrics2."
+MULTIPLE_DATA_RETRIEVER_INPUTS_ERROR = "RedMetrics input was defined in multiple ways. Define RedMetrics1 URL exactly once - either as a parameter or in the config, or provide a game id from RedMetrics2."
+CONFIG_URL_MISMATCH_ERROR = "The config and the url or game id must both be either RedMetrics1 or RedMetrics2"
+PER_PAGE = 10000
+MAX_PAGES = 1000
 
 # parser
 PARSER_OUTPUT_FILENAME = "parsed.json"

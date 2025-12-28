@@ -21,9 +21,9 @@ class Parser:
         parse_datetime_re_millisecond,
     ]
 
-    def __init__(self, raw_data, config: Configuration = None):
+    def __init__(self, *, raw_data: pd.DataFrame, is_rm1: bool = False, config: Configuration = None):
         self.raw_data = raw_data
-        self.config = config if config is not None else Configuration.default()
+        self.config = config or Configuration.default(is_rm1=is_rm1)
         self.parsed_data = None
 
         self.include_in_id = list(self.config.INCLUDE_IN_PARSER_ID)
@@ -63,7 +63,9 @@ class Parser:
     def _prepare_data(self):
         data = self.raw_data
         data = self.patchfix_csv_data(data)
-        data[self.config.PARSER_JSON_COLUMN] = data[self.config.PARSER_JSON_COLUMN].apply(json.loads)
+        data[self.config.PARSER_JSON_COLUMN] = data[self.config.PARSER_JSON_COLUMN] = data[self.config.PARSER_JSON_COLUMN].apply(
+            lambda x: json.loads(x) if isinstance(x, str) else x
+        )
         all_json_keys = self.get_all_json_keys_from_csv_data(data)
         for key in all_json_keys:
             # Take the json inside the csv file and turn them into columns
@@ -90,7 +92,8 @@ class Parser:
     def patchfix_csv_data(self, data):
         '''Small patchy bugfix for temporary problems'''
         # Bug no.1 sometimes player external id is this instead of a random number
-        data.loc[data['playerExternalId'] == '${rand://int/100000:10000000}', 'playerExternalId'] = None
+        if 'playerExternalId' in data.columns: # For rm2 this column does not exist
+            data.loc[data['playerExternalId'] == '${rand://int/100000:10000000}', 'playerExternalId'] = None
 
         # Bug no.2 sometimes the endPosition and shape columns switch places
         switched_column_indices = np.flatnonzero(
@@ -161,7 +164,7 @@ class Parser:
         game_data[self.config.GALLERY_SAVE_TIME_COLUMN] = None
 
         gallery_save_indices = game_data[self.config.SHAPE_MOVE_COLUMN].isna()[
-            game_data[self.config.SHAPE_MOVE_COLUMN].isna()].index
+            game_data[self.config.SHAPE_MOVE_COLUMN].isna()].index # TODO: retrieves indices of all the None values
         game_data.loc[gallery_save_indices - 1, self.config.GALLERY_SAVE_TIME_COLUMN] = game_data.loc[
             gallery_save_indices, self.config.PARSER_TIME_COLUMN].values
         # Now that we have the save time in all move rows, we can get rid of save rows:
