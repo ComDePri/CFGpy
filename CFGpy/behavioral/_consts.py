@@ -13,7 +13,7 @@ CFGPY_VERSION_ERROR = "Configuration file requires CFGpy version {}. Installed v
 CONFIG_DUMP_EXTENSION = ".yml"
 
 # data retriever
-DATA_RETRIEVER_OUTPUT_FILENAME = "event.csv"
+DATA_RETRIEVER_OUTPUT_FILENAME = "events"
 NO_DATA_RETRIEVER_INPUT_ERROR = "RedMetrics input undefined. Specify RedMetrics1 URL either as a parameter or in config or provide a game id from RedMetrics2."
 MULTIPLE_DATA_RETRIEVER_INPUTS_ERROR = "RedMetrics input was defined in multiple ways. Define RedMetrics1 URL exactly once - either as a parameter or in the config, or provide a game id from RedMetrics2."
 CONFIG_URL_MISMATCH_ERROR = "The config and the url or game id must both be either RedMetrics1 or RedMetrics2"

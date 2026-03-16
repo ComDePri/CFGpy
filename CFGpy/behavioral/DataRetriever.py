@@ -26,7 +26,7 @@ class DataRetriever(ABC):
             raise ValueError(NO_DATA_RETRIEVER_INPUT_ERROR)
 
         # at most one URL should not be None:
-        if  count > 2:
+        if  count > 1:
             raise ValueError(MULTIPLE_DATA_RETRIEVER_INPUTS_ERROR)
         
         return None
@@ -36,8 +36,8 @@ class DataRetriever(ABC):
         if self._retrieved_df is None:
             raise ValueError("No data to dump. Run retrieve_data() first.")
 
+        self._retrieved_df.to_csv(f"{self._output_filename}.csv", index=False)
         if verbose:
             print(f"Wrote CSV to {self._output_filename}")
             
         self._config.to_yaml(self._output_filename)
-        self._retrieved_df.to_csv(self._output_filename, index=False)
