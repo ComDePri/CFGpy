@@ -95,7 +95,6 @@ class RedMetrics1Downloader(DataRetriever):
             new_ids = set([event['id'] for event in new_events])
             assert not any(
                 eid in self.downloaded_events_ids for eid in new_ids), "Duplicate event IDs found across pages!"
-            # TODO: assertion can be dropped if sure that no duplicates find their way in
             self.downloaded_events_ids.update(new_ids)
 
     def _get_page_events(self, page_i: int, goal_n_events: int, repetition_limit: int = 5) -> list:
@@ -145,12 +144,6 @@ class RedMetrics1Downloader(DataRetriever):
         return player
 
     def create_output(self, verbose=False) -> list:
-        # TODO: this is not really creating the final output, since write_csv() does more work to format it. The logic
-        #  from write_csv may be implemented here to create an equivalent pandas DataFrame, and then write_csv can be
-        #  replaced by calling to_csv on that DataFrame. This will also make the return statement in self.download
-        #  cleaner: instead of writing a CSV and then reading it just to be able to return it in the correct format,
-        #  self will have a correctly formatted DataFrame to return from download
-        #  after doing this, Downloader should only write to disk using a dump method, which will also dump config
 
         output_json = []
 
