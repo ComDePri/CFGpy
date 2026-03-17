@@ -1,20 +1,19 @@
 from datetime import datetime, timezone
-from CFGpy.behavioral import DataRetriever, RedMetrics1DataRetriever, RedMetrics2DataRetriever, Parser, PostParser, FeatureExtractor, Configuration
-from CFGpy.behavioral._consts import DEFAULT_FINAL_OUTPUT_FILENAME
+from CFGpy.behavioral import DataRetriever, RM1DumpDataRetriever, RedMetrics2DataRetriever, Parser, PostParser, FeatureExtractor, Configuration, RedMetrics1Downloader
+from CFGpy.behavioral._consts import DEFAULT_FINAL_OUTPUT_FILENAME, RM1, RM1_NAS_DUMP, RM2, UNSUPPORTED_DATA_SOURCE_ERROR
 from CFGpy.behavioral._utils import CFGPipelineException
 
 
 class Pipeline:
-    def __init__(self, game_name: str | None = None, game_id: str | None = None, game_version_ids: list[str] | None = None, is_rm1: bool = False, 
+    def __init__(self, game_name: str | None = None, game_id: str | None = None, game_version_ids: list[str] | None = None,
                  output_filename=DEFAULT_FINAL_OUTPUT_FILENAME, config: Configuration = None):
        
         self._game_name = game_name
         self._game_id: str = game_id
         self._game_version_ids = game_version_ids
-        self._is_rm1 = is_rm1
-        
+
         self.output_filename = output_filename
-        self.config = config or Configuration.default(is_rm1=is_rm1) 
+        self.config = config or Configuration.default()
         
         self.data_retriever = None
         self.raw_data = None
@@ -45,12 +44,19 @@ class Pipeline:
     def _add_input_params_to_config(self):
         self.config.GAME_NAME = self.data_retriever._game_name
         self.config.GAME_ID = self.data_retriever._game_id
-        if self._is_rm1:
+        if self.config.DATA_SOURCE == RM1_NAS_DUMP:
             self.config.GAME_VERSION_IDS = self.data_retriever._game_version_ids
             
     def _get_data_retriever(self) -> DataRetriever:
-        return (RedMetrics2DataRetriever(game_name=self._game_name, game_id=self._game_id, config=self.config) if not self._is_rm1 
-                else RedMetrics1DataRetriever(game_name=self._game_name, game_id=self._game_id, game_version_ids=self._game_version_ids, config=self.config))
+        if self.config.DATA_SOURCE == RM1_NAS_DUMP:
+            return RM1DumpDataRetriever(game_name=self._game_name, game_id=self._game_id, game_version_ids=self._game_version_ids, config=self.config, output_filename=self.output_filename)
+        elif self.config.DATA_SOURCE == RM2:
+            return RedMetrics2DataRetriever(game_name=self._game_name, game_id=self._game_id, config=self.config, output_filename=self.output_filename)
+        elif self.config.DATA_SOURCE == RM1:
+            return RedMetrics1Downloader(csv_url=self.config.RED_METRICS_CSV_URL, output_filename=self.output_filename, config=self.config)
+        else:
+            raise ValueError(UNSUPPORTED_DATA_SOURCE_ERROR.format(self.config.DATA_SOURCE))
+
     
     def _retrieve_data(self, verbose):
         """
@@ -167,7 +173,7 @@ def main():
     
     config: Configuration | None = Configuration.from_yaml(yaml_path=args.config_path) if args.config_path else None
     
-    pl = Pipeline(game_name=args.game_name, game_id=args.game_id, game_version_ids=args.game_version_ids, is_rm1=args.rm1, 
+    pl = Pipeline(game_name=args.game_name, game_id=args.game_id, game_version_ids=args.game_version_ids,
                   output_filename=args.output_filename, config=config)
     
     pl.run_pipeline()

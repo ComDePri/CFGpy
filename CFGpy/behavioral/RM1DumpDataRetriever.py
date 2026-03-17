@@ -7,7 +7,7 @@ from CFGpy.behavioral._consts import (DATA_RETRIEVER_OUTPUT_FILENAME, CONFIG_URL
 from CFGpy.behavioral import Configuration, DataRetriever
 from CFGpy.utils._nas_path import get_nas_path
 
-class RedMetrics1DataRetriever(DataRetriever):
+class RM1DumpDataRetriever(DataRetriever):
     def __init__(self, *, game_name: str | None = None, game_id: str | None = None, game_version_ids: list[str] | None = None, 
                  output_filename: str = DATA_RETRIEVER_OUTPUT_FILENAME, config: Configuration = None,
                  csv_directory: str = None) -> None:
@@ -20,7 +20,7 @@ class RedMetrics1DataRetriever(DataRetriever):
         :param csv_directory: Directory containing the CSV files (events.csv, players.csv, games.csv, game_versions.csv)
         """
         super().__init__(game_name=game_name, game_id=game_id, output_filename=output_filename, 
-                         config=config if config is not None else Configuration.default(is_rm1=False))
+                         config=config if config is not None else Configuration.default())
 
         self._validate_input(input=[game_id, game_name, game_version_ids, self._config.GAME_ID, self._config.GAME_NAME, self._config.GAME_VERSION_IDS])
         self._validate_config()
@@ -42,7 +42,7 @@ class RedMetrics1DataRetriever(DataRetriever):
         except Exception as e:
             raise Exception(f"Error loading CSV files from {self._csv_directory}: {e}")
 
-    def retrieve_data(self, *, verbose: bool = False, after: str = None, before: str = None, event_type: str = None, 
+    def _retrieve_data(self, *, verbose: bool = False, after: str = None, before: str = None, event_type: str = None,
                        section: str = None) -> pd.DataFrame:
         self._retrieved_df = self.fetch_all_data(verbose=verbose, after=after, before=before, event_type=event_type, section=section)
         return self._format_df(verbose=verbose)

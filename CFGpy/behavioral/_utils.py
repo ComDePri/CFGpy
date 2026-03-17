@@ -6,7 +6,7 @@ import warnings
 import matplotlib.pyplot as plt
 import seaborn as sns
 from CFGpy.behavioral._consts import (SERVER_COORDS_TYPE_ERROR, EXPLORE_KEY, PRETTIFY_WARNING, PARSED_ALL_SHAPES_KEY,
-                                      PARSED_CHOSEN_SHAPES_KEY, EXPLOIT_KEY)
+                                      PARSED_CHOSEN_SHAPES_KEY, EXPLOIT_KEY, RM1)
 from _ctypes import PyObj_FromPtr
 
 
@@ -248,3 +248,18 @@ class CustomIndentEncoder(json.JSONEncoder):
                 '"{}"'.format(format_spec.format(id)), json_obj_repr)
 
         return json_repr
+
+
+def version_to_tuple(version_string):
+    return tuple(map(int, version_string.split('.')))
+
+
+def get_default_data_source(cfgpy_version: str | None = None) -> str:
+    # retrieve the correct data source based on the given cfgpy version
+    if cfgpy_version is None:
+        from CFGpy._version import __version__ as cfgpy_version
+    cfgpy_version_tuple = version_to_tuple(cfgpy_version)
+    if cfgpy_version_tuple < version_to_tuple("1.0.1"):
+        return RM1
+    else: # should be updated once we migrate to a stable platform for data storage
+        raise ValueError(f"Unsupported CFGpy version: {cfgpy_version}. No default data source available.")

@@ -19,7 +19,7 @@ class RedMetrics2DataRetriever(DataRetriever):
         :param config: a Configuration file.
         """
         super().__init__(game_name=game_name, game_id=game_id, output_filename=output_filename, 
-                         config=config if config is not None else Configuration.default(is_rm1=True))
+                         config=config if config is not None else Configuration.default())
         self._validate_input(input=[game_id, game_name, self._config.GAME_ID, self._config.GAME_NAME])
         self._validate_config()
         self._retrieved_events_json = []
@@ -36,7 +36,7 @@ class RedMetrics2DataRetriever(DataRetriever):
             raise ValueError(CONFIG_URL_MISMATCH_ERROR)
         return None
         
-    def retrieve_data(self, *, verbose: bool = False) -> pd.DataFrame:
+    def _retrieve_data(self, *, verbose: bool = False) -> pd.DataFrame:
         
         self._retrieved_events_json = self._download_data_from_rm2(verbose=verbose) 
         output_json = self._create_rm2_output(verbose=verbose) 

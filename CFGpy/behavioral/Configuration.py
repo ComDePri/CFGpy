@@ -2,8 +2,8 @@ from dataclasses import dataclass, asdict
 
 from numpy._core.numeric import False_
 from CFGpy._version import __version__ as CFGpy_version
-from CFGpy.behavioral._consts import CONFIG_PACKAGE, CONFIG_FILENAME, RM2_CONFIG_FILENAME, CFGPY_VERSION_ERROR, CONFIG_DUMP_EXTENSION
-from CFGpy.behavioral._utils import server_coords_to_binary_shape
+from CFGpy.behavioral._consts import CONFIG_PACKAGE, CONFIG_FILENAME, RM2_CONFIG_FILENAME, CFGPY_VERSION_ERROR, CONFIG_DUMP_EXTENSION, VALID_DATA_SOURCES, UNSUPPORTED_DATA_SOURCE_ERROR
+from CFGpy.behavioral._utils import server_coords_to_binary_shape, get_default_data_source
 from CFGpy.utils import binary_shape_to_id
 import yaml
 import dacite
@@ -15,14 +15,13 @@ import sys
 class Configuration:
 
     @classmethod
-    def default(cls, is_rm1: bool = False):
-        config_filename = RM2_CONFIG_FILENAME if not is_rm1 else CONFIG_FILENAME 
+    def default(cls):
+        config_filename = CONFIG_FILENAME
         if sys.version_info[1] >= 9:
             config_path = ir.files(CONFIG_PACKAGE).joinpath(config_filename)
         else:
             config_path = ir.path(CONFIG_PACKAGE, config_filename)
         config = cls.from_yaml(config_path)
-        config.is_rm1 = is_rm1
         return config
 
     @classmethod
@@ -38,10 +37,12 @@ class Configuration:
         return config
 
     def _post_init(self):
-        self._validate()
         self._add_CFGpy_version()
+        self._add_data_source()
         self._add_parsed_game_header_indices()
         self._add_first_shape_id()
+        self._validate()
+
 
     def to_yaml(self, yaml_path: str):
         if not yaml_path.endswith(CONFIG_DUMP_EXTENSION):
@@ -55,32 +56,18 @@ class Configuration:
         required_version = self.CFGPY_VERSION
         if required_version is not None and required_version != CFGpy_version:
             raise ValueError(CFGPY_VERSION_ERROR.format(required_version, CFGpy_version))
+        if self.DATA_SOURCE not in VALID_DATA_SOURCES:
+            raise ValueError(UNSUPPORTED_DATA_SOURCE_ERROR.format(self.DATA_SOURCE))
 
-        # Check required fields
-        rm1_required = [
-            'GAME_VERSION_IDS',
-            'DOWNLOAD_PLAYER_REQUEST',
-            'RAW_GAME_VERSION',
-            'RAW_PLAYER_BIRTHDATE',
-            'RAW_PLAYER_REGION',
-            'RAW_PLAYER_COUNTRY',
-            'RAW_PLAYER_GENDER',
-            'RAW_PLAYER_EXTERNAL_ID',
-            'RAW_SECTION',
-        ]
-
-        missing_fields = []
-        if self.is_rm1:
-            for field in rm1_required:
-                if not hasattr(self, field):
-                    missing_fields.append(field)
-
-        if missing_fields:
-            raise ValueError(f"Missing required fields for {'rm2' if not self.is_rm1 else 'rm1'}: {missing_fields}")
 
     def _add_CFGpy_version(self):
         if self.CFGPY_VERSION is None:
             self.CFGPY_VERSION = CFGpy_version
+
+    def _add_data_source(self):
+        if self.DATA_SOURCE is None:
+            self.DATA_SOURCE = get_default_data_source(self.CFGPY_VERSION)
+
 
     def _add_parsed_game_header_indices(self) -> None:
         self.SHAPE_ID_IDX: int = self.PARSED_GAME_HEADERS.index(self.SHAPE_MOVE_COLUMN)
@@ -139,11 +126,12 @@ class Configuration:
     MIN_GAME_DURATION_SEC: float
     MAX_PAUSE_DURATION_SEC: float
     MAX_ZSCORE_FOR_OUTLIERS: float
-    
+
     GAME_NAME: str | None = None
     GAME_ID: str | None = None
     GAME_VERSION_IDS: list[str] | None = None
-    
+
+    RED_METRICS_CSV_URL: str | None = None
     DOWNLOAD_PLAYER_REQUEST: str = None
     RAW_GAME_VERSION: str = None
     RAW_PLAYER_BIRTHDATE: str = None
@@ -152,5 +140,5 @@ class Configuration:
     RAW_PLAYER_GENDER: str = None
     RAW_PLAYER_EXTERNAL_ID: str = None
     RAW_SECTION: str = None
-    
-    is_rm1: bool = False
+
+    DATA_SOURCE: str | None = None

@@ -15,8 +15,19 @@ class DataRetriever(ABC):
         self._extra_fields = set()
 
     @abstractmethod
-    def retrieve_data(self, *args, **kwargs) -> pd.DataFrame:
+    def _retrieve_data(self, *args, **kwargs) -> pd.DataFrame:
+        """
+        The internal implementation of the data retrieval logic. This method should be implemented by subclasses to
+        specify how to retrieve data from the desired source.
+        """
         pass
+
+    def retrieve_data(self, *args, **kwargs) -> pd.DataFrame:
+        """
+        Retrieve data from the specified source and return it as a pandas DataFrame.
+        """
+        self._retrieved_df = self._retrieve_data(*args, **kwargs)
+        return self._retrieved_df
         
     def _validate_input(self, input: list[str]) -> None:
         count: int  = len(input) - input.count(None)

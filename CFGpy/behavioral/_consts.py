@@ -12,12 +12,23 @@ RM2_CONFIG_FILENAME = "default_rm2_config.yml"
 CFGPY_VERSION_ERROR = "Configuration file requires CFGpy version {}. Installed version is {}"
 CONFIG_DUMP_EXTENSION = ".yml"
 
-# data retriever
-DATA_RETRIEVER_OUTPUT_FILENAME = "events"
+# valid data sources
+RM1 = "RedMetrics1"
+RM2 = "RedMetrics2"
+RM1_NAS_DUMP = "RedMetrics1 dump"
+VALID_DATA_SOURCES =  (RM1, RM2, RM1_NAS_DUMP)
+UNSUPPORTED_DATA_SOURCE_ERROR = "Unsupported data source: {}. Valid options are: {}".format("{}", VALID_DATA_SOURCES)
+
+
+# data retrievers
+DATA_RETRIEVER_OUTPUT_FILENAME = "event"
 NO_DATA_RETRIEVER_INPUT_ERROR = "RedMetrics input undefined. Specify RedMetrics1 URL either as a parameter or in config or provide a game id from RedMetrics2."
 MULTIPLE_DATA_RETRIEVER_INPUTS_ERROR = "RedMetrics input was defined in multiple ways. Define RedMetrics1 URL exactly once - either as a parameter or in the config, or provide a game id from RedMetrics2."
+DOWNLOADER_URL_NO_CSV_ERROR = "URL is incorrect: '{}'\nCopy the address from 'Download all pages as CSV' in RedMetrics"
 CONFIG_URL_MISMATCH_ERROR = "The config and the url or game id must both be either RedMetrics1 or RedMetrics2"
+PAGE_REPETITION_LIMIT_REACHED = "Was not able to get all events from page {} after {} retries."
 PER_PAGE = 10000
+RM1_EVENTS_PER_PAGE = 500
 MAX_PAGES = 1000
 
 # parser
