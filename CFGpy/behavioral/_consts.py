@@ -16,7 +16,8 @@ CONFIG_DUMP_EXTENSION = ".yml"
 RM1 = "RedMetrics1"
 RM2 = "RedMetrics2"
 RM1_NAS_DUMP = "RedMetrics1 dump"
-VALID_DATA_SOURCES =  (RM1, RM2, RM1_NAS_DUMP)
+APPSync = "AppSync"
+VALID_DATA_SOURCES =  (RM1, RM2, RM1_NAS_DUMP, APPSync)
 UNSUPPORTED_DATA_SOURCE_ERROR = "Unsupported data source: {}. Valid options are: {}".format("{}", VALID_DATA_SOURCES)
 
 

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
-from CFGpy.behavioral import DataRetriever, RM1DumpDataRetriever, RedMetrics2DataRetriever, Parser, PostParser, FeatureExtractor, Configuration, RedMetrics1Downloader
-from CFGpy.behavioral._consts import DEFAULT_FINAL_OUTPUT_FILENAME, RM1, RM1_NAS_DUMP, RM2, UNSUPPORTED_DATA_SOURCE_ERROR
+from CFGpy.behavioral import DataRetriever, RM1DumpDataRetriever, RedMetrics2DataRetriever, Parser, PostParser, FeatureExtractor, Configuration, RedMetrics1Downloader, CFGAppSyncDataRetriever
+from CFGpy.behavioral._consts import DEFAULT_FINAL_OUTPUT_FILENAME, RM1, RM1_NAS_DUMP, RM2, UNSUPPORTED_DATA_SOURCE_ERROR, APPSync, VALID_DATA_SOURCES
 from CFGpy.behavioral._utils import CFGPipelineException
 
 
@@ -49,11 +49,13 @@ class Pipeline:
             
     def _get_data_retriever(self) -> DataRetriever:
         if self.config.DATA_SOURCE == RM1_NAS_DUMP:
-            return RM1DumpDataRetriever(game_name=self._game_name, game_id=self._game_id, game_version_ids=self._game_version_ids, config=self.config, output_filename=self.output_filename)
+            return RM1DumpDataRetriever(game_name=self._game_name, game_id=self._game_id, game_version_ids=self._game_version_ids, config=self.config)
         elif self.config.DATA_SOURCE == RM2:
-            return RedMetrics2DataRetriever(game_name=self._game_name, game_id=self._game_id, config=self.config, output_filename=self.output_filename)
+            return RedMetrics2DataRetriever(game_name=self._game_name, game_id=self._game_id, config=self.config)
         elif self.config.DATA_SOURCE == RM1:
-            return RedMetrics1Downloader(csv_url=self.config.RED_METRICS_CSV_URL, output_filename=self.output_filename, config=self.config)
+            return RedMetrics1Downloader(csv_url=self.config.RED_METRICS_CSV_URL, config=self.config)
+        elif self.config.DATA_SOURCE == APPSync:
+            return CFGAppSyncDataRetriever(game_name=self._game_name, game_id=self._game_id, config=self.config)
         else:
             raise ValueError(UNSUPPORTED_DATA_SOURCE_ERROR.format(self.config.DATA_SOURCE))
 
@@ -162,17 +164,20 @@ def main():
     import argparse
 
     argparser = argparse.ArgumentParser(description="Run CFG behavioral data pipeline")
+    # can give any of the valid data sources as argument to override the config data source
+    argparser.add_argument("--data-source", choices=VALID_DATA_SOURCES, help="The data source to retrieve data from. Should be provided only if it doesn't appear in the config file.")
     argparser.add_argument("--game-name", help='The name of the name.')
     argparser.add_argument("--game-id", help='The id of the game.')
     argparser.add_argument("--game-version-ids", nargs="+", help='A list of the game version ids that you want to retrieve.')
     argparser.add_argument("--config-path", help='The path to the yml file that contains the configuration')
     argparser.add_argument("-o", "--output", default=DEFAULT_FINAL_OUTPUT_FILENAME, dest="output_filename",
                         help='Filename of output CSV')
-    argparser.add_argument("--rm1", action="store_true", help="Use RM1 data")
     args = argparser.parse_args()
     
-    config: Configuration | None = Configuration.from_yaml(yaml_path=args.config_path) if args.config_path else None
-    
+    config: Configuration | None = Configuration.from_yaml(yaml_path=args.config_path) if args.config_path else Configuration.default()
+    if args.data_source:
+        config.DATA_SOURCE = args.data_source
+
     pl = Pipeline(game_name=args.game_name, game_id=args.game_id, game_version_ids=args.game_version_ids,
                   output_filename=args.output_filename, config=config)
     

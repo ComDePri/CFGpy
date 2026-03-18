@@ -142,3 +142,8 @@ class Configuration:
     RAW_SECTION: str = None
 
     DATA_SOURCE: str | None = None
+
+    CFG_GRAPHQL_URL: str | None = None
+    CFG_COGNITO_REGION: str | None = None
+    CFG_COGNITO_CLIENT_ID: str | None = None
+    CFG_COGNITO_USER_POOL_ID: str | None = None
