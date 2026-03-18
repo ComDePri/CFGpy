@@ -490,7 +490,7 @@ class CFGAppSyncDataRetriever(DataRetriever):
                 # "userId": sess_meta.get("userId", "") or "",
                 # "userProvidedId": sess_meta.get("userProvidedId", "") or "",
                 self._config.EVENT_ID_KEY: ev.get("id", ""),
-                self._config.EVENT_TYPE: ev.get("type", ""),
+                self._config.EVENT_TYPE: ev.get("type", "").lower(),
                 self._config.RAW_USER_TIME: ev.get("occurredAt", ""),
                 self._config.EVENT_CUSTOM_DATA_KEY: ev.get("data") if ev.get("data") is not None else "",
             }
