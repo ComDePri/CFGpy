@@ -5,6 +5,7 @@ import pandas as pd
 from pathlib import Path
 from CFGpy.behavioral._consts import (DATA_RETRIEVER_OUTPUT_FILENAME, CONFIG_URL_MISMATCH_ERROR)
 from CFGpy.behavioral import Configuration, DataRetriever
+from CFGpy.behavioral._utils import parse_json_column
 from CFGpy.utils._nas_path import get_nas_path
 
 class RM1DumpDataRetriever(DataRetriever):
@@ -137,20 +138,6 @@ class RM1DumpDataRetriever(DataRetriever):
 
         return result_df
 
-    def parse_json_column(self, *, df: pd.DataFrame, column_name: str, prefix: str):
-        """Parse JSON columns in the DataFrame"""
-        def try_parse(val):
-            if pd.isna(val):
-                return {}
-            try:
-                return json.loads(val)
-            except json.JSONDecodeError:
-                return {}
-
-        parsed_df = df[column_name].apply(try_parse).apply(pd.Series)
-        parsed_df.columns = [f"{prefix}.{col}" for col in parsed_df.columns]
-        
-        return pd.concat([df.drop(columns=[column_name]), parsed_df], axis=1)
 
     def convert_to_iso8601_millis(self, *, df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
         """
@@ -188,7 +175,7 @@ class RM1DumpDataRetriever(DataRetriever):
             }, inplace=True)
 
             if "eventCustomData" in self._retrieved_df.columns:
-                self._retrieved_df = self.parse_json_column(df=self._retrieved_df, column_name="eventCustomData", prefix="customData")
+                self._retrieved_df = parse_json_column(df=self._retrieved_df, column_name="eventCustomData", prefix="customData")
             
             self._retrieved_df = self.convert_to_iso8601_millis(df=self._retrieved_df, columns=["serverTime", "userTime"])
     

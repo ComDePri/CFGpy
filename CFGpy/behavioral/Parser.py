@@ -63,7 +63,7 @@ class Parser:
     def _prepare_data(self):
         data = self.raw_data
         data = self.patchfix_csv_data(data)
-        data[self.config.PARSER_JSON_COLUMN] = data[self.config.PARSER_JSON_COLUMN] = data[self.config.PARSER_JSON_COLUMN].apply(
+        data[self.config.PARSER_JSON_COLUMN] = data[self.config.PARSER_JSON_COLUMN].apply(
             lambda x: json.loads(x) if isinstance(x, str) else x
         )
         all_json_keys = self.get_all_json_keys_from_csv_data(data)
@@ -119,7 +119,7 @@ class Parser:
         for id_column in self.config.PARSER_ID_COLUMNS:
             if id_column in data.columns:
                 missing_indices = data[MERGED_ID_KEY].isna()
-                data.loc[missing_indices, MERGED_ID_KEY] = data[id_column].loc[missing_indices].astype(str)
+                data.loc[missing_indices, MERGED_ID_KEY] = data[id_column].loc[missing_indices].astype("string")
 
         missing_indices = data[MERGED_ID_KEY].isna()
         data.loc[missing_indices, MERGED_ID_KEY] = DEFAULT_ID

@@ -263,3 +263,19 @@ def get_default_data_source(cfgpy_version: str | None = None) -> str:
         return RM1
     else: # should be updated once we migrate to a stable platform for data storage
         raise ValueError(f"Unsupported CFGpy version: {cfgpy_version}. No default data source available.")
+
+def parse_json_column(*, df: pd.DataFrame, column_name: str, prefix: str):
+    """Parse JSON columns in the DataFrame"""
+
+    def try_parse(val):
+        if pd.isna(val):
+            return {}
+        try:
+            return json.loads(val)
+        except json.JSONDecodeError:
+            return {}
+
+    parsed_df = df[column_name].apply(try_parse).apply(pd.Series)
+    parsed_df.columns = [f"{prefix}.{col}" for col in parsed_df.columns]
+
+    return pd.concat([df.drop(columns=[column_name]), parsed_df], axis=1)

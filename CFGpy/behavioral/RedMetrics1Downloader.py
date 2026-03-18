@@ -43,7 +43,7 @@ class RedMetrics1Downloader(DataRetriever):
         output_json = self.create_output(verbose)
         self._write_csv(output_json, verbose)
 
-        return pd.read_csv(self.output_filename)  # why not return output_json? see to-do in create_output
+        return pd.read_csv(self._output_filename)  # why not return output_json? see to-do in create_output
 
     def _validate_url(self) -> None:
         # at least one URL should not be None:

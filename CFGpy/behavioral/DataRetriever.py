@@ -47,7 +47,7 @@ class DataRetriever(ABC):
         if self._retrieved_df is None:
             raise ValueError("No data to dump. Run retrieve_data() first.")
 
-        self._retrieved_df.to_csv(f"{self._output_filename}.csv", index=False)
+        self._retrieved_df.to_csv(f"{self._output_filename}_events.csv", index=False)
         if verbose:
             print(f"Wrote CSV to {self._output_filename}")
             

@@ -45,13 +45,13 @@ class Pipeline:
             .format(f"{now.microsecond // 1000:0>3}")  # fills in millisecond info, 0-padded to three digits
         )
         return now_str
-    
+
     def _add_input_params_to_config(self):
         self.config.GAME_NAME = self.data_retriever._game_name
         self.config.GAME_ID = self.data_retriever._game_id
         if self.config.DATA_SOURCE == RM1_NAS_DUMP:
             self.config.GAME_VERSION_IDS = self.data_retriever._game_version_ids
-            
+
     def _get_data_retriever(self) -> DataRetriever:
         if self.config.DATA_SOURCE == RM1_NAS_DUMP:
             return RM1DumpDataRetriever(game_name=self._game_name, game_id=self._game_id,
@@ -72,7 +72,6 @@ class Pipeline:
         else:
             raise ValueError(UNSUPPORTED_DATA_SOURCE_ERROR.format(self.config.DATA_SOURCE))
 
-    
     def _retrieve_data(self, verbose):
         """
         This method contains the data retrieval process exclusively. This can be overridden by deriving classes.
@@ -80,7 +79,7 @@ class Pipeline:
         :return: raw data
         """
         return self.data_retriever.retrieve_data(verbose=verbose)
-    
+
     def retrieve_data(self, verbose=True):
         """
         Wraps raw data retrieval with extra necessary functionality.
@@ -95,7 +94,7 @@ class Pipeline:
 
         if verbose:
             print("Retrieving raw data...")
-            
+
         self.raw_data = self._retrieve_data(verbose=verbose)
         self.data_retriever.dump(verbose=verbose)
 
@@ -151,6 +150,7 @@ class Pipeline:
         return self.feature_extractor.extract(verbose)
 
     def extract_features(self, verbose):
+        features_output_path = f"{self.output_filename}_features.csv"
         if self.postparsed_data is None:
             raise CFGPipelineException("Data has to be post-parsed before feature extraction")
         if self.features_df is not None:
@@ -160,10 +160,10 @@ class Pipeline:
             print("Calculating measures...")
 
         self.features_df = self._extract_features(verbose)
-        self.feature_extractor.dump(self.output_filename)
+        self.feature_extractor.dump(features_output_path)
 
         if verbose:
-            print(f"Results written successfully to: {self.output_filename}")
+            print(f"Results written successfully to: {features_output_path}")
 
     def run_pipeline(self, verbose=True):
         self.retrieve_data(verbose=verbose)
@@ -178,18 +178,21 @@ def main():
 
     argparser = argparse.ArgumentParser(description="Run CFG behavioral data pipeline")
     # can give any of the valid data sources as argument to override the config data source
-    argparser.add_argument("--data-source", choices=VALID_DATA_SOURCES, help="The data source to retrieve data from. Should be provided only if it doesn't appear in the config file.")
+    argparser.add_argument("--data-source", choices=VALID_DATA_SOURCES,
+                           help="The data source to retrieve data from. Should be provided only if it doesn't appear in the config file.")
     argparser.add_argument("--game-name", help='The name of the name.')
     argparser.add_argument("--game-id", help='The id of the game.')
-    argparser.add_argument("--game-version-ids", nargs="+", help='A list of the game version ids that you want to retrieve.')
+    argparser.add_argument("--game-version-ids", nargs="+",
+                           help='A list of the game version ids that you want to retrieve.')
     argparser.add_argument("--config-path", help='The path to the yml file that contains the configuration')
     argparser.add_argument("--events-csv-path",
                            help='The path to the events CSV file. Only needed if the data source is Local or if you want to provide a custom path to the events CSV file instead of providing it in the config.')
     argparser.add_argument("-o", "--output", default=DEFAULT_FINAL_OUTPUT_FILENAME, dest="output_filename",
-                        help='Filename of output CSV')
+                           help='Filename of output CSV')
     args = argparser.parse_args()
-    
-    config: Configuration | None = Configuration.from_yaml(yaml_path=args.config_path) if args.config_path else Configuration.default()
+
+    config: Configuration | None = Configuration.from_yaml(
+        yaml_path=args.config_path) if args.config_path else Configuration.default()
     if args.data_source:
         config.DATA_SOURCE = args.data_source
 

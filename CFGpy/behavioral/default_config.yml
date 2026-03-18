@@ -63,6 +63,10 @@
   TUTORIAL_END_EVENT_TYPE: "startsearch", # in very old data versions, this is 'tutorial complete'
   SHAPE_MOVE_EVENT_TYPE: "movedblock",
   GALLERY_SAVE_EVENT_TYPE: "added shape to gallery",
+  CFG_COGNITO_CLIENT_ID: "6p17vg29cv4u849th3p58t7ugd",
+  CFG_GRAPHQL_URL: "https://5zz6fltmdfbrvfvngh5ydl2eey.appsync-api.us-east-1.amazonaws.com/graphql",
+  CFG_COGNITO_REGION: "us-east-1",
+  CFG_COGNITO_USER_POOL_ID: "us-east-1_dkZkb7RyW",
 
   ## Parsing
   FIRST_SHAPE_SERVER_COORDS: "[[0,0],[1,0],[2,0],[4,0],[5,0],[6,0],[3,0],[7,0],[8,0],[9,0]]",

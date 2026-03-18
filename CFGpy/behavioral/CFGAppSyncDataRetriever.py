@@ -7,6 +7,7 @@ import pandas as pd
 
 from CFGpy.behavioral import Configuration, DataRetriever
 from CFGpy.behavioral._consts import DATA_RETRIEVER_OUTPUT_FILENAME
+from CFGpy.behavioral._utils import parse_json_column
 import warnings
 
 
@@ -28,38 +29,7 @@ class CFGAppSyncDataRetriever(DataRetriever):
         DOWNLOADER_FIELD_ORDER
     """
 
-    ALWAYS_COLUMNS = (
-        "eventId",
-        "eventType",
-        "occurredAt",
-        "eventData",
-        "sessionId",
-        "playerId",
-        "gameId",
-        "gameVersionId",
-    )
 
-    GROUP_COLUMNS = {
-        "game": (
-            "gameName",
-            "gameVersionLabel",
-        ),
-        "player": (
-            "playerAnonymousId",
-            "playerFirstSeenAt",
-            "playerMetadata",
-        ),
-        "session": (
-            "sessionStartedAt",
-            "sessionEndedAt",
-            "sessionDurationSeconds",
-            "sessionMetadata",
-            "externalId",
-            "expId",
-            "userId",
-            "userProvidedId",
-        ),
-    }
 
     def __init__(
         self,
@@ -222,14 +192,16 @@ class CFGAppSyncDataRetriever(DataRetriever):
             version_map=version_map,
         )
 
-        groups = {
-            "game": include_game_data,
-            "player": include_player_data,
-            "session": include_session_data,
-        }
-        filtered_rows = self._filter_columns(rows, groups)
+        # groups = {
+        #     "game": include_game_data,
+        #     "player": include_player_data,
+        #     "session": include_session_data,
+        # }
+        # filtered_rows = self._filter_columns(rows, groups)
 
-        self._retrieved_df = self._create_df(filtered_rows)
+        self._retrieved_df = self._create_df(rows)
+        self._retrieved_df = parse_json_column(df=self._retrieved_df, column_name=self._config.EVENT_CUSTOM_DATA_KEY, prefix=self._config.EVENT_CUSTOM_DATA_KEY)
+        self._retrieved_df = self._order_df(self._retrieved_df)
         return self._retrieved_df
 
     def _graphql(self, query: str, variables: Optional[dict] = None) -> dict:
@@ -386,7 +358,7 @@ class CFGAppSyncDataRetriever(DataRetriever):
 
         all_events: list[dict] = []
         for i, sess in enumerate(sessions, start=1):
-            if verbose and (i == 1 or i % 100 == 0):
+            if verbose:
                 print(f"  session {i}/{len(sessions)}")
 
             events = self._list_all_graphql(
@@ -484,6 +456,7 @@ class CFGAppSyncDataRetriever(DataRetriever):
 
         for ev in events:
             sess = session_map.get(ev["sessionId"], {})
+
             player = player_map.get(sess.get("playerId", ""), {})
             sess_meta = self._parse_metadata(sess.get("metadata"))
 
@@ -499,52 +472,52 @@ class CFGAppSyncDataRetriever(DataRetriever):
                     duration_seconds = ""
 
             row = {
-                "gameId": ev.get("gameId", ""),
-                "gameName": game_map.get(ev.get("gameId", ""), {}).get("name", ""),
-                "gameVersionId": sess.get("gameVersionId", "") or "",
-                "gameVersionLabel": version_map.get(sess.get("gameVersionId", ""), "") or "",
-                "playerId": sess.get("playerId", "") or "",
-                "playerAnonymousId": player.get("anonymousId", "") or "",
-                "playerFirstSeenAt": player.get("firstSeenAt", "") or "",
-                "playerMetadata": json.dumps(player.get("metadata")) if player.get("metadata") is not None else "",
-                "sessionId": ev.get("sessionId", ""),
-                "sessionStartedAt": started_at or "",
-                "sessionEndedAt": ended_at or "",
-                "sessionDurationSeconds": duration_seconds,
-                "sessionMetadata": json.dumps(sess.get("metadata")) if sess.get("metadata") is not None else "",
-                "externalId": sess_meta.get("externalId", "") or "",
-                "expId": sess_meta.get("expId", "") or "",
-                "userId": sess_meta.get("userId", "") or "",
-                "userProvidedId": sess_meta.get("userProvidedId", "") or "",
-                "eventId": ev.get("id", ""),
-                "eventType": ev.get("type", ""),
-                "occurredAt": ev.get("occurredAt", ""),
-                "eventData": json.dumps(ev.get("data")) if ev.get("data") is not None else "",
+                # "gameId": ev.get("gameId", ""),
+                # "gameName": game_map.get(ev.get("gameId", ""), {}).get("name", ""),
+                self._config.RAW_GAME_VERSION: sess.get("gameVersionId", "") or "",
+                # "gameVersionLabel": version_map.get(sess.get("gameVersionId", ""), "") or "",
+                self._config.RAW_PLAYER_ID: sess.get("playerId", "") or "",
+                # "playerAnonymousId": player.get("anonymousId", "") or "",
+                # "playerFirstSeenAt": player.get("firstSeenAt", "") or "",
+                "playerMetadata": player.get("metadata") if player.get("metadata") is not None else {},
+                # "sessionId": ev.get("sessionId", ""),
+                # "sessionStartedAt": started_at or "",
+                # "sessionEndedAt": ended_at or "",
+                # "sessionDurationSeconds": duration_seconds,
+                "sessionMetadata": json.loads(sess.get("metadata")) if sess.get("metadata") is not None else {},
+                # "externalId": sess_meta.get("externalId", "") or "",
+                # "expId": sess_meta.get("expId", "") or "",
+                # "userId": sess_meta.get("userId", "") or "",
+                # "userProvidedId": sess_meta.get("userProvidedId", "") or "",
+                self._config.EVENT_ID_KEY: ev.get("id", ""),
+                self._config.EVENT_TYPE: ev.get("type", ""),
+                self._config.RAW_USER_TIME: ev.get("occurredAt", ""),
+                self._config.EVENT_CUSTOM_DATA_KEY: ev.get("data") if ev.get("data") is not None else "",
             }
+            if row["sessionMetadata"]:
+                row["playerCustomData"] = row["sessionMetadata"].get("customData") if (row["sessionMetadata"].get("customData") is not None) else {}
+            player_metadata = row.get("playerMetadata", {})
+            row[self._config.RAW_PLAYER_BIRTHDATE] = player.get("birthDate", None)
+            row[self._config.RAW_PLAYER_REGION] = player.get("region", None)
+            row[self._config.RAW_PLAYER_COUNTRY] = player.get("country", None)
+            row[self._config.RAW_PLAYER_GENDER] = player.get("gender", None)
+            row[self._config.RAW_PLAYER_EXTERNAL_ID] = player.get("externalId", None)
+            # remove the general metadata fields
+            row.pop("playerMetadata", None)
+            row.pop("sessionMetadata", None)
             rows.append(row)
 
         return rows
 
-    def _filter_columns(
-        self,
-        rows: list[dict[str, str]],
-        groups: dict[str, bool],
-    ) -> list[dict[str, str]]:
-        extra_keys: list[str] = []
-        for group_name, cols in self.GROUP_COLUMNS.items():
-            if groups.get(group_name, False):
-                extra_keys.extend(cols)
 
-        keys = list(self.ALWAYS_COLUMNS) + extra_keys
-        return [{k: row.get(k, "") for k in keys} for row in rows]
-
+    def _order_df(self, df: pd.DataFrame) -> pd.DataFrame:
+        if self._config.DOWNLOADER_FIELD_ORDER:
+            ordered_cols = [col for col in self._config.DOWNLOADER_FIELD_ORDER if col in df.columns]
+            extra_cols = [col for col in df.columns if col not in ordered_cols]
+            return df[ordered_cols + extra_cols]
+        else:
+            return df
     def _create_df(self, rows: list[dict[str, str]]) -> pd.DataFrame:
         df = pd.DataFrame(rows)
-
-        desired_order = getattr(self._config, "DOWNLOADER_FIELD_ORDER", None)
-        if desired_order:
-            self._extra_fields = set(df.columns) - set(desired_order)
-            all_fields = list(desired_order) + sorted(self._extra_fields)
-            return df.reindex(columns=all_fields)
 
         return df
