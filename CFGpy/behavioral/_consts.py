@@ -17,7 +17,8 @@ RM1 = "RedMetrics1"
 RM2 = "RedMetrics2"
 RM1_NAS_DUMP = "RedMetrics1 dump"
 APPSync = "AppSync"
-VALID_DATA_SOURCES =  (RM1, RM2, RM1_NAS_DUMP, APPSync)
+LOCAL = "Local"
+VALID_DATA_SOURCES =  (RM1, RM2, RM1_NAS_DUMP, APPSync, LOCAL)
 UNSUPPORTED_DATA_SOURCE_ERROR = "Unsupported data source: {}. Valid options are: {}".format("{}", VALID_DATA_SOURCES)
 
 

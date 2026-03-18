@@ -4,6 +4,7 @@ from .RM1DumpDataRetriever import RM1DumpDataRetriever
 from .RedMetrics2DataRetriever import RedMetrics2DataRetriever
 from .RedMetrics1Downloader import RedMetrics1Downloader
 from .CFGAppSyncDataRetriever import CFGAppSyncDataRetriever
+from .LocalDataRetriever import LocalDataRetriever
 from .Parser import Parser
 from .PostParser import PostParser
 from .FeatureExtractor import FeatureExtractor

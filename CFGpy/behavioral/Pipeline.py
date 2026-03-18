@@ -1,20 +1,25 @@
 from datetime import datetime, timezone
-from CFGpy.behavioral import DataRetriever, RM1DumpDataRetriever, RedMetrics2DataRetriever, Parser, PostParser, FeatureExtractor, Configuration, RedMetrics1Downloader, CFGAppSyncDataRetriever
-from CFGpy.behavioral._consts import DEFAULT_FINAL_OUTPUT_FILENAME, RM1, RM1_NAS_DUMP, RM2, UNSUPPORTED_DATA_SOURCE_ERROR, APPSync, VALID_DATA_SOURCES
+from CFGpy.behavioral import DataRetriever, RM1DumpDataRetriever, RedMetrics2DataRetriever, Parser, PostParser, \
+    FeatureExtractor, Configuration, RedMetrics1Downloader, CFGAppSyncDataRetriever, LocalDataRetriever
+from CFGpy.behavioral._consts import DEFAULT_FINAL_OUTPUT_FILENAME, RM1, RM1_NAS_DUMP, RM2, \
+    UNSUPPORTED_DATA_SOURCE_ERROR, APPSync, VALID_DATA_SOURCES, LOCAL
 from CFGpy.behavioral._utils import CFGPipelineException
 
 
 class Pipeline:
-    def __init__(self, game_name: str | None = None, game_id: str | None = None, game_version_ids: list[str] | None = None,
-                 output_filename=DEFAULT_FINAL_OUTPUT_FILENAME, config: Configuration = None):
-       
+    def __init__(self, game_name: str | None = None, game_id: str | None = None,
+                 game_version_ids: list[str] | None = None,
+                 output_filename=DEFAULT_FINAL_OUTPUT_FILENAME, config: Configuration = None,
+                 input_events_csv_path: str | None = None) -> None:
+
         self._game_name = game_name
         self._game_id: str = game_id
         self._game_version_ids = game_version_ids
+        self._input_events_csv_path = input_events_csv_path
 
         self.output_filename = output_filename
         self.config = config or Configuration.default()
-        
+
         self.data_retriever = None
         self.raw_data = None
         self.parser = None
@@ -49,13 +54,21 @@ class Pipeline:
             
     def _get_data_retriever(self) -> DataRetriever:
         if self.config.DATA_SOURCE == RM1_NAS_DUMP:
-            return RM1DumpDataRetriever(game_name=self._game_name, game_id=self._game_id, game_version_ids=self._game_version_ids, config=self.config)
+            return RM1DumpDataRetriever(game_name=self._game_name, game_id=self._game_id,
+                                        game_version_ids=self._game_version_ids, config=self.config,
+                                        output_filename=self.output_filename)
         elif self.config.DATA_SOURCE == RM2:
-            return RedMetrics2DataRetriever(game_name=self._game_name, game_id=self._game_id, config=self.config)
+            return RedMetrics2DataRetriever(game_name=self._game_name, game_id=self._game_id, config=self.config,
+                                            output_filename=self.output_filename)
         elif self.config.DATA_SOURCE == RM1:
-            return RedMetrics1Downloader(csv_url=self.config.RED_METRICS_CSV_URL, config=self.config)
+            return RedMetrics1Downloader(csv_url=self.config.RED_METRICS_CSV_URL, config=self.config,
+                                         output_filename=self.output_filename)
         elif self.config.DATA_SOURCE == APPSync:
-            return CFGAppSyncDataRetriever(game_name=self._game_name, game_id=self._game_id, config=self.config)
+            return CFGAppSyncDataRetriever(game_name=self._game_name, game_id=self._game_id, config=self.config,
+                                           output_filename=self.output_filename)
+        elif self.config.DATA_SOURCE == LOCAL:
+            return LocalDataRetriever(config=self.config, output_filename=self.output_filename,
+                                      events_csv_path=self._input_events_csv_path)
         else:
             raise ValueError(UNSUPPORTED_DATA_SOURCE_ERROR.format(self.config.DATA_SOURCE))
 
@@ -170,6 +183,8 @@ def main():
     argparser.add_argument("--game-id", help='The id of the game.')
     argparser.add_argument("--game-version-ids", nargs="+", help='A list of the game version ids that you want to retrieve.')
     argparser.add_argument("--config-path", help='The path to the yml file that contains the configuration')
+    argparser.add_argument("--events-csv-path",
+                           help='The path to the events CSV file. Only needed if the data source is Local or if you want to provide a custom path to the events CSV file instead of providing it in the config.')
     argparser.add_argument("-o", "--output", default=DEFAULT_FINAL_OUTPUT_FILENAME, dest="output_filename",
                         help='Filename of output CSV')
     args = argparser.parse_args()
@@ -179,8 +194,8 @@ def main():
         config.DATA_SOURCE = args.data_source
 
     pl = Pipeline(game_name=args.game_name, game_id=args.game_id, game_version_ids=args.game_version_ids,
-                  output_filename=args.output_filename, config=config)
-    
+                  output_filename=args.output_filename, config=config, input_events_csv_path=args.events_csv_path)
+
     pl.run_pipeline()
 
 
