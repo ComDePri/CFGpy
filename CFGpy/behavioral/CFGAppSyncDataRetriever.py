@@ -4,6 +4,7 @@ import requests
 import json
 from typing import Optional, Any
 import pandas as pd
+import tqdm
 
 from CFGpy.behavioral import Configuration, DataRetriever
 from CFGpy.behavioral._consts import DATA_RETRIEVER_OUTPUT_FILENAME
@@ -19,11 +20,9 @@ class CFGAppSyncDataRetriever(DataRetriever):
         GAME_NAME
         GAME_ID
         CFG_GRAPHQL_URL
-        CFG_AUTH_MODE            # "apiKey" or "userPool"
-        CFG_API_KEY              # if authMode == "apiKey"
-        CFG_COGNITO_LOGIN_URL    # if authMode == "userPool"
-        CFG_USERNAME             # if authMode == "userPool"
-        CFG_PASSWORD             # if authMode == "userPool"
+        CFG_COGNITO_CLIENT_ID
+        CFG_COGNITO_REGION
+        CFG_COGNITO_USER_POOL_ID
 
     Optional config fields:
         DOWNLOADER_FIELD_ORDER
@@ -152,9 +151,6 @@ class CFGAppSyncDataRetriever(DataRetriever):
         *,
         date_from: Optional[str] = None,
         date_to: Optional[str] = None,
-        include_game_data: bool = True,
-        include_player_data: bool = True,
-        include_session_data: bool = True,
         version_id: Optional[str] = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
@@ -178,8 +174,7 @@ class CFGAppSyncDataRetriever(DataRetriever):
         events = self._fetch_events_for_sessions(sessions, verbose=verbose)
 
         player_map = {}
-        if include_player_data:
-            player_map = self._fetch_players_for_sessions(sessions, verbose=verbose)
+        player_map = self._fetch_players_for_sessions(sessions, verbose=verbose)
 
         game_map = {g["id"]: g for g in self._list_games(verbose=verbose)}
         version_map = self._build_version_map_for_game(self._game_id, verbose=verbose)
@@ -191,13 +186,6 @@ class CFGAppSyncDataRetriever(DataRetriever):
             player_map=player_map,
             version_map=version_map,
         )
-
-        # groups = {
-        #     "game": include_game_data,
-        #     "player": include_player_data,
-        #     "session": include_session_data,
-        # }
-        # filtered_rows = self._filter_columns(rows, groups)
 
         self._retrieved_df = self._create_df(rows)
         self._retrieved_df = parse_json_column(df=self._retrieved_df, column_name=self._config.EVENT_CUSTOM_DATA_KEY, prefix=self._config.EVENT_CUSTOM_DATA_KEY)
@@ -357,10 +345,10 @@ class CFGAppSyncDataRetriever(DataRetriever):
         """
 
         all_events: list[dict] = []
+        if verbose:
+            print("\nFetching events...")
+            sessions = tqdm.tqdm(sessions, desc="sessions")
         for i, sess in enumerate(sessions, start=1):
-            if verbose:
-                print(f"  session {i}/{len(sessions)}")
-
             events = self._list_all_graphql(
                 "listEvents",
                 query,
@@ -388,6 +376,9 @@ class CFGAppSyncDataRetriever(DataRetriever):
 
         player_ids = sorted({s["playerId"] for s in sessions if s.get("playerId")})
         player_map: dict[str, dict] = {}
+        if verbose:
+            print("\nFetching players...")
+            player_ids = tqdm.tqdm(player_ids, desc="players", unit="player")
 
         for i, pid in enumerate(player_ids, start=1):
             if verbose and (i == 1 or i % 100 == 0):
@@ -472,23 +463,10 @@ class CFGAppSyncDataRetriever(DataRetriever):
                     duration_seconds = ""
 
             row = {
-                # "gameId": ev.get("gameId", ""),
-                # "gameName": game_map.get(ev.get("gameId", ""), {}).get("name", ""),
                 self._config.RAW_GAME_VERSION: sess.get("gameVersionId", "") or "",
-                # "gameVersionLabel": version_map.get(sess.get("gameVersionId", ""), "") or "",
                 self._config.RAW_PLAYER_ID: sess.get("playerId", "") or "",
-                # "playerAnonymousId": player.get("anonymousId", "") or "",
-                # "playerFirstSeenAt": player.get("firstSeenAt", "") or "",
                 "playerMetadata": player.get("metadata") if player.get("metadata") is not None else {},
-                # "sessionId": ev.get("sessionId", ""),
-                # "sessionStartedAt": started_at or "",
-                # "sessionEndedAt": ended_at or "",
-                # "sessionDurationSeconds": duration_seconds,
                 "sessionMetadata": json.loads(sess.get("metadata")) if sess.get("metadata") is not None else {},
-                # "externalId": sess_meta.get("externalId", "") or "",
-                # "expId": sess_meta.get("expId", "") or "",
-                # "userId": sess_meta.get("userId", "") or "",
-                # "userProvidedId": sess_meta.get("userProvidedId", "") or "",
                 self._config.EVENT_ID_KEY: ev.get("id", ""),
                 self._config.EVENT_TYPE: ev.get("type", "").lower(),
                 self._config.RAW_USER_TIME: ev.get("occurredAt", ""),
