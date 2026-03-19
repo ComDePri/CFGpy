@@ -16,7 +16,7 @@ As of v2.0.0, this package can be used to retrieve data from RedMetrics2.
 The Pipeline can be run from the terminal as follows:
 
 ```
-run_pipeline --game-name <game-name> --game-id <game_id> --game-version-ids <game_version_id_1> <game_version_id_2> <...> --config-path <config_file_path> -o <output_filename> --rm1
+run_cfg_pipeline --game-name <game-name> --game-id <game_id> --game-version-ids <game_version_id_1> <game_version_id_2> <...> --config-path <config_file_path> -o <output_filename> --rm1
 ```
 
 `output_filename` and `config_file_path` are optional. 
