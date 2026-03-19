@@ -2,7 +2,8 @@ from datetime import datetime, timezone
 from CFGpy.behavioral import DataRetriever, RM1DumpDataRetriever, RedMetrics2DataRetriever, Parser, PostParser, \
     FeatureExtractor, Configuration, RedMetrics1Downloader, CFGAppSyncDataRetriever, LocalDataRetriever
 from CFGpy.behavioral._consts import DEFAULT_FINAL_OUTPUT_FILENAME, RM1, RM1_NAS_DUMP, RM2, \
-    UNSUPPORTED_DATA_SOURCE_ERROR, APPSync, VALID_DATA_SOURCES, LOCAL
+    UNSUPPORTED_DATA_SOURCE_ERROR, APPSync, VALID_DATA_SOURCES, LOCAL, ARG_TO_CONF_MAP, DATA_SOURCE_ARG, GAME_NAME_ARG, \
+    GAME_ID_ARG, GAME_VERSION_IDS_ARG, BEFORE_DATE_ARG, AFTER_DATE_ARG, EVENTS_CSV_PATH_ARG
 from CFGpy.behavioral._utils import CFGPipelineException
 
 
@@ -128,7 +129,7 @@ class Pipeline:
         :return: post-parsed data
         """
         self.postparser = PostParser(parsed_data=self.parsed_data, config=self.config)
-        postparsed =  self.postparser.postparse()
+        postparsed = self.postparser.postparse()
         self.postparser.dump(name=self.output_filename, with_config=False, pretty=self.config.PRETTIFY_PARSER_OUPUT)
         return postparsed
 
@@ -173,46 +174,43 @@ class Pipeline:
         self.extract_features(verbose=verbose)
         return self.features_df
 
+
 def safe_update(config: Configuration, key: str, new_value):
     if not hasattr(config, key):
         raise AttributeError(f"Configuration object has no attribute '{key}'")
     current_value = getattr(config, key, None)
     if current_value is not None and new_value is not None and current_value != new_value:
-        raise ValueError(f"Conflict for config key '{key}': current value '{current_value}' vs new value '{new_value}'. Please resolve the conflict by providing a consistent value.")
+        raise ValueError(
+            f"Conflict for config key '{key}': current value '{current_value}' vs new value '{new_value}'. Please resolve the conflict by providing a consistent value.")
     if new_value is not None:
         setattr(config, key, new_value)
 
+
 def update_config_with_args(config: Configuration, args) -> Configuration:
-    explicit_mappings = {
-        "data_source": "DATA_SOURCE",
-        "game_name": "GAME_NAME",
-        "game_id": "GAME_ID",
-        "game_version_ids": "GAME_VERSION_IDS",
-        "before": "BEFORE_DATE",
-        "after": "AFTER_DATE",
-        "events_csv_path": "EVENT_CSV_PATH",
-    }
-    for arg_attr, config_attr in explicit_mappings.items():
+    for arg_attr, config_attr in ARG_TO_CONF_MAP.items():
+        arg_attr = arg_attr.replace("-", "_")  # argparse converts dashes to underscores for attribute names
         arg_value = getattr(args, arg_attr, None)
         safe_update(config, config_attr, arg_value)
     return config
+
 
 def main():
     import argparse
 
     argparser = argparse.ArgumentParser(description="Run CFG behavioral data pipeline")
     # can give any of the valid data sources as argument to override the config data source
-    argparser.add_argument("--data-source", choices=VALID_DATA_SOURCES,
+    argparser.add_argument(f"--{DATA_SOURCE_ARG}", choices=VALID_DATA_SOURCES,
                            help="The data source to retrieve data from. Should be provided only if it doesn't appear in the config file.")
-    argparser.add_argument("--game-name", help='The name of the name.')
-    argparser.add_argument("--game-id", help='The id of the game.')
-    argparser.add_argument("--game-version-ids", nargs="+",
+    argparser.add_argument(f"--{GAME_NAME_ARG}", help='The name of the name.')
+    argparser.add_argument(f"--{GAME_ID_ARG}", help='The id of the game.')
+    argparser.add_argument(f"--{GAME_VERSION_IDS_ARG}", nargs="+",
                            help='A list of the game version ids that you want to retrieve.')
-    argparser.add_argument("--before", type=str, default=None, help='The end of the date range of the games you want to retrieve. Should be in a pandas-parseable datetime format. Only needed if you want to provide it as an argument instead of providing it in the config.')
-    argparser.add_argument("--after", type=str, default=None,
+    argparser.add_argument(f"--{BEFORE_DATE_ARG}", type=str, default=None,
+                           help='The end of the date range of the games you want to retrieve. Should be in a pandas-parseable datetime format. Only needed if you want to provide it as an argument instead of providing it in the config.')
+    argparser.add_argument(f"--{AFTER_DATE_ARG}", type=str, default=None,
                            help='The start date of the games you want to retrieve. Should be in a pandas-parseable datetime format. Only needed if you want to provide it as an argument instead of providing it in the config.')
     argparser.add_argument("--config-path", help='The path to the yml file that contains the configuration')
-    argparser.add_argument("--events-csv-path",
+    argparser.add_argument(f"--{EVENTS_CSV_PATH_ARG}",
                            help='The path to the events CSV file. Only needed if the data source is Local or if you want to provide a custom path to the events CSV file instead of providing it in the config.')
     argparser.add_argument("-o", "--output", default="cfg", dest="output_filename",
                            help='Filename of output files.')
@@ -220,9 +218,10 @@ def main():
 
     config: Configuration | None = Configuration.from_yaml(
         yaml_path=args.config_path) if args.config_path else Configuration.default()
-    if args.data_source:
-        config.DATA_SOURCE = args.data_source  # set data source early to allow validation of other args
-    config = update_config_with_args(config, args) # keep config as single source of truth for downstream usage
+    arg_data_source = getattr(args, DATA_SOURCE_ARG.replace("-", "_"), None)
+    if arg_data_source:
+        config.DATA_SOURCE = arg_data_source  # set data source early to allow validation of other args
+    config = update_config_with_args(config, args)  # keep config as single source of truth for downstream usage
 
     pl = Pipeline(output_filename=args.output_filename, config=config)
 

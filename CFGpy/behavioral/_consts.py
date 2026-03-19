@@ -5,6 +5,25 @@ external scripts may rely on them.
 Please do not change this file unless you're absolutely sure you know what you're doing.
 """
 
+# script
+DATA_SOURCE_ARG = "data-source"
+GAME_NAME_ARG = "game-name"
+GAME_ID_ARG = "game-id"
+GAME_VERSION_IDS_ARG = "game-version-ids"
+BEFORE_DATE_ARG = "before"
+AFTER_DATE_ARG = "after"
+EVENTS_CSV_PATH_ARG = "events-csv-path"
+
+
+ARG_TO_CONF_MAP = {
+        DATA_SOURCE_ARG: "DATA_SOURCE",
+        GAME_NAME_ARG: "GAME_NAME",
+        GAME_ID_ARG: "GAME_ID",
+        GAME_VERSION_IDS_ARG: "GAME_VERSION_IDS",
+        BEFORE_DATE_ARG: "BEFORE_DATE",
+        AFTER_DATE_ARG: "AFTER_DATE",
+        EVENTS_CSV_PATH_ARG: "EVENT_CSV_PATH",
+    }
 # configuration
 CONFIG_PACKAGE = "CFGpy.behavioral"
 CONFIG_FILENAME = "default_config.yml"
@@ -95,7 +114,7 @@ PAUSE_EXCLUSION_REASON = "Paused for too long"
 
 ABSOLUTE_FEATURES_MESSAGE = "Extracting absolute features..."
 RELATIVE_FEATURES_MESSAGE = "Extracting relative{} features..."
-DEFAULT_FINAL_OUTPUT_FILENAME = "CFG_measures.csv"
+DEFAULT_FINAL_OUTPUT_FILENAME = "measures.csv"
 
 # utils
 SERVER_COORDS_TYPE_ERROR = "Received incorrect type as csv_coords, should be str or list, received {}"
