@@ -1,4 +1,4 @@
-from copy import deepcopy
+import copy
 
 import numpy as np
 import pandas as pd
@@ -188,7 +188,36 @@ def plot_gallery_dt(postparsed_player_data, shape_move_time_idx):
 #########################
 # json formatting utils #
 #########################
+
 def prettify_games_json(parsed_games):
+    prettified_games = []
+    prettified_games = '[\n    '
+    for game in parsed_games:
+        game = copy.deepcopy(game)
+        game['actions'] = [NoIndent(action) for action in game['actions']]
+        chosen_shapes = game.get(PARSED_CHOSEN_SHAPES_KEY, None)
+        if chosen_shapes is not None:
+            game[PARSED_CHOSEN_SHAPES_KEY] = [NoIndent(chosen_shape) for chosen_shape in chosen_shapes]
+
+        explore = game.get(EXPLORE_KEY, None)
+        if explore:
+            game[EXPLORE_KEY] = NoIndent(explore)
+
+        exploit = game.get(EXPLOIT_KEY, None)
+        if exploit:
+            game[EXPLOIT_KEY] = NoIndent(exploit)
+
+        prettified_game = json.dumps(game, cls=CustomIndentEncoder, sort_keys=True, indent=4)
+        indented_prettified_game = prettified_game.replace('\n', '\n    ')
+        prettified_games += indented_prettified_game
+        prettified_games += ',\n    '
+
+    prettified_games = prettified_games[:-6] + '\n]'
+
+    return prettified_games
+
+
+def _old_prettify_games_json(parsed_games):
     warnings.warn(PRETTIFY_WARNING)
     parsed_games = deepcopy(parsed_games)
     prettified_games = []
