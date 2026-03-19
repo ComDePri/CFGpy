@@ -120,7 +120,7 @@ class Pipeline:
         if verbose:
             print("Parsing...")
         self.parsed_data = self._parse()
-        self.parser.dump(name=self.output_filename)
+        self.parser.dump(name=self.output_filename, with_config=False)
 
     def _postparse(self):
         """
@@ -160,7 +160,7 @@ class Pipeline:
             print("Calculating measures...")
 
         self.features_df = self._extract_features(verbose)
-        self.feature_extractor.dump(name=self.output_filename, with_exclusions=True)
+        self.feature_extractor.dump(name=self.output_filename, with_exclusions=True, with_config=False)
 
         if verbose:
             print(f"Results written successfully to: {features_output_path}")

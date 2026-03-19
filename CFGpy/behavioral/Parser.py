@@ -51,7 +51,7 @@ class Parser:
         self.parsed_data = self._parse_all_player_games(hard_filtered_games)
         return self.parsed_data
 
-    def dump(self, *, name: str = None, path: str = None, pretty=False, with_config=False):
+    def dump(self, *, name: str = None, path: str = None, pretty=False, with_config=True):
         # dump parsed
         json_str = prettify_games_json(self.parsed_data) if pretty else json.dumps(self.parsed_data)
         if not path:
