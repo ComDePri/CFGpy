@@ -120,7 +120,7 @@ class Pipeline:
         if verbose:
             print("Parsing...")
         self.parsed_data = self._parse()
-        self.parser.dump(name=self.output_filename, with_config=False)
+        self.parser.dump(name=self.output_filename, with_config=False, pretty=self.config.PRETIFFY_PARSER_OUPUT)
 
     def _postparse(self):
         """
@@ -128,7 +128,9 @@ class Pipeline:
         :return: post-parsed data
         """
         self.postparser = PostParser(parsed_data=self.parsed_data, config=self.config)
-        return self.postparser.postparse()
+        postparsed =  self.postparser.postparse()
+        self.postparser.dump(name=self.output_filename, with_config=False, pretty=self.config.PRETIFFY_PARSER_OUPUT)
+        return postparsed
 
     def postparse(self, verbose):
         """

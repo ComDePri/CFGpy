@@ -148,3 +148,5 @@ class Configuration:
     CFG_COGNITO_REGION: str | None = None
     CFG_COGNITO_CLIENT_ID: str | None = None
     CFG_COGNITO_USER_POOL_ID: str | None = None
+
+    PRETIFFY_PARSER_OUPUT: bool = True

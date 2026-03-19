@@ -67,7 +67,12 @@ class PostParser:
             player_data[EXPLORE_KEY] = explore
             player_data[EXPLOIT_KEY] = exploit
 
-    def dump(self, path=POSTPARSER_OUTPUT_FILENAME, pretty=False):
+    def dump(self, *, name: str = None, path: str = None, pretty=False, with_config=True):
+        if not path:
+            if name:
+                path = f"{name}_{POSTPARSER_OUTPUT_FILENAME}"
+            else:
+                path = POSTPARSER_OUTPUT_FILENAME
         # dump post-parsed
         json_str = prettify_games_json(self.all_players_data) if pretty else json.dumps(self.all_players_data)
         with open(path, "w") as out_file:
@@ -75,3 +80,6 @@ class PostParser:
 
         # dump config
         self.config.to_yaml(path)
+        if with_config:
+            # dump config
+            self.config.to_yaml(path.replace('.json', ''))

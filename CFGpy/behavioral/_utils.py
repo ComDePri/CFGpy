@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import numpy as np
 import pandas as pd
 import json
@@ -188,6 +190,7 @@ def plot_gallery_dt(postparsed_player_data, shape_move_time_idx):
 #########################
 def prettify_games_json(parsed_games):
     warnings.warn(PRETTIFY_WARNING)
+    parsed_games = deepcopy(parsed_games)
     prettified_games = []
     for game in parsed_games:
         game[PARSED_ALL_SHAPES_KEY] = [NoIndent(action) for action in game[PARSED_ALL_SHAPES_KEY]]
