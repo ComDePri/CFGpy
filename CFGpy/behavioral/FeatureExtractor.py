@@ -73,6 +73,7 @@ class FeatureExtractor:
             self.exclusions.to_csv(exclusions_path, index=False)
         if with_config:
             self.config.to_yaml(path.replace(".csv", ""))
+        return path
 
         # TODO: document all filtered ids and filtering criteria
         # TODO: write html with dashboards to inspect data quality and some summary stats

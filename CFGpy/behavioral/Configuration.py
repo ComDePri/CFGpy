@@ -130,6 +130,8 @@ class Configuration:
     GAME_NAME: str | None = None
     GAME_ID: str | None = None
     GAME_VERSION_IDS: list[str] | None = None
+    BEFORE_DATE: str | None = None
+    AFTER_DATE: str | None = None
 
     RED_METRICS_CSV_URL: str | None = None
     DOWNLOAD_PLAYER_REQUEST: str = None

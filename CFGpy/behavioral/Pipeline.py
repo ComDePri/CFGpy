@@ -152,7 +152,6 @@ class Pipeline:
         return self.feature_extractor.extract(verbose)
 
     def extract_features(self, verbose):
-        features_output_path = f"{self.output_filename}_features.csv"
         if self.postparsed_data is None:
             raise CFGPipelineException("Data has to be post-parsed before feature extraction")
         if self.features_df is not None:
@@ -162,10 +161,10 @@ class Pipeline:
             print("Calculating measures...")
 
         self.features_df = self._extract_features(verbose)
-        self.feature_extractor.dump(name=self.output_filename, with_exclusions=True, with_config=False)
+        features_path = self.feature_extractor.dump(name=self.output_filename, with_exclusions=True, with_config=False)
 
         if verbose:
-            print(f"Results written successfully to: {features_output_path}")
+            print(f"Results written successfully to: {features_path}")
 
     def run_pipeline(self, verbose=True):
         self.retrieve_data(verbose=verbose)
@@ -174,6 +173,29 @@ class Pipeline:
         self.extract_features(verbose=verbose)
         return self.features_df
 
+def safe_update(config: Configuration, key: str, new_value):
+    if not hasattr(config, key):
+        raise AttributeError(f"Configuration object has no attribute '{key}'")
+    current_value = getattr(config, key, None)
+    if current_value is not None and new_value is not None and current_value != new_value:
+        raise ValueError(f"Conflict for config key '{key}': current value '{current_value}' vs new value '{new_value}'. Please resolve the conflict by providing a consistent value.")
+    if new_value is not None:
+        setattr(config, key, new_value)
+
+def update_config_with_args(config: Configuration, args) -> Configuration:
+    explicit_mappings = {
+        "data_source": "DATA_SOURCE",
+        "game_name": "GAME_NAME",
+        "game_id": "GAME_ID",
+        "game_version_ids": "GAME_VERSION_IDS",
+        "before": "BEFORE_DATE",
+        "after": "AFTER_DATE",
+        "events_csv_path": "EVENT_CSV_PATH",
+    }
+    for arg_attr, config_attr in explicit_mappings.items():
+        arg_value = getattr(args, arg_attr, None)
+        safe_update(config, config_attr, arg_value)
+    return config
 
 def main():
     import argparse
@@ -186,20 +208,23 @@ def main():
     argparser.add_argument("--game-id", help='The id of the game.')
     argparser.add_argument("--game-version-ids", nargs="+",
                            help='A list of the game version ids that you want to retrieve.')
+    argparser.add_argument("--before", type=str, default=None, help='The end of the date range of the games you want to retrieve. Should be in a pandas-parseable datetime format. Only needed if you want to provide it as an argument instead of providing it in the config.')
+    argparser.add_argument("--after", type=str, default=None,
+                           help='The start date of the games you want to retrieve. Should be in a pandas-parseable datetime format. Only needed if you want to provide it as an argument instead of providing it in the config.')
     argparser.add_argument("--config-path", help='The path to the yml file that contains the configuration')
     argparser.add_argument("--events-csv-path",
                            help='The path to the events CSV file. Only needed if the data source is Local or if you want to provide a custom path to the events CSV file instead of providing it in the config.')
-    argparser.add_argument("-o", "--output", default=DEFAULT_FINAL_OUTPUT_FILENAME, dest="output_filename",
-                           help='Filename of output CSV')
+    argparser.add_argument("-o", "--output", default="cfg", dest="output_filename",
+                           help='Filename of output files.')
     args = argparser.parse_args()
 
     config: Configuration | None = Configuration.from_yaml(
         yaml_path=args.config_path) if args.config_path else Configuration.default()
     if args.data_source:
-        config.DATA_SOURCE = args.data_source
+        config.DATA_SOURCE = args.data_source  # set data source early to allow validation of other args
+    config = update_config_with_args(config, args) # keep config as single source of truth for downstream usage
 
-    pl = Pipeline(game_name=args.game_name, game_id=args.game_id, game_version_ids=args.game_version_ids,
-                  output_filename=args.output_filename, config=config, input_events_csv_path=args.events_csv_path)
+    pl = Pipeline(output_filename=args.output_filename, config=config)
 
     pl.run_pipeline()
 
