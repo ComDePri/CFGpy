@@ -22,11 +22,11 @@ class Pipeline:
 
         self.data_retriever = None
         self.raw_data = None
-        self.parser = None
+        self.parser: Parser = None
         self.parsed_data = None
-        self.postparser = None
+        self.postparser: PostParser = None
         self.postparsed_data = None
-        self.feature_extractor = None
+        self.feature_extractor: FeatureExtractor = None
         self.features_df = None
 
     def _get_now_str(self) -> str:
@@ -120,7 +120,7 @@ class Pipeline:
         if verbose:
             print("Parsing...")
         self.parsed_data = self._parse()
-        self.parser.dump()
+        self.parser.dump(name=self.output_filename)
 
     def _postparse(self):
         """
@@ -160,7 +160,7 @@ class Pipeline:
             print("Calculating measures...")
 
         self.features_df = self._extract_features(verbose)
-        self.feature_extractor.dump(features_output_path)
+        self.feature_extractor.dump(name=self.output_filename, with_exclusions=True)
 
         if verbose:
             print(f"Results written successfully to: {features_output_path}")

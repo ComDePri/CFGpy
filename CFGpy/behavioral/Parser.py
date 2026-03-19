@@ -51,14 +51,19 @@ class Parser:
         self.parsed_data = self._parse_all_player_games(hard_filtered_games)
         return self.parsed_data
 
-    def dump(self, path=PARSER_OUTPUT_FILENAME, pretty=False):
+    def dump(self, *, name: str = None, path: str = None, pretty=False, with_config=False):
         # dump parsed
         json_str = prettify_games_json(self.parsed_data) if pretty else json.dumps(self.parsed_data)
+        if not path:
+            if name:
+                path = f"{name}_{PARSER_OUTPUT_FILENAME}"
+            else:
+                path = PARSER_OUTPUT_FILENAME
         with open(path, "w") as out_file:
             out_file.write(json_str)
-
-        # dump config
-        self.config.to_yaml(path)
+        if with_config:
+            # dump config
+            self.config.to_yaml(path.replace('.json', ''))
 
     def _prepare_data(self):
         data = self.raw_data

@@ -61,10 +61,18 @@ class FeatureExtractor:
         self.output_df = self.output_df.merge(sample_relative_features, on=FEATURES_ID_KEY, how="left")
         return self.output_df
 
-    def dump(self, path=DEFAULT_FINAL_OUTPUT_FILENAME):
+    def dump(self, name: str = None, path: str = None, with_config=True, with_exclusions=True):
+        if not path:
+            if name:
+                path = f"{name}_{DEFAULT_FINAL_OUTPUT_FILENAME}"
+            else:
+                path = PARSER_OUTPUT_FILENAME
         self.output_df.to_csv(path, index=False)  # reorder columns
-        self.exclusions.to_csv(f"{path}_exclusions.csv", index=False)
-        self.config.to_yaml(path)
+        if with_exclusions:
+            exclusions_path = f"{name}_exclusions.csv" if name else path.replace(".csv","") + "_exclusions.csv"
+            self.exclusions.to_csv(exclusions_path, index=False)
+        if with_config:
+            self.config.to_yaml(path.replace(".csv", ""))
 
         # TODO: document all filtered ids and filtering criteria
         # TODO: write html with dashboards to inspect data quality and some summary stats
