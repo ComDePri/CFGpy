@@ -152,3 +152,5 @@ class Configuration:
     CFG_COGNITO_USER_POOL_ID: str | None = None
 
     PRETTIFY_PARSER_OUPUT: bool = True
+
+    SHAPE_MAX_MOVE_TIME_IDX: int = 3
