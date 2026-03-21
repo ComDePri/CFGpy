@@ -1,4 +1,5 @@
 import copy
+from copy import deepcopy
 
 import numpy as np
 import pandas as pd
@@ -128,6 +129,293 @@ def segment_explore_exploit(shapes, shape_move_time_idx, shape_save_time_idx,
 
     return explore_slices, exploit_slices
 
+
+def segment_explore_exploit_mri(shapes, min_save_for_exploit, min_efficiency, max_pace,
+                            shape_save_time_idx, shape_move_time_idx, shape_max_move_time_idx,
+                            shape_id_index):
+    """
+    This function groups clusters based on efficiency.
+    The logic here is this:
+        1. Group shapes by decreasing save-time differences (difference from previous gallery shape)
+        2. Group these clusters based on efficiency
+        (merge consecutive clusters if there is high efficiency between last shape of cluster A and first shape of cluster B)
+        Repeat steps 1-2 as follows:
+        3. Group the resulting clusters based on save-time differences
+        4. Group these clusters based on efficiency
+        Determine the number of shapes
+        :param shapes: the shapes the user created - still raw (not pandas DataFrame)
+        :param min_save_for_exploit: minimal cluster size considered exploit
+        :param min_efficiency: minimal efficiency to consider merging two clusters
+        :param max_pace: maximal pace (seconds per step) to consider merging two clusters
+        :param shape_save_time_idx: the column in shapes data frame containing save time.
+        Relayed from a Configuration object
+        :param shape_move_time_idx: the column in shapes data frame containing move time.
+         It's the first time the shape appeared. Relayed from a Configuration object
+         :param shape_max_move_time_idx: the column in shapes data frame containing the last move time
+          that resulted in that same shape.
+        :return: new list of clusters after grouping by efficiency
+    """
+    n_shapes = len(shapes)
+
+    # Default return value if no "exploit" clusters are found
+    # TODO: Roey, remove the np.nan's and make sure we only try to extract the other outputs when using the pace criterion
+    # TODO: done, by Zohar - pace criterion is true always for mri cases
+    no_exploit_return_value = [(0, n_shapes)], [], np.nan, np.nan
+    # Convert shapes data to a pandas DataFrame
+    shapes_df = pd.DataFrame(shapes)
+
+    # Extract the save times of shapes
+    gallery_saves = shapes_df[shape_save_time_idx]
+    # Find indices where shapes have save times
+    gallery_indices = np.flatnonzero(gallery_saves.notna())
+
+    # Return the default value if no shapes were saved
+    if not any(gallery_indices):
+        return no_exploit_return_value
+
+    # Get the in and out times of shapes based on save indices
+    gallery_in_times = shapes_df.iloc[gallery_indices][shape_move_time_idx]
+    gallery_out_times = shapes_df.iloc[gallery_indices][shape_max_move_time_idx]
+
+    # Calculate time differences between consecutive shape movements
+    gallery_diffs = gallery_in_times - gallery_out_times.shift()
+    # Set the first difference to 0 (no previous shape to compare with)
+    gallery_diffs.iloc[0] = 0
+    gallery_diffs = gallery_diffs.to_numpy()
+
+    empty_steps_time = shapes_df.iloc[:, shape_max_move_time_idx] - shapes_df.iloc[:, shape_move_time_idx]
+    gallery_diffs_fixed = gallery_diffs
+    for gI, gallery_idx in enumerate(
+            gallery_indices[:-1]):  # [:-1] makes sure we exclude the last element
+        start_idx = gallery_idx + 1
+        end_idx = gallery_indices[gI + 1] - 1
+        gallery_diffs_fixed[gI + 1] = gallery_diffs[gI + 1] - sum(empty_steps_time[start_idx:end_idx])
+    gallery_diffs = gallery_diffs_fixed
+
+    # Get the pace, the mean step time between consecutive gallery shapes (in seconds per step)
+    # TODO: is this really the way to go? Do we need to make sure we use in-steps and out-steps? I don't think so. If a change required 1 step but actually do to duplicate shapes took 4 steps, then we would like efficiency to capture this. If we include the duplicate steps in the calculation, the pace will be a faster one (there is less time for each step) and this won't count as a very slow transition that will undo the efficiency.
+    gallery_steps_diffs = gallery_indices - np.roll(gallery_indices, 1)
+    gallery_steps_diffs[0] = 0  # Set the first difference to 0 (no previous shape to compare with)
+    gallery_pace = np.nan_to_num(gallery_diffs / gallery_steps_diffs)
+
+    # Initialize the list of clusters
+    clusters = []
+    robust_median_value = np.nan
+    if gallery_diffs.size:
+
+        # ** Experimental - define subject sepcific threshold with tobust medians **
+        #  this code runs because pace_criterion is always true for mri cases
+        # Get gallery shapes based on the original algorithm
+        """
+        In the legacy "Aviv" branch code, we were calling this current method recursively, and by that 
+        excluding the empty steps and using all the logics above.
+        Here, we call the STANDARD segment_explore_exploit, which gives us a better upper-bound on the pace threshold,
+        keeps the code cleaner and maintainable, and avoids possible bugs from recursive calls.
+    
+        AI-generated explanation for this decision:
+            If we use the Legacy method, we might calibrate based on segments where the player was actually thinking for a long time (staring),
+             just because their hand moved fast. This could pollute the "Pace" baseline with "Thinking" data.
+    
+            Using the Standard function ensures we only calibrate using segments where the player was fast both physically and mentally.
+             This provides a cleaner, higher-confidence signal for what "Maximum Speed" looks like for this subject.
+        """
+
+        # def segment_explore_exploit(shapes, shape_move_time_idx, shape_save_time_idx,
+        #                             min_save_for_exploit) -> tuple[list, list]:
+        explore, exploit = segment_explore_exploit(shapes,
+                                                   shape_move_time_idx,
+                                                   shape_save_time_idx,
+                                                   min_save_for_exploit)
+
+        # Get indices of gallery shapes within each exploit segment, ignoring the first of each exploit segment
+        exploit_indices = get_exploit_indices_excluding_first_per_segment(exploit, gallery_indices)
+
+        if len(exploit_indices) == 0:
+            max_pace = np.nan
+        else:
+            robust_median_value, robust_mad_value = robust_median(gallery_pace[exploit_indices])
+            max_pace = robust_median_value + 5 * robust_mad_value
+
+        # Group differences into monotone decreasing sequences
+        all_monotone_series = pd.Series(group_by_monotone_decreasing(gallery_diffs, gallery_pace, max_pace))
+
+        # Calculate the peaks (first elements) of each monotone sequence
+        gallery_diffs_peaks = np.array(
+            [gallery_diffs[monotone_series[0]] for monotone_series in all_monotone_series])
+        # Get the relevant pace measures for controlling the merge of clusters based on first peaks in time-difference
+        gallery_pace_first_shapes = np.array(
+            [gallery_pace[monotone_series[0]] for monotone_series in all_monotone_series])
+
+        # Group these peaks into further monotone decreasing sequences
+        twice_monotone_series = group_by_monotone_decreasing(gallery_diffs_peaks, gallery_pace_first_shapes,
+                                                             max_pace)
+
+        # Form clusters by concatenating the original monotone sequences
+        clusters = [np.concatenate(all_monotone_series[monotone_series].values)
+                    for monotone_series in twice_monotone_series]
+
+        # Add code to group sequences based on efficiency
+        clusters = group_by_efficiency(clusters, shapes_df,
+                                       gallery_indices, min_efficiency, max_pace,
+                                       shape_id_index, shape_move_time_idx,
+                                       shape_max_move_time_idx)
+
+    # Initialize lists for exploit and explore slices
+    exploit_slices = []
+    explore_slices = []
+    prev_exploit_end = 0  # Keep track of the end of the previous exploit cluster
+    # Process each cluster
+    for cluster in clusters:
+        # Start index of the current cluster (indices are in terms of all the shapes visited in the game)
+        start = gallery_indices[cluster][0]
+        # End index of the current cluster (indices are in terms of all the shapes visited in the game)
+        end = gallery_indices[cluster][-1] + 1
+        # Check if the cluster meets the criteria for "exploit"
+        if cluster.size >= min_save_for_exploit:
+            exploit_slices.append((int(start), int(end)))
+
+            # If there is a gap between the previous exploit and the current, mark this gap as "explore"
+            if prev_exploit_end != start:
+                explore_slices.append((int(prev_exploit_end), int(start)))
+
+            # Update the end of the last exploit cluster
+            prev_exploit_end = end
+
+    # If no exploit slices were identified, return the default value
+    if not exploit_slices:
+        return no_exploit_return_value
+
+    # Determine the end indices of the last exploit and explore slices
+    exploit_end = exploit_slices[-1][1]
+    explore_end = explore_slices[-1][1] if explore_slices else 0
+
+    # Handle the case where there are remaining shapes after the last exploit slice
+    if explore_end < exploit_end < n_shapes:
+        explore_slices.append((exploit_end, n_shapes))
+    elif exploit_end < explore_end < n_shapes:
+        # Extend the last explore slice to the end of the shapes
+        last_explore_slice = (explore_slices[-1][0], n_shapes)
+        explore_slices[-1] = last_explore_slice
+
+    # Return the identified explore and exploit slices
+    return explore_slices, exploit_slices, robust_median_value, max_pace
+
+def get_exploit_indices_excluding_first_per_segment(exploit, gallery_indices):
+    # This function loops over all exploit segment in "exploit" and returns the indices of the gallery shapes that are
+    # part of exploit segments. In also removes the first exploit shape in each segment. This is because we want to
+    # use those gallery shapes for calculating the median pace in exploit, and we assume that the pace from explore to
+    # the first exploit shape might be different from  the pace strictly within an exploit segment.
+
+    # Convert gallery_indices to a numpy array for easier indexing
+    gallery_indices = np.array(gallery_indices)
+
+    all_indices = []
+
+    for (start, end) in exploit:
+        # Identify indices within the range
+        within_range_indices = np.where((gallery_indices >= start) & (gallery_indices <= end))[0]
+
+        # If there are indices in the range, remove the first one
+        if len(within_range_indices) > 0:
+            within_range_indices = within_range_indices[1:]
+
+        # Add the remaining indices to the all_indices list
+        all_indices.extend(within_range_indices)
+
+    # Flatten the list of indices (if not already flat)
+    all_indices = np.array(all_indices).flatten()
+
+    return all_indices
+
+def median_absolute_deviation(data, median):
+    return np.median(np.abs(data - median))
+
+
+def is_outlier(data, median, mad):
+    return np.abs(data - median) > (5 * mad)
+
+
+def robust_median(data):
+    data = np.array(data)
+    median = np.median(data)
+    mad = median_absolute_deviation(data, median)
+
+    while True:
+        mask = ~is_outlier(data, median, mad)
+        if np.all(mask):
+            break
+        data = data[mask]
+        median = np.median(data)
+        mad = median_absolute_deviation(data, median)
+
+    #  mask isn't being used in the original code in aviv branch,
+    #  but keeping it here in case it's needed later
+    mask = ~is_outlier(data, median, mad)
+    # print(data)
+    return median, mad
+
+
+def group_by_efficiency(clusters, shapes_df,
+                        gallery_indices, min_efficiency,
+                        max_pace, shape_id_index,
+                        shape_move_time_idx, shape_max_move_time_idx):
+    """
+    Groups sequences based on the criterion that the efficiency measure between
+    the last shape of the first sequence and the first shape of the following sequence
+    is greater than 'min_efficiency'.
+    """
+    from CFGpy.utils import get_shortest_path_len  # Moved here to avoid circular import
+
+    # Create a list to store the new grouped clusters
+    grouped_clusters = []
+    current_cluster = clusters[0]
+
+    # Calculate time spent on "empty steps" in each (not necessarily gallery) shape (remove_empty_steps_time)
+    empty_steps_time = shapes_df.iloc[:, shape_max_move_time_idx] - shapes_df.iloc[:, shape_move_time_idx]
+
+    for i in range(1, len(clusters)):
+        prev_shape_idx = current_cluster[-1]
+        next_shape_idx = clusters[i][0]
+
+        prev_shape_id = shapes_df.iloc[gallery_indices[prev_shape_idx], shape_id_index]
+        next_shape_id = shapes_df.iloc[gallery_indices[next_shape_idx], shape_id_index]
+
+        # Calculate the shortest path length between shapes
+        shortest_path_len = get_shortest_path_len(prev_shape_id, next_shape_id)
+        actual_path_len = gallery_indices[next_shape_idx] - gallery_indices[prev_shape_idx]
+
+        # Calculate efficiency
+        efficiency = shortest_path_len / actual_path_len
+
+        # Calculate time per step between potential merges
+        prev_shape_gallery_out_time = shapes_df.iloc[gallery_indices[prev_shape_idx]][shape_max_move_time_idx]
+        next_shape_gallery_in_times = shapes_df.iloc[gallery_indices[next_shape_idx]][shape_move_time_idx]
+        # Calculate time differences between consecutive shape movements
+        time_diff = next_shape_gallery_in_times - prev_shape_gallery_out_time
+
+        # Reduce the time spent on "empty steps" between each pair of gallery shapes (remove_empty_steps_time)
+        start_idx = gallery_indices[prev_shape_idx] + 1
+        end_idx = gallery_indices[next_shape_idx] - 1
+        time_diff = time_diff - sum(empty_steps_time[start_idx:end_idx])
+
+        # Calculate the steps difference between them
+        steps_diff = gallery_indices[next_shape_idx] - gallery_indices[prev_shape_idx]
+        # Calculate the average time per step between the two shapes
+        pace = time_diff / steps_diff
+
+        # Check if efficiency meets the minimum required efficiency
+        if (efficiency >= min_efficiency) and (pace < max_pace):  # and (efficiency < 1):
+            # Combine clusters if efficiency is sufficient
+            current_cluster = np.concatenate((current_cluster, clusters[i]))
+        else:
+            # Add current cluster to the grouped clusters list and start a new cluster
+            grouped_clusters.append(current_cluster)
+            current_cluster = clusters[i]
+
+    # Add the last cluster to the grouped clusters list
+    grouped_clusters.append(current_cluster)
+
+    return grouped_clusters
 
 def group_by_monotone_decreasing(sequence):
     monotone_sequences = []

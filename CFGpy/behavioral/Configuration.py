@@ -2,7 +2,7 @@ from dataclasses import dataclass, asdict
 
 from numpy._core.numeric import False_
 from CFGpy._version import __version__ as CFGpy_version
-from CFGpy.behavioral._consts import CONFIG_PACKAGE, CONFIG_FILENAME, RM2_CONFIG_FILENAME, CFGPY_VERSION_ERROR, CONFIG_DUMP_EXTENSION, VALID_DATA_SOURCES, UNSUPPORTED_DATA_SOURCE_ERROR
+from CFGpy.behavioral._consts import CONFIG_PACKAGE, CONFIG_FILENAME, RM2_CONFIG_FILENAME, CFGPY_VERSION_ERROR, CONFIG_DUMP_EXTENSION, VALID_DATA_SOURCES, UNSUPPORTED_DATA_SOURCE_ERROR, VALID_SEGMENTATION_ALGORITHMS, SEG_ALG_VANILLA, INVALID_SEGMENTATION_ALGORITHM_ERROR
 from CFGpy.behavioral._utils import server_coords_to_binary_shape, get_default_data_source
 from CFGpy.utils import binary_shape_to_id
 import yaml
@@ -58,6 +58,8 @@ class Configuration:
             raise ValueError(CFGPY_VERSION_ERROR.format(required_version, CFGpy_version))
         if self.DATA_SOURCE not in VALID_DATA_SOURCES:
             raise ValueError(UNSUPPORTED_DATA_SOURCE_ERROR.format(self.DATA_SOURCE))
+        if self.SEGMENTATION_ALGORITHM not in VALID_SEGMENTATION_ALGORITHMS:
+            raise ValueError(INVALID_SEGMENTATION_ALGORITHM_ERROR.format(self.SEGMENTATION_ALGORITHM, VALID_SEGMENTATION_ALGORITHMS))
 
 
     def _add_CFGpy_version(self):
@@ -154,3 +156,10 @@ class Configuration:
     PRETTIFY_PARSER_OUPUT: bool = True
 
     SHAPE_MAX_MOVE_TIME_IDX: int = 3
+
+    ## MRI segmentation logic
+    SEGMENTATION_ALGORITHM: str | None = SEG_ALG_VANILLA
+    MRI_SEG_MIN_EFFICIENCY_FOR_EXPLOIT: float | None = 0.8
+    MRI_SEG_MAX_PACE_FOR_MERGE: float | None = 10
+    MRI_SEG_REMOVE_EMPTY_TIME_STEPS: bool | None = True
+    MRI_SEG_USE_PACE_CRITERION: bool | None = True

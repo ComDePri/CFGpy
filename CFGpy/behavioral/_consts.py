@@ -72,6 +72,15 @@ EXPLOIT_KEY = "exploit"
 INVALID_SHAPE_ERROR = "Encountered invalid shape: {}\nPlayer id: {}\n" \
                       "This indicates a bug in the CFG software or in the data parsing"
 
+# segmentation algorithms
+SEG_ALG_VANILLA = "VANILLA"
+SEG_ALG_MRI = "MRI"
+VALID_SEGMENTATION_ALGORITHMS = (SEG_ALG_VANILLA, SEG_ALG_MRI)
+INVALID_SEGMENTATION_ALGORITHM_ERROR = "Invalid segmentation algorithm: {}. Valid options are: {}".format("{}", VALID_SEGMENTATION_ALGORITHMS)
+# MRI-specific features
+ROBUST_MEDIAN_PACE_KEY = "robust_median_exploit_pace"
+ROBUST_THRESHOLD_KEY = "robust_threshold_exploit_pace"
+
 # feature extractor
 FEATURES_ID_KEY = "ID"
 FEATURES_START_TIME_KEY = "Date/Time"

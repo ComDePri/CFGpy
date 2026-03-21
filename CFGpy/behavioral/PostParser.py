@@ -3,9 +3,12 @@ from itertools import groupby
 
 import pandas as pd
 
-from CFGpy.behavioral._utils import load_json, CFGPipelineException, segment_explore_exploit, prettify_games_json
+from CFGpy.behavioral._utils import load_json, CFGPipelineException, segment_explore_exploit, \
+    segment_explore_exploit_mri, prettify_games_json
 from CFGpy.behavioral._consts import (PARSED_ALL_SHAPES_KEY, PARSED_PLAYER_ID_KEY, EXPLORE_KEY, EXPLOIT_KEY,
-                                      INVALID_SHAPE_ERROR, NOT_A_NEIGHBOR_ERROR, POSTPARSER_OUTPUT_FILENAME)
+                                      INVALID_SHAPE_ERROR, NOT_A_NEIGHBOR_ERROR, POSTPARSER_OUTPUT_FILENAME,
+                                      ROBUST_MEDIAN_PACE_KEY, ROBUST_THRESHOLD_KEY,
+                                      INVALID_SEGMENTATION_ALGORITHM_ERROR, SEG_ALG_VANILLA, SEG_ALG_MRI)
 from CFGpy.behavioral import Configuration
 from CFGpy.utils import FilesHandler
 
@@ -23,9 +26,9 @@ def is_valid_transition(shape1: int, shape2: int) -> bool:
 
 
 class PostParser:
-    def __init__(self, *, parsed_data, is_rm1: bool = False, config: Configuration = None):
+    def __init__(self, *, parsed_data, config: Configuration = None):
         self.all_players_data = parsed_data
-        self.config = config or Configuration.default(is_rm1=is_rm1)
+        self.config = config or Configuration.default()
 
     @classmethod
     def from_json(cls, path: str, config=None):
@@ -93,8 +96,43 @@ class PostParser:
                       .tolist())
             player_data[PARSED_ALL_SHAPES_KEY] = shapes
 
+    def _segment_game_vanilla(self, player_data):
+        explore, exploit = segment_explore_exploit(player_data[PARSED_ALL_SHAPES_KEY],
+                                                   shape_move_time_idx=self.config.SHAPE_MOVE_TIME_IDX,
+                                                   shape_save_time_idx=self.config.SHAPE_SAVE_TIME_IDX,
+                                                   min_save_for_exploit=self.config.MIN_SAVE_FOR_EXPLOIT)
+        player_data[EXPLORE_KEY] = explore
+        player_data[EXPLOIT_KEY] = exploit
+
+    def _segment_game_mri(self, player_data):
+        # Retrieve MRI specific params
+
+        # Call the dedicated MRI function
+        explore, exploit, robust_median, max_pace_val = segment_explore_exploit_mri(
+            shapes=player_data[PARSED_ALL_SHAPES_KEY],
+            min_save_for_exploit=self.config.MIN_SAVE_FOR_EXPLOIT,
+            min_efficiency=self.config.MIN_EFFICIENCY_FOR_EXPLOIT,
+            max_pace=self.config.MAX_PACE_FOR_MERGE,
+            shape_save_time_idx=self.config.SHAPE_SAVE_TIME_IDX,
+            shape_move_time_idx=self.config.SHAPE_MOVE_TIME_IDX,
+            shape_max_move_time_idx=self.config.SHAPE_MAX_MOVE_TIME_IDX,
+            shape_id_index=self.config.SHAPE_ID_IDX
+        )
+
+        # Save MRI stats
+        player_data[ROBUST_MEDIAN_PACE_KEY] = robust_median
+        player_data[ROBUST_THRESHOLD_KEY] = max_pace_val
+
     def add_explore_exploit(self):
         conf_args = (self.config.SHAPE_MOVE_TIME_IDX, self.config.SHAPE_SAVE_TIME_IDX, self.config.MIN_SAVE_FOR_EXPLOIT)
+        segment_func = None
+        if self.config.SEGMENTATION_ALGORITHM == SEG_ALG_VANILLA:
+            segment_func = self._segment_game_vanilla
+        elif self.config.SEGMENTATION_ALGORITHM == SEG_ALG_MRI:
+            segment_func = self._segment_game_mri
+        else:
+            raise ValueError(INVALID_SEGMENTATION_ALGORITHM_ERROR.format(self.config.SEGMENTATION_ALGORITHM,
+                                                                         self.config.VALID_SEGMENTATION_ALGORITHMS))
 
         for player_data in self.all_players_data:
             explore, exploit = segment_explore_exploit(player_data[PARSED_ALL_SHAPES_KEY], *conf_args)
