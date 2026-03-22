@@ -2,7 +2,7 @@ from dataclasses import dataclass, asdict
 
 from numpy._core.numeric import False_
 from CFGpy._version import __version__ as CFGpy_version
-from CFGpy.behavioral._consts import CONFIG_PACKAGE, CONFIG_FILENAME, RM2_CONFIG_FILENAME, CFGPY_VERSION_ERROR, CONFIG_DUMP_EXTENSION, VALID_DATA_SOURCES, UNSUPPORTED_DATA_SOURCE_ERROR
+from CFGpy.behavioral._consts import CONFIG_PACKAGE, CONFIG_FILENAME, CFGPY_VERSION_ERROR, CONFIG_DUMP_EXTENSION, VALID_DATA_SOURCES, UNSUPPORTED_DATA_SOURCE_ERROR
 from CFGpy.behavioral._utils import server_coords_to_binary_shape, get_default_data_source
 from CFGpy.utils import binary_shape_to_id
 import yaml
