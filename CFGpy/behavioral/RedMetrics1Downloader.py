@@ -1,5 +1,6 @@
 import csv
 import requests
+import os
 from tqdm import tqdm
 import pandas as pd
 from CFGpy.behavioral.DataRetriever import DataRetriever
@@ -32,6 +33,7 @@ class RedMetrics1Downloader(DataRetriever):
         self.json_url = self.csv_url.replace("/event.csv", "/event.json")
         self.downloaded_events_json = []
         self.downloaded_events_ids = set()
+        self._temp_output_filename = output_filename + ".tmp"
 
         self.players = dict()
         self.custom_data_fields = set()
@@ -42,8 +44,10 @@ class RedMetrics1Downloader(DataRetriever):
         self.download_events_json(verbose)
         output_json = self.create_output(verbose)
         self._write_csv(output_json, verbose)
-
-        return pd.read_csv(self._output_filename)  # why not return output_json? see to-do in create_output
+        df = pd.read_csv(self._temp_output_filename)
+        # delete temp file:
+        os.remove(self._temp_output_filename)
+        return df
 
     def _validate_url(self) -> None:
         # at least one URL should not be None:
@@ -191,7 +195,7 @@ class RedMetrics1Downloader(DataRetriever):
         self._extra_fields = set(self.custom_data_fields) - set(self._config.DOWNLOADER_FIELD_ORDER)
 
         all_fields = self._config.DOWNLOADER_FIELD_ORDER + tuple(self._extra_fields)
-        with open(self._output_filename, "w", newline="", encoding="utf-8") as output_file:
+        with open(self._temp_output_filename, "w", newline="", encoding="utf-8") as output_file:
             output_file_writer = csv.DictWriter(output_file, fieldnames=all_fields, quoting=csv.QUOTE_ALL)
 
             output_file_writer.writeheader()
