@@ -311,3 +311,11 @@ def parse_json_column(*, df: pd.DataFrame, column_name: str, prefix: str):
     parsed_df.columns = [f"{prefix}.{col}" for col in parsed_df.columns]
 
     return pd.concat([df.drop(columns=[column_name]), parsed_df], axis=1)
+
+def resolve_path(name, path, default_suffix):
+    if path:
+        return path
+    elif name:
+        return f"{name}_{default_suffix}"
+    else:
+        return default_suffix

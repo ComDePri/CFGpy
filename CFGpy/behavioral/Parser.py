@@ -3,7 +3,7 @@ import pandas as pd
 import json
 import re
 from datetime import datetime, timezone
-from CFGpy.behavioral._utils import server_coords_to_binary_shape, prettify_games_json, CFGPipelineException
+from CFGpy.behavioral._utils import server_coords_to_binary_shape, prettify_games_json, CFGPipelineException, resolve_path
 from CFGpy.behavioral._consts import (PARSED_PLAYER_ID_KEY, PARSED_TIME_KEY, PARSED_ALL_SHAPES_KEY,
                                       PARSED_CHOSEN_SHAPES_KEY, MERGED_ID_KEY, DEFAULT_ID, PARSER_OUTPUT_FILENAME)
 from CFGpy.behavioral import Configuration
@@ -54,11 +54,7 @@ class Parser:
     def dump(self, *, name: str = None, path: str = None, pretty=False, with_config=True):
         # dump parsed
         json_str = prettify_games_json(self.parsed_data) if pretty else json.dumps(self.parsed_data)
-        if not path:
-            if name:
-                path = f"{name}_{PARSER_OUTPUT_FILENAME}"
-            else:
-                path = PARSER_OUTPUT_FILENAME
+        path = resolve_path(name=name, path=path, default_suffix=PARSER_OUTPUT_FILENAME)
         with open(path, "w") as out_file:
             out_file.write(json_str)
         if with_config:

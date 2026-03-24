@@ -1,5 +1,5 @@
 import json
-from CFGpy.behavioral._utils import load_json, CFGPipelineException, segment_explore_exploit, prettify_games_json
+from CFGpy.behavioral._utils import load_json, CFGPipelineException, segment_explore_exploit, prettify_games_json, resolve_path
 from CFGpy.behavioral._consts import (PARSED_ALL_SHAPES_KEY, PARSED_PLAYER_ID_KEY, EXPLORE_KEY, EXPLOIT_KEY,
                                       INVALID_SHAPE_ERROR, NOT_A_NEIGHBOR_ERROR, POSTPARSER_OUTPUT_FILENAME)
 from CFGpy.behavioral import Configuration
@@ -68,11 +68,7 @@ class PostParser:
             player_data[EXPLOIT_KEY] = exploit
 
     def dump(self, *, name: str = None, path: str = None, pretty=False, with_config=True):
-        if not path:
-            if name:
-                path = f"{name}_{POSTPARSER_OUTPUT_FILENAME}"
-            else:
-                path = POSTPARSER_OUTPUT_FILENAME
+        path = resolve_path(name=name,path=path, default_suffix=POSTPARSER_OUTPUT_FILENAME)
         # dump post-parsed
         json_str = prettify_games_json(self.all_players_data) if pretty else json.dumps(self.all_players_data)
         with open(path, "w") as out_file:

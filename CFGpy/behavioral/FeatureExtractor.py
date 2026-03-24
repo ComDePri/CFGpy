@@ -18,7 +18,7 @@ from CFGpy.behavioral._consts import (FEATURES_ID_KEY, FEATURES_START_TIME_KEY, 
                                       GAME_LENGTH_EXCLUSION_REASON, GAME_DURATION_EXCLUSION_REASON,
                                       PAUSE_EXCLUSION_REASON, SAMPLE_RELATIVE_FEATURES_LABEL)
 from CFGpy.behavioral import Configuration
-from CFGpy.behavioral._utils import load_json, is_semantic_connection
+from CFGpy.behavioral._utils import load_json, is_semantic_connection, resolve_path
 from functools import reduce
 from scipy.stats import zscore
 from CFGpy.utils import get_vanilla_stats, step_orig_map_factory, gallery_orig_map_factory
@@ -64,11 +64,8 @@ class FeatureExtractor:
         return self.output_df
 
     def dump(self, name: str = None, path: str = None, with_config=True, with_exclusions=True):
-        if not path:
-            if name:
-                path = f"{name}_{DEFAULT_FINAL_OUTPUT_FILENAME}"
-            else:
-                path = PARSER_OUTPUT_FILENAME
+        path = resolve_path(name=name, path=path,default_suffix=DEFAULT_FINAL_OUTPUT_FILENAME)
+
         self.output_df.to_csv(path, index=False)  # reorder columns
         if with_exclusions:
             exclusions_path = f"{name}_exclusions.csv" if name else path.replace(".csv","") + "_exclusions.csv"
