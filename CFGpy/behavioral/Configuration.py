@@ -123,6 +123,7 @@ class Configuration:
     MANUALLY_EXCLUDED_IDS: tuple
     MIN_N_MOVES: int
     MIN_N_CLUSTERS: int
+    MAX_IGNORED_GAME_DURATION_SEC: float
     MIN_GAME_DURATION_SEC: float
     MAX_PAUSE_DURATION_SEC: float
     MAX_ZSCORE_FOR_OUTLIERS: float

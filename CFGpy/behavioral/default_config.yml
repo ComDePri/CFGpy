@@ -98,6 +98,7 @@
   MIN_N_MOVES: 80,  # exclude participants who made fewer moves than this
   MIN_N_CLUSTERS: 1,  # exclude participants who made fewer clusters than this
   MIN_GAME_DURATION_SEC: 600,  # exclude participants who played for less than this duration
+  MAX_IGNORED_GAME_DURATION_SEC: 0, # ignore games up to this duration, before removing duplicate games. This is to allow including games of participants that stopped after a very short period and then played a full game.
   MAX_PAUSE_DURATION_SEC: 90,  # excluded participants who paused for longer than this duration
   MAX_ZSCORE_FOR_OUTLIERS: 3  # exclude participants with absolute zscore greater than this in median explore/exploit lengths
 }

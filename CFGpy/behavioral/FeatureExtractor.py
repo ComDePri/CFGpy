@@ -52,6 +52,8 @@ class FeatureExtractor:
     def extract(self, verbose=False):
         self.all_absolute_features = self._extract_absolute_features(verbose)
         self.output_df = self.all_absolute_features.copy()
+        # remove very short games before keeping only the first game per player
+        self._drop_short_games()
         self._drop_nonfirst_games()
         vanilla_relative_features = self._extract_relative_features(get_vanilla_stats(), verbose=verbose)
         self.output_df = self.output_df.merge(vanilla_relative_features, on=FEATURES_ID_KEY)
@@ -139,6 +141,13 @@ class FeatureExtractor:
 
         return masks, reasons
 
+    def _write_exclusions(self, ids_to_exclude, reason):
+        current_exclusion = pd.DataFrame({
+            FEATURES_ID_KEY: ids_to_exclude,
+            EXCLUSION_REASON_KEY: [reason] * len(ids_to_exclude)
+        })
+        self.exclusions = pd.concat((self.exclusions, current_exclusion))
+
     def _update_exclusion_info(self, masks, reasons):
         """
         Updates self.to_exclude based on filters results.
@@ -147,11 +156,7 @@ class FeatureExtractor:
         """
         for is_excluded, reason in zip(masks, reasons):
             ids_to_exclude = self.output_df.loc[is_excluded, FEATURES_ID_KEY]
-            current_exclusion = pd.DataFrame({
-                FEATURES_ID_KEY: ids_to_exclude,
-                EXCLUSION_REASON_KEY: [reason] * len(ids_to_exclude)
-            })
-            self.exclusions = pd.concat((self.exclusions, current_exclusion))
+            self._write_exclusions(ids_to_exclude, reason)
 
     def _extract_absolute_features(self, verbose=True):
         n_galleries_in_explore = []
@@ -255,3 +260,20 @@ class FeatureExtractor:
             })
 
         return pd.DataFrame(relative_features)
+
+    def _drop_short_games(self):
+        if self.config.MAX_IGNORED_GAME_DURATION_SEC <= 0:
+            return
+        is_dropped = self.output_df[GAME_DURATION_KEY] < self.config.MAX_IGNORED_GAME_DURATION_SEC
+        # if we removed all games of a player, we need to update the exclusions
+        # we first check for ids that are now completely excluded with a boolean mask
+        excluded_ids_mask = self.output_df.groupby(FEATURES_ID_KEY)[GAME_DURATION_KEY].max() < self.config.MAX_IGNORED_GAME_DURATION_SEC
+        # now we take the FEATURES_ID_KEY values for which the mask is True, which means all their games are dropped
+        ids_now_excluded = excluded_ids_mask[excluded_ids_mask].index
+        # update the exclusions table
+        self._write_exclusions(ids_now_excluded, GAME_DURATION_EXCLUSION_REASON)
+        # drop the short games for both excluded participants and the rest
+        self.input_data.filter(~is_dropped)
+        self.output_df = self.output_df.loc[~is_dropped].reset_index(drop=True)
+
+
