@@ -11,6 +11,7 @@ class DataRetriever(ABC):
         self._game_name = game_name or config.GAME_NAME
         self._game_id: str = game_id or config.GAME_ID
         self._output_filename = output_filename
+        self.output_path = f"{self._output_filename}_events.csv"
         self._config = config
         self._retrieved_df: Optional[pd.DataFrame] = None
         self._extra_fields = set()
@@ -23,23 +24,6 @@ class DataRetriever(ABC):
         """
         pass
 
-    # def _resolve_time_column_for_filtering(self, df: pd.DataFrame) -> str | None:
-    #     """Choose which timestamp column to use for before/after filtering.
-    #
-    #     Preference order:
-    #     1) configured RAW_SERVER_TIME
-    #     2) configured RAW_USER_TIME
-    #
-    #     Returns column name if present in df, else None.
-    #     """
-    #     if self._config is None:
-    #         return None
-    #
-    #     for attr in ("RAW_SERVER_TIME", "RAW_USER_TIME"):
-    #         col = getattr(self._config, attr, None)
-    #         if col and col in df.columns:
-    #             return col
-    #     return None
 
     def _filter_df_by_date(self, df: pd.DataFrame, *, after: Timestamp | None, before: Timestamp | None, verbose: bool = False) -> pd.DataFrame:
         """Filter a DF by inclusive datetime range [after, before] on a best-effort basis.
@@ -124,8 +108,8 @@ class DataRetriever(ABC):
         if self._retrieved_df is None:
             raise ValueError("No data to dump. Run retrieve_data() first.")
 
-        self._retrieved_df.to_csv(f"{self._output_filename}_events.csv", index=False)
+        self._retrieved_df.to_csv(self.output_path, index=False)
         if verbose:
-            print(f"Wrote CSV to {self._output_filename}")
+            print(f"Wrote CSV to {self.output_path}")
 
         self._config.to_yaml(self._output_filename)
