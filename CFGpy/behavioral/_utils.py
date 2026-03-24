@@ -219,7 +219,7 @@ def prettify_games_json(parsed_games):
 
 def _old_prettify_games_json(parsed_games):
     warnings.warn(PRETTIFY_WARNING)
-    parsed_games = deepcopy(parsed_games)
+    parsed_games = copy.deepcopy(parsed_games)
     prettified_games = []
     for game in parsed_games:
         game[PARSED_ALL_SHAPES_KEY] = [NoIndent(action) for action in game[PARSED_ALL_SHAPES_KEY]]
