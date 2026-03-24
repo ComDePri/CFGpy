@@ -90,6 +90,9 @@ class Parser:
         data = self.merge_id_columns(data)
         data[self.config.PARSER_TIME_COLUMN] = pd.to_datetime(data[self.config.PARSER_TIME_COLUMN],
                                                               format=self.config.SERVER_DATE_FORMAT)
+        # ensure that the time parsing worked correctly by checking that there are no NaT values in the time column
+        if data[self.config.PARSER_TIME_COLUMN].isna().any():
+            raise CFGPipelineException('Time parsing failed, there are NaT values in the time column after parsing.')
         data = data.sort_values(by=self.config.PARSER_TIME_COLUMN).reset_index(drop=True)
 
         return data

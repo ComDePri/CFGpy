@@ -30,18 +30,22 @@ class RM1DumpDataRetriever(DataRetriever):
         self.csv_path = os.path.join(self.nas_path, "Projects", "CFG", "all_data_from_aws", "redmetrics")
         self._csv_directory = Path(csv_directory if csv_directory else self.csv_path)
         self._load_csv_files()
+    def _safe_load_csv(self, file_name: str):
+        try:
+            df = pd.read_csv(self._csv_directory / file_name, delimiter='|')
+            return df
+        except FileNotFoundError:
+            raise FileNotFoundError(f"CSV file '{file_name}' not found in directory: {self._csv_directory}")
+        except Exception as e:
+            raise Exception(f"Error loading CSV file '{file_name}' from {self._csv_directory}: {e}")
 
     def _load_csv_files(self):
         """Load all CSV files from the local directory"""
-        try:
-            self._events_df = pd.read_csv(self._csv_directory / "events.csv")
-            self._players_df = pd.read_csv(self._csv_directory / "players.csv")
-            self._games_df = pd.read_csv(self._csv_directory / "games.csv")
-            self._game_versions_df = pd.read_csv(self._csv_directory / "game_versions.csv")
-        except FileNotFoundError as e:
-            raise FileNotFoundError(f"Missing CSV file in {self._csv_directory}: {e}")
-        except Exception as e:
-            raise Exception(f"Error loading CSV files from {self._csv_directory}: {e}")
+        self._events_df = self._safe_load_csv("redmetrics-events.csv")
+        self._players_df = self._safe_load_csv("redmetrics-players.csv")
+        self._games_df = self._safe_load_csv("redmetrics-games.csv")
+        self._game_versions_df = self._safe_load_csv("redmetrics-game_versions.csv")
+
 
     def _retrieve_data(self, *, verbose: bool = False, after: str = None, before: str = None, event_type: str = None,
                        section: str = None) -> pd.DataFrame:
@@ -49,9 +53,7 @@ class RM1DumpDataRetriever(DataRetriever):
         return self._format_df(verbose=verbose)
         
     def _validate_config(self) -> None:
-        if not self._config.is_rm1:
-            raise ValueError(CONFIG_URL_MISMATCH_ERROR)
-        return None
+        return
     
     def get_game_version_ids(self):
         if self._game_version_ids:
@@ -152,7 +154,7 @@ class RM1DumpDataRetriever(DataRetriever):
         """
         for col in columns:
             if col in df.columns:
-                df[col] = pd.to_datetime(df[col], errors="coerce") \
+                df[col] = pd.to_datetime(df[col], format="mixed") \
                             .dt.strftime('%Y-%m-%dT%H:%M:%S.%fZ') \
                             .str.slice(stop=-4) + 'Z'
         return df
