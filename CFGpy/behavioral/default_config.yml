@@ -92,6 +92,7 @@
   GALLERY_ORIG_PSEUDOCOUNT: 1,  # alpha parameter for additive smoothing
   STEP_ORIG_N_CATEGORIES: 36445,  # d parameter for additive smoothing; all possible steps
   GALLERY_ORIG_N_CATEGORIES: 36446,  # d parameter for additive smoothing; all possible shapes
+  WRITE_G_ALPHA: true, # save the empirical g and alpha (switching rate and tendency to exploit) in the final features output
 
   ## Soft Filtering
   MANUALLY_EXCLUDED_IDS: [ ],  # IDs to exclude, e.g., those used for testing the experiment

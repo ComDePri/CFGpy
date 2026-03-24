@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from datetime import datetime
-from CFGpy.behavioral.data_interfaces import PostparsedDataset
+from CFGpy.behavioral.data_interfaces import PostparsedDataset, PostParsedDatasetStats, PostparsedPlayerData
 from CFGpy.behavioral._consts import (FEATURES_ID_KEY, FEATURES_START_TIME_KEY, N_CLUSTERS_KEY, GAME_DURATION_KEY,
                                       N_MOVES_KEY, LONGEST_PAUSE_KEY, MEDIAN_EXPLORE_LENGTH_KEY, N_GALLERIES_KEY,
                                       SELF_AVOIDANCE_KEY, EXPLORE_EFFICIENCY_KEY, EXPLOIT_EFFICIENCY_KEY,
@@ -16,7 +16,7 @@ from CFGpy.behavioral._consts import (FEATURES_ID_KEY, FEATURES_START_TIME_KEY, 
                                       ABSOLUTE_FEATURES_MESSAGE, RELATIVE_FEATURES_MESSAGE, EXPLORE_OUTLIER_REASON,
                                       EXPLOIT_OUTLIER_REASON, NO_EXPLOIT_EXCLUSION_REASON, MANUAL_EXCLUSION_REASON,
                                       GAME_LENGTH_EXCLUSION_REASON, GAME_DURATION_EXCLUSION_REASON,
-                                      PAUSE_EXCLUSION_REASON, SAMPLE_RELATIVE_FEATURES_LABEL)
+                                      PAUSE_EXCLUSION_REASON, SAMPLE_RELATIVE_FEATURES_LABEL, G_KEY, ALPHA_KEY)
 from CFGpy.behavioral import Configuration
 from CFGpy.behavioral._utils import load_json, is_semantic_connection, resolve_path
 from functools import reduce
@@ -210,8 +210,13 @@ class FeatureExtractor:
 
         return features_df
 
-    def _extract_relative_features(self, stats, label=None, verbose=False):
-        steps_not_uniquely_covered, step_counter, galleries_not_uniquely_covered, gallery_counter, GC = stats
+    def _extract_relative_features(self, stats: PostParsedDatasetStats, label=None, verbose=False):
+        steps_not_uniquely_covered = stats.steps_not_uniquely_covered
+        step_counter = stats.n_times_step_taken
+        galleries_not_uniquely_covered = stats.galleries_not_uniquely_covered
+        gallery_counter = stats.n_times_gallery_saved
+        GC = stats.giant_component
+
         label_ext = f" ({label})" if label else ""
 
         step_orig_map = step_orig_map_factory(step_counter, alpha=self.config.STEP_ORIG_PSEUDOCOUNT,
@@ -223,7 +228,7 @@ class FeatureExtractor:
         if verbose:
             print(RELATIVE_FEATURES_MESSAGE.format(label_ext))
             iterator = tqdm(iterator)
-
+        player_data : PostparsedPlayerData = None # for type hinting, can be removed without affecting functionality
         relative_features = []
         for player_data in iterator:
             steps = player_data.get_steps()
@@ -237,6 +242,17 @@ class FeatureExtractor:
             n_clusters_in_GC = sum([self.is_cluster_in_GC(cluster, GC) for cluster in exploit_clusters])
             frac_clusters_in_GC = (n_clusters_in_GC / len(player_data.exploit_slices)
                                    if player_data.exploit_slices else None)
+            med_exploit_length = player_data.get_median_exploit_length()
+            med_explore_length = player_data.get_median_explore_length()
+            if (med_explore_length is None) or (med_exploit_length is None):
+                g, alpha = None, None
+            else:
+                med_exploit_z = (med_exploit_length - stats.median_exploit_mean) / stats.median_exploit_std
+                med_explore_z = (med_explore_length - stats.median_explore_mean) / stats.median_explore_std
+                factor = 1 / (2 ** 0.5)  # to keep the result similar to the PCA computation
+                g = -1 * (
+                            factor * med_explore_z + factor * med_exploit_z)  # low steps -> high switching rate
+                alpha = factor * med_exploit_z - factor * med_explore_z
 
             relative_features.append({
                 FEATURES_ID_KEY: player_data.id,
@@ -254,6 +270,8 @@ class FeatureExtractor:
                     _get_frac_uniquely_covered(gallery_ids[is_exploit_given_gallery], galleries_not_uniquely_covered),
                 f"{N_CLUSTERS_IN_GC_KEY}{label_ext}": n_clusters_in_GC,
                 f"{FRACTION_CLUSTERS_IN_GC_KEY}{label_ext}": frac_clusters_in_GC,
+                f"{G_KEY}{label_ext}": g,
+                f"{ALPHA_KEY}{label_ext}": alpha
             })
 
         return pd.DataFrame(relative_features)

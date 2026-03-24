@@ -101,6 +101,8 @@ FRACTION_GALLERIES_UNIQUELY_COVERED_EXPLORE_KEY = "% galleries uniquely covered 
 FRACTION_GALLERIES_UNIQUELY_COVERED_EXPLOIT_KEY = "% galleries uniquely covered scav"
 N_CLUSTERS_IN_GC_KEY = "# clusters in GC"
 FRACTION_CLUSTERS_IN_GC_KEY = "% clusters in GC"
+G_KEY = "explore-exploit switching rate"
+ALPHA_KEY = "tendency to exploit"
 
 EXCLUSION_REASON_KEY = "reason"
 SAMPLE_RELATIVE_FEATURES_LABEL = "sample"

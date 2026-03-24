@@ -4,6 +4,7 @@ import json
 import networkx as nx
 from collections import Counter, defaultdict
 from CFGpy.utils import FilesHandler
+from CFGpy.utils.stats_interfaces import PostParsedDatasetStats
 
 
 def get_vanilla():
@@ -20,7 +21,7 @@ def get_vanilla_features() -> pd.DataFrame:
     return FilesHandler().vanilla_features
 
 
-def get_vanilla_stats():
+def get_vanilla_stats(explore_length_key="median exp steps", exploit_length_key="median scav steps") -> PostParsedDatasetStats:
     """
     Returns the necessary information for extraction of features relative to vanilla, as required by
     behavioral.FeatureExtractor._extract_relative_features.
@@ -40,7 +41,23 @@ def get_vanilla_stats():
     giant_component = FilesHandler().vanilla_giant_component
     giant_component = {tuple(node) for node in giant_component}
 
-    return covered_steps, step_counter, covered_galleries, gallery_counter, giant_component
+    vanilla_features = get_vanilla_features()
+    median_exploit_mean = vanilla_features[exploit_length_key].mean()
+    median_exploit_std = vanilla_features[exploit_length_key].std()
+    median_explore_mean = vanilla_features[explore_length_key].mean()
+    median_explore_std = vanilla_features[explore_length_key].std()
+    stats = PostParsedDatasetStats(
+        steps_not_uniquely_covered=list(covered_steps),
+        n_times_step_taken=step_counter,
+        galleries_not_uniquely_covered=list(covered_galleries),
+        n_times_gallery_saved=gallery_counter,
+        giant_component=giant_component,
+        median_explore_mean=median_explore_mean,
+        median_explore_std=median_explore_std,
+        median_exploit_mean=median_exploit_mean,
+        median_exploit_std=median_exploit_std)
+
+    return stats
 
 
 def get_shape_binary_matrix(shape_id):

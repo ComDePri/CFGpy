@@ -7,6 +7,7 @@ from CFGpy.behavioral._consts import (PARSED_PLAYER_ID_KEY, PARSED_TIME_KEY, PAR
                                       PARSED_CHOSEN_SHAPES_KEY, EXPLORE_KEY, EXPLOIT_KEY)
 from CFGpy.behavioral import Configuration
 from CFGpy.behavioral._utils import is_semantic_connection, load_json
+from CFGpy.utils.stats_interfaces import PostParsedDatasetStats, ParsedDatasetStats
 
 
 # TODO: consider: some methods only serve MeasureCalculator, while other are meant as API for end users (e.g.
@@ -145,6 +146,18 @@ class PostparsedPlayerData(ParsedPlayerData):
 
         return clusters
 
+    def get_median_exploit_length(self):
+        exploit_lengths = [end - start for start, end in self.exploit_slices]
+        if not exploit_lengths:
+            return np.nan
+        return np.median(exploit_lengths)
+
+    def get_median_explore_length(self):
+        explore_lengths = [end - start for start, end in self.explore_slices]
+        if not explore_lengths:
+            return np.nan
+        return np.median(explore_lengths)
+
 
 class ParsedDataset:
     def __init__(self, input_data):
@@ -223,8 +236,9 @@ class ParsedDataset:
 
         steps_not_uniquely_covered = self.get_not_uniquely_covered(n_players_took_step)
         galleries_not_uniquely_covered = self.get_not_uniquely_covered(n_players_saved_gallery)
-
-        return steps_not_uniquely_covered, n_times_step_taken, galleries_not_uniquely_covered, n_times_gallery_saved
+        stats = ParsedDatasetStats(steps_not_uniquely_covered, n_times_step_taken, galleries_not_uniquely_covered,
+                                   n_times_gallery_saved)
+        return stats
 
 
 class PostparsedDataset(ParsedDataset):
@@ -261,10 +275,39 @@ class PostparsedDataset(ParsedDataset):
         GC = max(connected_components, key=len)
         return GC
 
+    def _calc_median_steps_statistics(self):
+        # compute the mean and std of median explore and median exploit steps
+        median_explore_lengths = []
+        median_exploit_lengths = []
+        for player_data in self.players_data:
+            median_explore_length = player_data.get_median_explore_length()
+            median_exploit_length = player_data.get_median_exploit_length()
+            if not np.isnan(median_explore_length):
+                median_explore_lengths.append(median_explore_length)
+            if not np.isnan(median_exploit_length):
+                median_exploit_lengths.append(median_exploit_length)
+        median_explore_mean = np.mean(median_explore_lengths) if median_explore_lengths else np.nan
+        median_explore_std = np.std(median_explore_lengths) if median_explore_lengths else np.nan
+        median_exploit_mean = np.mean(median_exploit_lengths) if median_exploit_lengths else np.nan
+        median_exploit_std = np.std(median_exploit_lengths) if median_exploit_lengths else np.nan
+        return median_explore_mean, median_explore_std, median_exploit_mean, median_exploit_std
+
     def get_stats(self):
         """
         Returns the same stats as a ParsedDataset would, plus its GC
         :return: 5-tuple
         """
         giant_component = self._calc_giant_component()
-        return super().get_stats() + (giant_component,)
+        parsed_stats = super().get_stats()
+        median_explore_mean, median_explore_std, median_exploit_mean, median_exploit_std = self._calc_median_steps_statistics()
+        postparsed_stats = PostParsedDatasetStats(steps_not_uniquely_covered=parsed_stats.steps_not_uniquely_covered,
+                                                  n_times_step_taken=parsed_stats.n_times_step_taken,
+                                                  galleries_not_uniquely_covered=parsed_stats.galleries_not_uniquely_covered,
+                                                  n_times_gallery_saved=parsed_stats.n_times_gallery_saved,
+                                                  giant_component=giant_component,
+                                                  median_explore_mean=median_explore_mean,
+                                                  median_explore_std=median_explore_std,
+                                                  median_exploit_mean=median_exploit_mean,
+                                                  median_exploit_std=median_exploit_std)
+        return postparsed_stats
+
