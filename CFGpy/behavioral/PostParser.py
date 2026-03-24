@@ -87,7 +87,7 @@ class PostParser:
                          .groupby("group_id", as_index=False)
                          .agg({self.config.SHAPE_ID_IDX: lambda x: int(x.iloc[0]),
                                self.config.SHAPE_MOVE_TIME_IDX: lambda x: x.iloc[0],
-                               self.config.SHAPE_SAVE_TIME_IDX: lambda x: x.iloc[0],
+                               self.config.SHAPE_SAVE_TIME_IDX: lambda x: x.iloc[0], # TODO: fix saving when it's not the first (use min)
                                self.config.SHAPE_MAX_MOVE_TIME_IDX: lambda x: x.iloc[-1]})
                          .drop(columns="group_id"))
             shapes = (shapes_df

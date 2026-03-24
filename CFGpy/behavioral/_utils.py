@@ -182,7 +182,7 @@ def segment_explore_exploit_mri(shapes, min_save_for_exploit, min_efficiency, ma
     # Set the first difference to 0 (no previous shape to compare with)
     gallery_diffs.iloc[0] = 0
     gallery_diffs = gallery_diffs.to_numpy()
-
+    # now we remove the empty steps times for all intermediate shapes between each pair of gallery shapes.
     empty_steps_time = shapes_df.iloc[:, shape_max_move_time_idx] - shapes_df.iloc[:, shape_move_time_idx]
     gallery_diffs_fixed = gallery_diffs
     for gI, gallery_idx in enumerate(
@@ -193,7 +193,6 @@ def segment_explore_exploit_mri(shapes, min_save_for_exploit, min_efficiency, ma
     gallery_diffs = gallery_diffs_fixed
 
     # Get the pace, the mean step time between consecutive gallery shapes (in seconds per step)
-    # TODO: is this really the way to go? Do we need to make sure we use in-steps and out-steps? I don't think so. If a change required 1 step but actually do to duplicate shapes took 4 steps, then we would like efficiency to capture this. If we include the duplicate steps in the calculation, the pace will be a faster one (there is less time for each step) and this won't count as a very slow transition that will undo the efficiency.
     gallery_steps_diffs = gallery_indices - np.roll(gallery_indices, 1)
     gallery_steps_diffs[0] = 0  # Set the first difference to 0 (no previous shape to compare with)
     gallery_pace = np.nan_to_num(gallery_diffs / gallery_steps_diffs)
@@ -203,7 +202,7 @@ def segment_explore_exploit_mri(shapes, min_save_for_exploit, min_efficiency, ma
     robust_median_value = np.nan
     if gallery_diffs.size:
 
-        # ** Experimental - define subject sepcific threshold with tobust medians **
+        # ** Experimental - define subject sepcific threshold with robust medians **
         #  this code runs because pace_criterion is always true for mri cases
         # Get gallery shapes based on the original algorithm
         """
@@ -254,7 +253,7 @@ def segment_explore_exploit_mri(shapes, min_save_for_exploit, min_efficiency, ma
         clusters = [np.concatenate(all_monotone_series[monotone_series].values)
                     for monotone_series in twice_monotone_series]
 
-        # Add code to group sequences based on efficiency
+        # Add code to group sequences based on efficiency (unless the pace is too slow)
         clusters = group_by_efficiency(clusters, shapes_df,
                                        gallery_indices, min_efficiency, max_pace,
                                        shape_id_index, shape_move_time_idx,
