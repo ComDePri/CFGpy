@@ -1,6 +1,6 @@
 from pathlib import Path
 import pytest
-from CFGpy.behavioral import Downloader, Parser, PostParser, FeatureExtractor, Pipeline, Configuration
+from CFGpy.behavioral import RedMetrics1Downloader, Parser, PostParser, FeatureExtractor, Pipeline, Configuration
 import os
 import json
 import numpy as np
@@ -20,16 +20,16 @@ test_dirs = [entry.path for entry in os.scandir(TEST_FILES_DIR) if entry.is_dir(
 
 @pytest.mark.parametrize("test_dir", test_dirs)
 def test_downloader(test_dir):
-    raw_data_filename = "raw.csv"
+    raw_data_filename = "raw"
     config = Configuration.from_yaml(os.path.join(test_dir, CONFIG_FILENAME))
-    downloader = Downloader(output_filename=raw_data_filename, config=config)
-    downloader.download(verbose=True)
+    downloader = RedMetrics1Downloader(output_filename=raw_data_filename, config=config)
+    downloader.retrieve_data(verbose=True)
     downloader.dump()
     
     test_raw = (pd.read_csv(os.path.join(test_dir, TEST_DOWNLOADED_FILENAME))
                 .sort_values("id")
                 .reset_index(drop=True))
-    raw = pd.read_csv(raw_data_filename).sort_values("id").reset_index(drop=True)
+    raw = pd.read_csv(downloader.output_path).sort_values("id").reset_index(drop=True)
 
     assert len(test_raw) == len(raw), f"{len(raw)} events instead of {len(test_raw)}"
     for col_name in test_raw:
