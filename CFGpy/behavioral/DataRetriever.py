@@ -106,7 +106,8 @@ class DataRetriever(ABC):
         return self._retrieved_df
 
     def _validate_input(self, input: list[str]) -> None:
-        count: int = len(input) - input.count(None)
+        unique_inputs = set([inp for inp in input if inp is not None])
+        count: int = len(unique_inputs)
 
         # at least one URL should not be None:
         if count < 1:

@@ -43,8 +43,8 @@ UNSUPPORTED_DATA_SOURCE_ERROR = "Unsupported data source: {}. Valid options are:
 
 # data retrievers
 DATA_RETRIEVER_OUTPUT_FILENAME = "event"
-NO_DATA_RETRIEVER_INPUT_ERROR = "RedMetrics input undefined. Specify RedMetrics1 URL either as a parameter or in config or provide a game id from RedMetrics2."
-MULTIPLE_DATA_RETRIEVER_INPUTS_ERROR = "RedMetrics input was defined in multiple ways. Define RedMetrics1 URL exactly once - either as a parameter or in the config, or provide a game id from RedMetrics2."
+NO_DATA_RETRIEVER_INPUT_ERROR = "No input defined for data retriever. Define one of RedMetrics1 URL / game ID / game name exactly once - either as a parameter or in the config."
+MULTIPLE_DATA_RETRIEVER_INPUTS_ERROR = "Input was defined in multiple ways. Define one of RedMetrics1 URL / game ID / game name exactly once - either as a parameter or in the config."
 DOWNLOADER_URL_NO_CSV_ERROR = "URL is incorrect: '{}'\nCopy the address from 'Download all pages as CSV' in RedMetrics"
 CONFIG_URL_MISMATCH_ERROR = "The config and the url or game id must both be either RedMetrics1 or RedMetrics2"
 PAGE_REPETITION_LIMIT_REACHED = "Was not able to get all events from page {} after {} retries."
