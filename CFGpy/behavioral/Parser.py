@@ -42,7 +42,7 @@ class Parser:
     @classmethod
     def from_file(cls, raw_data_filename: str, config=None):
         raw_data = pd.read_csv(raw_data_filename)
-        return cls(raw_data, config)
+        return cls(raw_data=raw_data, config=config)
 
     def parse(self):
         prepared_data = self._prepare_data()

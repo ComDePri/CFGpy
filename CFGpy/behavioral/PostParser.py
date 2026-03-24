@@ -25,7 +25,7 @@ class PostParser:
 
     @classmethod
     def from_json(cls, path: str, config=None):
-        return cls(load_json(path), config)
+        return cls(parsed_data=load_json(path), config=config)
 
     def postparse(self):
         self.convert_shape_ids()
