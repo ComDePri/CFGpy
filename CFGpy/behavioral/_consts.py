@@ -34,7 +34,7 @@ CONFIG_DUMP_EXTENSION = ".yml"
 # valid data sources
 RM1 = "RedMetrics1"
 RM2 = "RedMetrics2"
-RM1_NAS_DUMP = "RedMetrics1 dump"
+RM1_NAS_DUMP = "RedMetrics1Dump"
 APPSync = "AppSync"
 LOCAL = "Local"
 VALID_DATA_SOURCES =  (RM1, RM2, RM1_NAS_DUMP, APPSync, LOCAL)
