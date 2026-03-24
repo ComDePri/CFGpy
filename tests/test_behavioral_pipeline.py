@@ -64,7 +64,7 @@ def test_parser(test_dir):
     config = Configuration.from_yaml(os.path.join(test_dir, CONFIG_FILENAME))
     parser = Parser.from_file(os.path.join(test_dir, TEST_DOWNLOADED_FILENAME), config=config)
     parsed = parser.parse()
-    parser.dump(parsed_data_filename)
+    parser.dump(name=parsed_data_filename)
 
     _compare_parsed(parsed, test_dir)
 
@@ -98,16 +98,16 @@ def test_parser_conversion_to_new_format(test_dir):
 
 @pytest.mark.parametrize("test_dir", test_dirs)
 def test_postparser(test_dir):
-    postparsed_data_filename = "postparsed.json"
+    postparsed_data_filename = "test_data"
 
     config = Configuration.from_yaml(os.path.join(test_dir, CONFIG_FILENAME))
     postparser = PostParser.from_json(os.path.join(test_dir, TEST_PARSED_FILENAME), config=config)
     postparser.postparse()
-    postparser.dump(postparsed_data_filename)
+    postparser.dump(name=postparsed_data_filename)
 
     with open(os.path.join(test_dir, TEST_POSTPARSED_FILENAME), "r") as test_postparsed_fp:
         test_postparsed = test_postparsed_fp.read()
-    with open(postparsed_data_filename, "r") as postparsed_fp:
+    with open(postparsed_data_filename + "_postparsed.json", "r") as postparsed_fp:
         postparsed = postparsed_fp.read()
 
     if test_postparsed != postparsed:
@@ -128,20 +128,20 @@ def _compare_features(test_dir, features_filename):
 
 @pytest.mark.parametrize("test_dir", test_dirs)
 def test_feature_extractor(test_dir):
-    features_filename = "features.csv"
+    features_filename = "test_data"
 
     config = Configuration.from_yaml(os.path.join(test_dir, CONFIG_FILENAME))
     feature_extractor = FeatureExtractor.from_json(os.path.join(test_dir, TEST_POSTPARSED_FILENAME), config=config)
     feature_extractor.extract(verbose=True)
-    feature_extractor.dump(features_filename)
+    feature_extractor.dump(name=features_filename)
 
-    _compare_features(test_dir, features_filename)
+    _compare_features(test_dir, features_filename + "_measures.csv")
 
 
 @pytest.mark.parametrize("test_dir", test_dirs)
 def test_full_pipeline(test_dir):
-    features_filename = "features.csv"
+    features_filename = "test_data"
     config = Configuration.from_yaml(os.path.join(test_dir, CONFIG_FILENAME))
     pipeline = Pipeline(output_filename=features_filename, config=config)
     pipeline.run_pipeline(verbose=True)
-    _compare_features(test_dir, features_filename)
+    _compare_features(test_dir, features_filename + "_measures.csv")
