@@ -123,7 +123,6 @@ class Configuration:
     MANUALLY_EXCLUDED_IDS: tuple
     MIN_N_MOVES: int
     MIN_N_CLUSTERS: int
-    MAX_IGNORED_GAME_DURATION_SEC: float
     MIN_GAME_DURATION_SEC: float
     MAX_PAUSE_DURATION_SEC: float
     MAX_ZSCORE_FOR_OUTLIERS: float
@@ -153,3 +152,6 @@ class Configuration:
     CFG_COGNITO_USER_POOL_ID: str | None = None
 
     PRETTIFY_PARSER_OUPUT: bool = True
+    WRITE_G_ALPHA: bool = False # to support old data
+
+    MAX_IGNORED_GAME_DURATION_SEC: float = 0
