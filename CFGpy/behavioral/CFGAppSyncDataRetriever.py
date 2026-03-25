@@ -324,37 +324,59 @@ class CFGAppSyncDataRetriever(DataRetriever):
             variables={"filter": filter_obj},
         )
 
+
     def _fetch_events_for_sessions(self, sessions: list[dict], *, verbose: bool = False) -> list[dict]:
+        if not sessions:
+            return []
+
         if verbose:
-            print(f"Fetching events for {len(sessions)} sessions...")
+            print(f"Fetching events via session connections ({len(sessions)} sessions)...")
 
         query = """
-        query ListEvents($filter: ModelEventFilterInput, $nextToken: String) {
-          listEvents(filter: $filter, nextToken: $nextToken) {
-            items {
-              id
-              sessionId
-              gameId
-              type
-              occurredAt
-              data
+        query GetSessionWithEvents($id: ID!, $nextToken: String) {
+          getSession(id: $id) {
+            events(nextToken: $nextToken) {
+              items {
+                id
+                sessionId
+                gameId
+                type
+                occurredAt
+                data
+              }
+              nextToken
             }
-            nextToken
           }
         }
         """
 
-        all_events: list[dict] = []
+        all_events = []
+
+        sess_iter = sessions
         if verbose:
-            print("\nFetching events...")
-            sessions = tqdm.tqdm(sessions, desc="sessions")
-        for i, sess in enumerate(sessions, start=1):
-            events = self._list_all_graphql(
-                "listEvents",
-                query,
-                variables={"filter": {"sessionId": {"eq": sess["id"]}}},
-            )
-            all_events.extend(events)
+            import tqdm
+            sess_iter = tqdm.tqdm(sessions, desc="sessions")
+
+        for sess in sess_iter:
+            session_id = sess.get("id")
+            if not session_id:
+                continue
+
+            next_token = None
+
+            while True:
+                data = self._graphql(
+                    query,
+                    {"id": session_id, "nextToken": next_token},
+                )
+
+                events_block = data["getSession"]["events"]
+                items = events_block["items"]
+                all_events.extend(items)
+
+                next_token = events_block.get("nextToken")
+                if not next_token:
+                    break
 
         all_events.sort(key=lambda x: x.get("occurredAt", ""))
         return all_events
