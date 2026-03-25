@@ -495,7 +495,7 @@ class CFGAppSyncDataRetriever(DataRetriever):
                 self._config.EVENT_CUSTOM_DATA_KEY: ev.get("data") if ev.get("data") is not None else "",
             }
             if row["sessionMetadata"]:
-                row["playerCustomData"] = row["sessionMetadata"].get("customData") if (row["sessionMetadata"].get("customData") is not None) else {}
+                row["playerCustomData"] = json.dumps(row["sessionMetadata"].get("customData")) if (row["sessionMetadata"].get("customData") is not None) else "{}"
             player_metadata = row.get("playerMetadata", {})
             row[self._config.RAW_PLAYER_BIRTHDATE] = player.get("birthDate", None)
             row[self._config.RAW_PLAYER_REGION] = player.get("region", None)
