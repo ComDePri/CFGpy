@@ -39,16 +39,16 @@ def _get_frac_uniquely_covered(player_objects, objects_not_uniquely_covered):
 
 
 class FeatureExtractor:
-    def __init__(self, *, preprocessed_data,  is_rm2: bool = False, config: Configuration = None):
+    def __init__(self, *, preprocessed_data, config: Configuration = None):
         self.input_data = PostparsedDataset(input_data=preprocessed_data, config=config)
-        self.config = config if config is not None else Configuration.default(is_rm1=is_rm2)
+        self.config = config if config is not None else Configuration.default()
         self.all_absolute_features = None
         self.output_df = None
         self.exclusions = pd.DataFrame(columns=[FEATURES_ID_KEY, EXCLUSION_REASON_KEY])
     
     @classmethod
     def from_json(cls, path: str, config=Configuration.default()):
-        return cls(load_json(path), config)
+        return cls(preprocessed_data=load_json(path), config=config)
 
     def extract(self, verbose=False):
         self.all_absolute_features = self._extract_absolute_features(verbose)
