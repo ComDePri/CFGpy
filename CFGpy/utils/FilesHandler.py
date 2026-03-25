@@ -43,12 +43,12 @@ class FilesHandler:
 
         if not hasattr(self, '_initialized'):
             self._vanilla_data: dict = {}
-            self._vanilla_features: pd.DataFrame = {}
+            self._vanilla_features: pd.DataFrame | None = None
             self._vanilla_gallery_counter: dict = {}
             self._vanilla_giant_component: dict = {}
             self._vanilla_step_counter: dict = {}
-            self._shape_network: nx.Graph = None
-            self._id2coord: np.ndarray = None
+            self._shape_network: nx.Graph | None = None
+            self._id2coord: np.ndarray | None = None
             self._shortest_paths_dict: dict = {}
             self._new_shortest_paths_dict: dict = {}
             self._initialized = True
@@ -162,7 +162,7 @@ class FilesHandler:
     
     @property
     def vanilla_features(self) -> pd.DataFrame:
-        if not self._vanilla_features:
+        if self._vanilla_features is None:
             self.get_file(file_name=FileNames.VANILLA_FEATURES)
             self._vanilla_features = pd.read_csv(os.path.join(FileNames.CACHE_DIR, FileNames.VANILLA_FEATURES))
         return self._vanilla_features
