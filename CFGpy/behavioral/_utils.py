@@ -319,3 +319,12 @@ def resolve_path(name, path, default_suffix):
         return f"{name}_{default_suffix}"
     else:
         return default_suffix
+
+def missing_str_field(series: pd.Series, possible_missing_strs=("null", "nan", "none")):
+    # start with actual NaNs:
+    missing_mask = series.isna()
+    # add empty strings:
+    missing_mask |= (series == "")
+    # add "null", "nan" and "none" (case-insensitive):
+    missing_mask |= series.str.lower().isin(possible_missing_strs)
+    return missing_mask

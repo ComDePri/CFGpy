@@ -3,7 +3,7 @@ import pandas as pd
 import json
 import re
 from datetime import datetime, timezone
-from CFGpy.behavioral._utils import server_coords_to_binary_shape, prettify_games_json, CFGPipelineException, resolve_path
+from CFGpy.behavioral._utils import server_coords_to_binary_shape, prettify_games_json, CFGPipelineException, resolve_path, missing_str_field
 from CFGpy.behavioral._consts import (PARSED_PLAYER_ID_KEY, PARSED_TIME_KEY, PARSED_ALL_SHAPES_KEY,
                                       PARSED_CHOSEN_SHAPES_KEY, MERGED_ID_KEY, DEFAULT_ID, PARSER_OUTPUT_FILENAME)
 from CFGpy.behavioral import Configuration
@@ -122,10 +122,10 @@ class Parser:
 
         for id_column in self.config.PARSER_ID_COLUMNS:
             if id_column in data.columns:
-                missing_indices = data[MERGED_ID_KEY].isna()
+                missing_indices = missing_str_field(data[MERGED_ID_KEY])
                 data.loc[missing_indices, MERGED_ID_KEY] = data[id_column].loc[missing_indices].astype("string")
 
-        missing_indices = data[MERGED_ID_KEY].isna()
+        missing_indices = missing_str_field(data[MERGED_ID_KEY])
         data.loc[missing_indices, MERGED_ID_KEY] = DEFAULT_ID
 
         return data
