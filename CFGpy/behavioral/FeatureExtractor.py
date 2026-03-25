@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
 from datetime import datetime
-from CFGpy.behavioral.data_interfaces import PostparsedDataset, PostParsedDatasetStats, PostparsedPlayerData
+from CFGpy.behavioral.data_interfaces import PostparsedDataset, PostParsedDatasetStats, PostparsedPlayerData, \
+    get_vanilla_stats
 from CFGpy.behavioral._consts import (FEATURES_ID_KEY, FEATURES_START_TIME_KEY, N_CLUSTERS_KEY, GAME_DURATION_KEY,
                                       N_MOVES_KEY, LONGEST_PAUSE_KEY, MEDIAN_EXPLORE_LENGTH_KEY, N_GALLERIES_KEY,
                                       SELF_AVOIDANCE_KEY, EXPLORE_EFFICIENCY_KEY, EXPLOIT_EFFICIENCY_KEY,
@@ -21,7 +22,7 @@ from CFGpy.behavioral import Configuration
 from CFGpy.behavioral._utils import load_json, is_semantic_connection, resolve_path
 from functools import reduce
 from scipy.stats import zscore
-from CFGpy.utils import get_vanilla_stats, step_orig_map_factory, gallery_orig_map_factory
+from CFGpy.utils import step_orig_map_factory, gallery_orig_map_factory
 from tqdm import tqdm
 
 

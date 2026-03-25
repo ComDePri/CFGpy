@@ -1,10 +1,8 @@
 import numpy as np
 import pandas as pd
-import json
 import networkx as nx
 from collections import Counter, defaultdict
 from CFGpy.utils import FilesHandler
-from CFGpy.utils.stats_interfaces import PostParsedDatasetStats
 
 
 def get_vanilla():
@@ -19,45 +17,6 @@ def get_vanilla_features() -> pd.DataFrame:
     Returns the features extracted from the most up-to-date vanilla data.
     """
     return FilesHandler().vanilla_features
-
-
-def get_vanilla_stats(explore_length_key="median exp steps", exploit_length_key="median scav steps") -> PostParsedDatasetStats:
-    """
-    Returns the necessary information for extraction of features relative to vanilla, as required by
-    behavioral.FeatureExtractor._extract_relative_features.
-    cf. behavioral.data_classes.PostparsedDataset.get_stats
-    """
-    
-    step_counter_dict = FilesHandler().vanilla_step_counter
-    step_counter = Counter({tuple(json.loads(key)): orig for key, orig in step_counter_dict.items()})
-
-    covered_steps = set(step_counter.keys())
-
-    gallery_counter_dict = FilesHandler().vanilla_gallery_counter
-    gallery_counter = Counter({int(key): orig for key, orig in gallery_counter_dict.items()})
-
-    covered_galleries = set(gallery_counter.keys())
-
-    giant_component = FilesHandler().vanilla_giant_component
-    giant_component = {tuple(node) for node in giant_component}
-
-    vanilla_features = get_vanilla_features()
-    median_exploit_mean = vanilla_features[exploit_length_key].mean()
-    median_exploit_std = vanilla_features[exploit_length_key].std()
-    median_explore_mean = vanilla_features[explore_length_key].mean()
-    median_explore_std = vanilla_features[explore_length_key].std()
-    stats = PostParsedDatasetStats(
-        steps_not_uniquely_covered=list(covered_steps),
-        n_times_step_taken=step_counter,
-        galleries_not_uniquely_covered=list(covered_galleries),
-        n_times_gallery_saved=gallery_counter,
-        giant_component=giant_component,
-        median_explore_mean=median_explore_mean,
-        median_explore_std=median_explore_std,
-        median_exploit_mean=median_exploit_mean,
-        median_exploit_std=median_exploit_std)
-
-    return stats
 
 
 def get_shape_binary_matrix(shape_id):
