@@ -5,6 +5,7 @@ import os
 import json
 import numpy as np
 import pandas as pd
+import sys
 
 TEST_FILES_DIR = os.path.join(Path(__file__).parent, "test_files")
 CONFIG_FILENAME = "config.yml"
@@ -42,6 +43,26 @@ def test_downloader(test_dir):
             col = raw[col_name].astype(str).str.replace(", ", ",")
             assert test_col.equals(col), f"{col_name} comparison failed"
 
+def _print_diff(df, test_comp_df, col_name, print_cols=None, allow_deviations=False):
+    if not allow_deviations:
+        diff_mask = df[col_name] != test_comp_df[col_name]
+    else:
+        diff_mask = ~np.isclose(df[col_name], test_comp_df[col_name], equal_nan=True)
+    if print_cols is None:
+        print_cols = [col_name]
+    print(f"Difference in column {col_name}:", file=sys.stderr)
+    print(df[diff_mask][print_cols], file=sys.stderr)
+    print(test_comp_df[diff_mask][print_cols], file=sys.stderr)
+
+def _assert_col_equality(df, test_comp_df, col_name, print_cols=None):
+    if not df[col_name].equals(test_comp_df[col_name]):
+        _print_diff(df, test_comp_df, col_name, print_cols=print_cols)
+        assert False, f"{col_name} comparison failed"
+
+def _assert_col_allclose(df, test_comp_df, col_name, print_cols=None):
+    if not np.allclose(df[col_name], test_comp_df[col_name], equal_nan=True):
+        _print_diff(df, test_comp_df, col_name, allow_deviations=True, print_cols=print_cols)
+        assert False, f"{col_name} comparison failed"
 
 def _compare_parsed(parsed, test_dir):
     with open(os.path.join(test_dir, TEST_PARSED_FILENAME), "r") as test_parsed_fp:
@@ -51,9 +72,9 @@ def _compare_parsed(parsed, test_dir):
     test_parsed_df = pd.DataFrame(test_parsed)
     parsed_df = pd.DataFrame(parsed)
     from CFGpy.behavioral._consts import PARSED_PLAYER_ID_KEY, PARSED_TIME_KEY, PARSED_ALL_SHAPES_KEY
-    assert test_parsed_df[PARSED_PLAYER_ID_KEY].equals(parsed_df[PARSED_PLAYER_ID_KEY])
-    assert np.allclose(test_parsed_df[PARSED_TIME_KEY], parsed_df[PARSED_TIME_KEY])
-    assert test_parsed_df[PARSED_ALL_SHAPES_KEY].equals(parsed_df[PARSED_ALL_SHAPES_KEY])
+    _assert_col_equality(test_parsed_df, parsed_df, PARSED_PLAYER_ID_KEY, print_cols=[PARSED_PLAYER_ID_KEY,PARSED_TIME_KEY])
+    _assert_col_allclose(test_parsed_df, parsed_df, PARSED_TIME_KEY, print_cols=[PARSED_PLAYER_ID_KEY,PARSED_TIME_KEY])
+    _assert_col_equality(test_parsed_df, parsed_df, PARSED_ALL_SHAPES_KEY, print_cols=[PARSED_PLAYER_ID_KEY,PARSED_ALL_SHAPES_KEY])
     # TODO: after parser handles chosen shapes, compare those too
 
 
@@ -95,6 +116,21 @@ def test_parser_conversion_to_new_format(test_dir):
 
     _compare_parsed(converted_to_new_format, test_dir)
 
+def _print_json_diff(json_ref, json_comp):
+    # jsons are assumed to be list of games, each game has "id", "absolute start time" float and "actions" - list of actions.
+    if len(json_ref) != len(json_comp):
+        print(f"Different number of games: {len(json_ref)} in expected data vs {len(json_comp)} in code run", file=sys.stderr)
+    for game_idx, (game_ref, game_comp) in enumerate(zip(json_ref, json_comp)):
+        if game_ref["id"] != game_comp["id"]:
+            print(f"Game {game_idx} has different id: {game_ref['id']} in expected data vs {game_comp['id']} in code run", file=sys.stderr)
+        if not np.isclose(game_ref["absolute start time"], game_comp["absolute start time"], equal_nan=True):
+            print(f"Game {game_idx} has different absolute start time: {game_ref['absolute start time']} in expected data vs {game_comp['absolute start time']} in code run", file=sys.stderr)
+        if len(game_ref["actions"]) != len(game_comp["actions"]):
+            print(f"Game {game_idx} has different number of actions: {len(game_ref['actions'])} in expected data vs {len(game_comp['actions'])} in code run", file=sys.stderr)
+        for action_idx, (action_ref, action_comp) in enumerate(zip(game_ref["actions"], game_comp["actions"])):
+            if action_ref != action_comp:
+                print(f"Game {game_idx}, action {action_idx} is different: {action_ref} in expected data vs {action_comp} in code run", file=sys.stderr)
+
 
 @pytest.mark.parametrize("test_dir", test_dirs)
 def test_postparser(test_dir):
@@ -111,19 +147,31 @@ def test_postparser(test_dir):
         postparsed = postparsed_fp.read()
 
     if test_postparsed != postparsed:
+        _print_json_diff(json.loads(test_postparsed), json.loads(postparsed))
         # avoid asserting the str comparison, because if it fails python tries printing the strings and takes too long
         assert False
+
+def _assert_ids_match(df, test_comp_df, id_col_name):
+    ids = set(df[id_col_name])
+    test_ids = set(test_comp_df[id_col_name])
+    if ids != test_ids:
+        print(f"ID mismatch:\n", file=sys.stderr)
+        print(f"IDs in code run but not in expected data: {'\n'.join(ids - test_ids)}", file=sys.stderr)
+        print(f"IDs in expected data but not in code run: {'\n'.join(test_ids - ids)}", file=sys.stderr)
+        assert False, "ID mismatch"
+
 
 def _compare_features(test_dir, features_filename):
     test_features = pd.read_csv(os.path.join(test_dir, TEST_FEATURES_FILENAME)).sort_values("ID").reset_index(drop=True)
     features = pd.read_csv(features_filename).sort_values("ID").reset_index(drop=True)
+    _assert_ids_match(features, test_features, "ID")
     assert len(test_features) == len(features), f"{len(features)} subjects instead of {len(test_features)}"
     for col in test_features:
-        assert col in features, f"missing feature {col}"
+        assert col in features.columns, f"missing feature {col}"
         if test_features[col].dtype == "float64":
-            assert np.allclose(test_features[col], features[col], equal_nan=True), f"{col} comparison failed"
+            _assert_col_allclose(features, test_features, col, print_cols=["ID", col])
         elif col != "Date/Time":  # date/time causes problems with subjects that played during daylight saving
-            assert test_features[col].equals(features[col]), f"{col} comparison failed"
+            _assert_col_equality(features, test_features, col, print_cols=["ID", col])
 
 
 @pytest.mark.parametrize("test_dir", test_dirs)
