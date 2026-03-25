@@ -19,7 +19,8 @@ from CFGpy.behavioral._consts import (FEATURES_ID_KEY, FEATURES_START_TIME_KEY, 
                                       GAME_LENGTH_EXCLUSION_REASON, GAME_DURATION_EXCLUSION_REASON,
                                       PAUSE_EXCLUSION_REASON, SAMPLE_RELATIVE_FEATURES_LABEL, G_KEY, ALPHA_KEY)
 from CFGpy.behavioral import Configuration
-from CFGpy.behavioral._utils import load_json, is_semantic_connection, resolve_path
+from CFGpy.behavioral._utils import (load_json, is_semantic_connection, resolve_path, median_handle_empty as median,
+                                     mean_handle_empty as mean)
 from functools import reduce
 from scipy.stats import zscore
 from CFGpy.utils import step_orig_map_factory, gallery_orig_map_factory
@@ -45,7 +46,7 @@ class FeatureExtractor:
         self.all_absolute_features = None
         self.output_df = None
         self.exclusions = pd.DataFrame(columns=[FEATURES_ID_KEY, EXCLUSION_REASON_KEY])
-    
+
     @classmethod
     def from_json(cls, path: str, config=Configuration.default()):
         return cls(preprocessed_data=load_json(path), config=config)
@@ -65,11 +66,11 @@ class FeatureExtractor:
         return self.output_df
 
     def dump(self, name: str = None, path: str = None, with_config=True, with_exclusions=True):
-        path = resolve_path(name=name, path=path,default_suffix=DEFAULT_FINAL_OUTPUT_FILENAME)
+        path = resolve_path(name=name, path=path, default_suffix=DEFAULT_FINAL_OUTPUT_FILENAME)
 
         self.output_df.to_csv(path, index=False)  # reorder columns
         if with_exclusions:
-            exclusions_path = f"{name}_exclusions.csv" if name else path.replace(".csv","") + "_exclusions.csv"
+            exclusions_path = f"{name}_exclusions.csv" if name else path.replace(".csv", "") + "_exclusions.csv"
             self.exclusions.to_csv(exclusions_path, index=False)
         if with_config:
             self.config.to_yaml(path.replace(".csv", ""))
@@ -195,8 +196,8 @@ class FeatureExtractor:
                 N_CLUSTERS_KEY: len(player_data.exploit_slices),
                 EXPLORE_EFFICIENCY_KEY: explore_efficiency,
                 EXPLOIT_EFFICIENCY_KEY: exploit_efficiency,
-                MEDIAN_EXPLORE_LENGTH_KEY: np.median(explore_lengths),
-                MEDIAN_EXPLOIT_LENGTH_KEY: np.median(exploit_lengths),
+                MEDIAN_EXPLORE_LENGTH_KEY: median(explore_lengths),
+                MEDIAN_EXPLOIT_LENGTH_KEY: median(exploit_lengths),
                 LONGEST_PAUSE_KEY: player_data.get_max_pause_duration()
             })
 
@@ -229,7 +230,7 @@ class FeatureExtractor:
         if verbose:
             print(RELATIVE_FEATURES_MESSAGE.format(label_ext))
             iterator = tqdm(iterator)
-        player_data : PostparsedPlayerData = None # for type hinting, can be removed without affecting functionality
+        player_data: PostparsedPlayerData = None  # for type hinting, can be removed without affecting functionality
         relative_features = []
         for player_data in iterator:
             steps = player_data.get_steps()
@@ -252,17 +253,17 @@ class FeatureExtractor:
                 med_explore_z = (med_explore_length - stats.median_explore_mean) / stats.median_explore_std
                 factor = 1 / (2 ** 0.5)  # to keep the result similar to the PCA computation
                 g = -1 * (
-                            factor * med_explore_z + factor * med_exploit_z)  # low steps -> high switching rate
+                        factor * med_explore_z + factor * med_exploit_z)  # low steps -> high switching rate
                 alpha = factor * med_exploit_z - factor * med_explore_z
 
             relative_features.append({
                 FEATURES_ID_KEY: player_data.id,
-                f"{STEP_ORIG_KEY}{label_ext}": np.mean(step_orig),
+                f"{STEP_ORIG_KEY}{label_ext}": mean(step_orig),
                 f"{FRACTION_STEPS_UNIQUELY_COVERED_KEY}{label_ext}":
                     _get_frac_uniquely_covered(steps, steps_not_uniquely_covered),
-                f"{GALLERY_ORIG_KEY}{label_ext}": np.mean(gallery_orig),
-                f"{GALLERY_ORIG_EXPLORE_KEY}{label_ext}": np.mean(gallery_orig[is_explore_given_gallery]),
-                f"{GALLERY_ORIG_EXPLOIT_KEY}{label_ext}": np.mean(gallery_orig[is_exploit_given_gallery]),
+                f"{GALLERY_ORIG_KEY}{label_ext}": mean(gallery_orig),
+                f"{GALLERY_ORIG_EXPLORE_KEY}{label_ext}": mean(gallery_orig[is_explore_given_gallery]),
+                f"{GALLERY_ORIG_EXPLOIT_KEY}{label_ext}": mean(gallery_orig[is_exploit_given_gallery]),
                 f"{FRACTION_GALLERIES_UNIQUELY_COVERED_KEY}{label_ext}":
                     _get_frac_uniquely_covered(gallery_ids, galleries_not_uniquely_covered),
                 f"{FRACTION_GALLERIES_UNIQUELY_COVERED_EXPLORE_KEY}{label_ext}":
@@ -283,7 +284,8 @@ class FeatureExtractor:
         is_dropped = self.output_df[GAME_DURATION_KEY] < self.config.MAX_IGNORED_GAME_DURATION_SEC
         # if we removed all games of a player, we need to update the exclusions
         # we first check for ids that are now completely excluded with a boolean mask
-        excluded_ids_mask = self.output_df.groupby(FEATURES_ID_KEY)[GAME_DURATION_KEY].max() < self.config.MAX_IGNORED_GAME_DURATION_SEC
+        excluded_ids_mask = self.output_df.groupby(FEATURES_ID_KEY)[
+                                GAME_DURATION_KEY].max() < self.config.MAX_IGNORED_GAME_DURATION_SEC
         # now we take the FEATURES_ID_KEY values for which the mask is True, which means all their games are dropped
         ids_now_excluded = excluded_ids_mask[excluded_ids_mask].index
         # update the exclusions table
@@ -291,5 +293,3 @@ class FeatureExtractor:
         # drop the short games for both excluded participants and the rest
         self.input_data.filter(~is_dropped)
         self.output_df = self.output_df.loc[~is_dropped].reset_index(drop=True)
-
-

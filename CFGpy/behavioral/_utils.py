@@ -328,3 +328,16 @@ def missing_str_field(series: pd.Series, possible_missing_strs=("null", "nan", "
     # add "null", "nan" and "none" (case-insensitive):
     missing_mask |= series.str.lower().isin(possible_missing_strs)
     return missing_mask
+
+
+def median_handle_empty(arr):
+    arr = np.array(arr)
+    if arr.size == 0:
+        return np.nan
+    return np.median(arr)
+
+def mean_handle_empty(arr):
+    arr = np.array(arr)
+    if arr.size == 0:
+        return np.nan
+    return np.mean(arr)

@@ -9,7 +9,7 @@ import networkx as nx
 from CFGpy.behavioral._consts import (PARSED_PLAYER_ID_KEY, PARSED_TIME_KEY, PARSED_ALL_SHAPES_KEY,
                                       PARSED_CHOSEN_SHAPES_KEY, EXPLORE_KEY, EXPLOIT_KEY)
 from CFGpy.behavioral import Configuration
-from CFGpy.behavioral._utils import is_semantic_connection, load_json
+from CFGpy.behavioral._utils import is_semantic_connection, load_json, median_handle_empty as median
 from CFGpy.utils import  FilesHandler, get_vanilla_features
 
 
@@ -117,7 +117,7 @@ class PostparsedPlayerData(ParsedPlayerData):
         if not gallery_indices.size:
             return np.nan, np.nan
 
-        actual_path_lengths = np.diff(gallery_indices, prepend=0)
+        actual_path_lengths = np.diff(gallery_indices, prepend=-1 if gallery_indices[0] == 0 else 0)
         gallery_ids = self.shapes_df.iloc[gallery_indices, self.config.SHAPE_ID_IDX]
         shortest_path_lengths = ([get_shortest_path_len(self.config.FIRST_SHAPE_ID, gallery_ids.iloc[0])] +
                                  [get_shortest_path_len(shape1, shape2) for shape1, shape2 in pairwise(gallery_ids)])
@@ -135,8 +135,7 @@ class PostparsedPlayerData(ParsedPlayerData):
                 explore_efficiencies.append(efficiency)
             else:
                 exploit_efficiencies.append(efficiency)
-
-        return np.median(explore_efficiencies), np.median(exploit_efficiencies)
+        return median(explore_efficiencies), median(exploit_efficiencies)
 
     def get_exploit_clusters(self):
         is_gallery = self.get_gallery_mask()
