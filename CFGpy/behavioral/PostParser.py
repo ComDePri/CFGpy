@@ -4,6 +4,7 @@ from CFGpy.behavioral._consts import (PARSED_ALL_SHAPES_KEY, PARSED_PLAYER_ID_KE
                                       INVALID_SHAPE_ERROR, NOT_A_NEIGHBOR_ERROR, POSTPARSER_OUTPUT_FILENAME)
 from CFGpy.behavioral import Configuration
 from CFGpy.utils import FilesHandler
+from CFGpy.behavioral._logging import HasLogger
 
 
 def is_valid_transition(shape1: int, shape2: int) -> bool:
@@ -18,8 +19,9 @@ def is_valid_transition(shape1: int, shape2: int) -> bool:
     return shape1 == shape2 or FilesHandler().shape_network.has_edge(shape1, shape2)
 
 
-class PostParser:
-    def __init__(self, *, parsed_data, config: Configuration = None):
+class PostParser(HasLogger):
+    def __init__(self, *, parsed_data, config: Configuration = None, logger=None):
+        super().__init__(logger)
         self.all_players_data = parsed_data
         self.config = config or Configuration.default()
 
@@ -52,7 +54,7 @@ class PostParser:
                     raise CFGPipelineException(INVALID_SHAPE_ERROR.format(shape_binary_repr, player_id))
 
                 if i > 0 and not is_valid_transition(shapes[i - 1][self.config.SHAPE_ID_IDX], shape_id):
-                    print(CFGPipelineException(NOT_A_NEIGHBOR_ERROR.format(i - 1, i, player_id)))
+                    self.log_warning(str(CFGPipelineException(NOT_A_NEIGHBOR_ERROR.format(i - 1, i, player_id))))
                     # the exception is printed and not raised because many gaps are actually in the source data
 
     def handle_empty_moves(self):

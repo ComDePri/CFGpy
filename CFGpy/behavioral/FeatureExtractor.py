@@ -21,9 +21,11 @@ from CFGpy.behavioral._consts import (FEATURES_ID_KEY, FEATURES_START_TIME_KEY, 
 from CFGpy.behavioral import Configuration
 from CFGpy.behavioral._utils import (load_json, is_semantic_connection, resolve_path, median_handle_empty as median,
                                      mean_handle_empty as mean)
+from CFGpy.behavioral._logging import HasLogger
 from functools import reduce
 from scipy.stats import zscore
 from CFGpy.utils import step_orig_map_factory, gallery_orig_map_factory
+
 from tqdm import tqdm
 
 
@@ -39,8 +41,9 @@ def _get_frac_uniquely_covered(player_objects, objects_not_uniquely_covered):
     return frac_uniquely_covered
 
 
-class FeatureExtractor:
-    def __init__(self, *, preprocessed_data, config: Configuration = None):
+class FeatureExtractor(HasLogger):
+    def __init__(self, *, preprocessed_data, config: Configuration = None, logger=None):
+        super().__init__(logger)
         self.input_data = PostparsedDataset(input_data=preprocessed_data, config=config)
         self.config = config if config is not None else Configuration.default()
         self.all_absolute_features = None
@@ -51,18 +54,29 @@ class FeatureExtractor:
     def from_json(cls, path: str, config=Configuration.default()):
         return cls(preprocessed_data=load_json(path), config=config)
 
+    def _log_missing_values(self):
+        # check for NaN values in the output_df and log a warning for each column that contains them, with the number of NaN values in that column, and the player IDs for which the NaN values appear
+        for column in self.output_df.columns:
+            n_missing = self.output_df[column].isna().sum()
+            if n_missing > 0:
+                missing_ids = self.output_df.loc[self.output_df[column].isna(), FEATURES_ID_KEY].tolist()
+                self.log_warning(f"Column '{column}' contains {n_missing} missing values for player IDs: {missing_ids}. Consider investigating the cause of these missing values and whether they should be imputed or lead to exclusion of the affected players.")
+
     def extract(self, verbose=False):
         self.all_absolute_features = self._extract_absolute_features(verbose)
         self.output_df = self.all_absolute_features.copy()
         # remove very short games before keeping only the first game per player
         self._drop_short_games()
+        self.log_info("Keeping only the first game per player...")
         self._drop_nonfirst_games()
         vanilla_relative_features = self._extract_relative_features(get_vanilla_stats(), verbose=verbose)
         self.output_df = self.output_df.merge(vanilla_relative_features, on=FEATURES_ID_KEY)
+        self.log_info(f"Applying soft filters...")
         self._apply_soft_filters()
         sample_relative_features = self._extract_relative_features(self.input_data.get_stats(), verbose=verbose,
                                                                    label=SAMPLE_RELATIVE_FEATURES_LABEL)
         self.output_df = self.output_df.merge(sample_relative_features, on=FEATURES_ID_KEY, how="left")
+        self._log_missing_values()
         return self.output_df
 
     def dump(self, name: str = None, path: str = None, with_config=True, with_exclusions=True):
@@ -94,6 +108,11 @@ class FeatureExtractor:
         Keeps only the first game from each player. Allows functions downstream to assume unique IDs.
         """
         self.input_data.drop_non_first_games()
+        # check all IDs for which we find more than one game, and log a warning for each of them, since this is not expected but we want to be robust to it anyway
+        id_counts = self.output_df[FEATURES_ID_KEY].value_counts()
+        non_unique_ids = id_counts[id_counts > 1].index
+        for user_id in non_unique_ids:
+            self.log_warning(f"Found multiple games for player id {user_id} in the data. Only the first game will be kept for further processing.")
         self.output_df = (self.output_df.
                           sort_values(by=[FEATURES_START_TIME_KEY], ascending=True).
                           drop_duplicates(subset=[FEATURES_ID_KEY], keep="first").
@@ -103,13 +122,23 @@ class FeatureExtractor:
         """
         Applies absolute filters first, then sample-relative filters with the remaining sample.
         """
-        for filter_getter in (self._get_absolute_filters, self._get_sample_relative_filters):
+        for filter_getter, filters_cat in zip((self._get_absolute_filters, self._get_sample_relative_filters),("absolute filters", "sample-relative filters")):
+            unfiltered_df = self.output_df.copy() # for logging purposes
+            self.log_info(f"Applying {filters_cat}...")
             masks, reasons = filter_getter()
             self._update_exclusion_info(masks, reasons)
             is_excluded = reduce(np.logical_or, masks)
-
+            self.log_info(f"Excluding {is_excluded.sum()} players based on {filters_cat}...")
             self.input_data.filter(~is_excluded)
             self.output_df = self.output_df.loc[~is_excluded].reset_index(drop=True)
+            # log filtering
+            for reason, mask in zip(reasons, masks):
+                n_excluded = mask.sum()
+                self.log_info(f"Found {n_excluded} to-be-excluded players based on filter: {reason}...")
+                if n_excluded > 0:
+                    excluded_ids = unfiltered_df.loc[mask, FEATURES_ID_KEY].tolist()
+                    self.log_info(f"Excluded player IDs for reason '{reason}': {excluded_ids}")
+
 
     def _get_absolute_filters(self):
         """
@@ -165,8 +194,8 @@ class FeatureExtractor:
         total_exploit_lengths = []
 
         iterator = self.input_data
+        self.log_info(ABSOLUTE_FEATURES_MESSAGE)
         if verbose:
-            print(ABSOLUTE_FEATURES_MESSAGE)
             iterator = tqdm(iterator)
 
         absolute_features = []
@@ -227,8 +256,8 @@ class FeatureExtractor:
                                                     d=self.config.GALLERY_ORIG_N_CATEGORIES)
 
         iterator = self.input_data
+        self.log_info(RELATIVE_FEATURES_MESSAGE.format(label_ext))
         if verbose:
-            print(RELATIVE_FEATURES_MESSAGE.format(label_ext))
             iterator = tqdm(iterator)
         player_data: PostparsedPlayerData = None  # for type hinting, can be removed without affecting functionality
         relative_features = []
@@ -281,6 +310,8 @@ class FeatureExtractor:
     def _drop_short_games(self):
         if self.config.MAX_IGNORED_GAME_DURATION_SEC <= 0:
             return
+        self.log_info(
+            f"Dropping short games below 'MAX_IGNORED_GAME_DURATION_SEC'={self.config.MAX_IGNORED_GAME_DURATION_SEC} seconds...")
         is_dropped = self.output_df[GAME_DURATION_KEY] < self.config.MAX_IGNORED_GAME_DURATION_SEC
         # if we removed all games of a player, we need to update the exclusions
         # we first check for ids that are now completely excluded with a boolean mask

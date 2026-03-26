@@ -5,20 +5,22 @@ from CFGpy.behavioral._consts import DEFAULT_FINAL_OUTPUT_FILENAME, RM1, RM1_NAS
     UNSUPPORTED_DATA_SOURCE_ERROR, APPSync, VALID_DATA_SOURCES, LOCAL, ARG_TO_CONF_MAP, DATA_SOURCE_ARG, GAME_NAME_ARG, \
     GAME_ID_ARG, GAME_VERSION_IDS_ARG, BEFORE_DATE_ARG, AFTER_DATE_ARG, EVENTS_CSV_PATH_ARG
 from CFGpy.behavioral._utils import CFGPipelineException
+from CFGpy.behavioral._logging import build_pipeline_logger, HasLogger
 
-
-class Pipeline:
+class Pipeline(HasLogger):
     def __init__(self, game_name: str | None = None, game_id: str | None = None,
                  game_version_ids: list[str] | None = None,
                  output_filename=DEFAULT_FINAL_OUTPUT_FILENAME, config: Configuration = None,
-                 input_events_csv_path: str | None = None) -> None:
-
+                 input_events_csv_path: str | None = None, verbose=True) -> None:
+        self.output_filename = output_filename
+        logger = build_pipeline_logger(self.output_filename, verbose=verbose)
+        super().__init__(logger)
         self._game_name = game_name
         self._game_id: str = game_id
         self._game_version_ids = game_version_ids
         self._input_events_csv_path = input_events_csv_path
 
-        self.output_filename = output_filename
+
         self.config = config or Configuration.default()
 
         self.data_retriever = None
@@ -29,6 +31,8 @@ class Pipeline:
         self.postparsed_data = None
         self.feature_extractor: FeatureExtractor = None
         self.features_df = None
+        self.verbose = verbose
+
 
     def _get_now_str(self) -> str:
         """
@@ -57,19 +61,19 @@ class Pipeline:
         if self.config.DATA_SOURCE == RM1_NAS_DUMP:
             return RM1DumpDataRetriever(game_name=self._game_name, game_id=self._game_id,
                                         game_version_ids=self._game_version_ids, config=self.config,
-                                        output_filename=self.output_filename)
+                                        output_filename=self.output_filename, logger=self.logger)
         elif self.config.DATA_SOURCE == RM2:
             return RedMetrics2DataRetriever(game_name=self._game_name, game_id=self._game_id, config=self.config,
-                                            output_filename=self.output_filename)
+                                            output_filename=self.output_filename, logger=self.logger)
         elif self.config.DATA_SOURCE == RM1:
             return RedMetrics1Downloader(csv_url=self.config.RED_METRICS_CSV_URL, config=self.config,
-                                         output_filename=self.output_filename)
+                                         output_filename=self.output_filename, logger=self.logger)
         elif self.config.DATA_SOURCE == APPSync:
             return CFGAppSyncDataRetriever(game_name=self._game_name, game_id=self._game_id, config=self.config,
-                                           output_filename=self.output_filename)
+                                           output_filename=self.output_filename, logger=self.logger)
         elif self.config.DATA_SOURCE == LOCAL:
             return LocalDataRetriever(config=self.config, output_filename=self.output_filename,
-                                      events_csv_path=self._input_events_csv_path)
+                                      events_csv_path=self._input_events_csv_path, logger=self.logger)
         else:
             raise ValueError(UNSUPPORTED_DATA_SOURCE_ERROR.format(self.config.DATA_SOURCE))
 
@@ -92,19 +96,17 @@ class Pipeline:
 
         self.data_retriever = self._get_data_retriever()
         self._add_input_params_to_config()
-
-        if verbose:
-            print("Retrieving raw data...")
+        self.logger.info("Retrieving data...")
 
         self.raw_data = self._retrieve_data(verbose=verbose)
-        self.data_retriever.dump(verbose=verbose)
+        self.data_retriever.dump()
 
     def _parse(self):
         """
         This method contains the parsing process exclusively. This can be overridden by deriving classes.
         :return: parsed data
         """
-        self.parser = Parser(raw_data=self.raw_data, config=self.config)
+        self.parser = Parser(raw_data=self.raw_data, config=self.config, logger=self.logger)
         return self.parser.parse()
 
     def parse(self, verbose):
@@ -117,9 +119,8 @@ class Pipeline:
             raise CFGPipelineException("Raw data has to be retrieved before parsing")
         if self.parsed_data is not None:
             raise CFGPipelineException("Data already parsed")
+        self.log_info("Parsing data...")
 
-        if verbose:
-            print("Parsing...")
         self.parsed_data = self._parse()
         self.parser.dump(name=self.output_filename, with_config=False, pretty=self.config.PRETTIFY_PARSER_OUPUT)
 
@@ -128,7 +129,7 @@ class Pipeline:
         This method contains the post-parsing process exclusively. This can be overridden by deriving classes.
         :return: post-parsed data
         """
-        self.postparser = PostParser(parsed_data=self.parsed_data, config=self.config)
+        self.postparser = PostParser(parsed_data=self.parsed_data, config=self.config, logger=self.logger)
         postparsed = self.postparser.postparse()
         self.postparser.dump(name=self.output_filename, with_config=False, pretty=self.config.PRETTIFY_PARSER_OUPUT)
         return postparsed
@@ -143,13 +144,11 @@ class Pipeline:
             raise CFGPipelineException("Data has to be parsed before post-parsing (duh!)")
         if self.postparsed_data is not None:
             raise CFGPipelineException("Data already post-parsed")
-
-        if verbose:
-            print("Post-parsing...")
+        self.log_info("Post-parsing data...")
         self.postparsed_data = self._postparse()
 
     def _extract_features(self, verbose):
-        self.feature_extractor = FeatureExtractor(preprocessed_data=self.postparsed_data, config=self.config)
+        self.feature_extractor = FeatureExtractor(preprocessed_data=self.postparsed_data, config=self.config, logger=self.logger)
         return self.feature_extractor.extract(verbose)
 
     def extract_features(self, verbose):
@@ -157,21 +156,17 @@ class Pipeline:
             raise CFGPipelineException("Data has to be post-parsed before feature extraction")
         if self.features_df is not None:
             raise CFGPipelineException("Features already extracted")
-
-        if verbose:
-            print("Calculating measures...")
+        self.log_info("Calculating measures...")
 
         self.features_df = self._extract_features(verbose)
         features_path = self.feature_extractor.dump(name=self.output_filename, with_exclusions=True, with_config=False)
+        self.log_info(f"Results written to: {features_path}")
 
-        if verbose:
-            print(f"Results written successfully to: {features_path}")
-
-    def run_pipeline(self, verbose=True):
-        self.retrieve_data(verbose=verbose)
-        self.parse(verbose=verbose)
-        self.postparse(verbose=verbose)
-        self.extract_features(verbose=verbose)
+    def run_pipeline(self):
+        self.retrieve_data(verbose=self.verbose)
+        self.parse(verbose=self.verbose)
+        self.postparse(verbose=self.verbose)
+        self.extract_features(verbose=self.verbose)
         return self.features_df
 
 
@@ -213,7 +208,8 @@ def main():
     argparser.add_argument(f"--{EVENTS_CSV_PATH_ARG}",
                            help='The path to the events CSV file. Only needed if the data source is Local or if you want to provide a custom path to the events CSV file instead of providing it in the config.')
     argparser.add_argument("-o", "--output", default="cfg", dest="output_filename",
-                           help='Filename of output files.')
+                           help='Filename of output files. This filename will be used as a prefix for all output files generated by the pipeline. The final features dataframe will be saved as <output_filename>_features.csv. Default is "cfg".')
+    argparser.add_argument("-v", "--verbose", action="store_true", help="Whether to print info during the pipeline run. Default is False.")
     args = argparser.parse_args()
 
     config: Configuration | None = Configuration.from_yaml(
@@ -223,7 +219,7 @@ def main():
         config.DATA_SOURCE = arg_data_source  # set data source early to allow validation of other args
     config = update_config_with_args(config, args)  # keep config as single source of truth for downstream usage
 
-    pl = Pipeline(output_filename=args.output_filename, config=config)
+    pl = Pipeline(output_filename=args.output_filename, config=config, verbose=args.verbose)
 
     pl.run_pipeline()
 

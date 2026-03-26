@@ -4,10 +4,12 @@ import pandas as pd
 from pandas import Timestamp
 from CFGpy.behavioral import Configuration
 from CFGpy.behavioral._consts import DATA_RETRIEVER_OUTPUT_FILENAME, MULTIPLE_DATA_RETRIEVER_INPUTS_ERROR, NO_DATA_RETRIEVER_INPUT_ERROR
+from CFGpy.behavioral._logging import HasLogger
 
 
-class DataRetriever(ABC):
-    def __init__(self, *, game_name: str | None = None, game_id: str | None = None, output_filename: str = DATA_RETRIEVER_OUTPUT_FILENAME, config: Configuration = None) -> None:
+class DataRetriever(HasLogger,ABC):
+    def __init__(self, *, game_name: str | None = None, game_id: str | None = None, output_filename: str = DATA_RETRIEVER_OUTPUT_FILENAME, config: Configuration = None, logger=None) -> None:
+        super().__init__(logger)
         self._game_name = game_name or config.GAME_NAME
         self._game_id: str = game_id or config.GAME_ID
         self._output_filename = output_filename
@@ -41,8 +43,8 @@ class DataRetriever(ABC):
         if not time_col:
             return df
 
-        if verbose:
-            print(f"Filtering data by date using column '{time_col}'...")
+        self.log_info(f"Attempting to filter data by date using column '{time_col}' with after={after} and before={before}.")
+
 
         # Coerce to datetime; keep original column untouched.
         series = pd.to_datetime(df[time_col], errors="coerce", utc=True)
@@ -50,14 +52,11 @@ class DataRetriever(ABC):
 
         if after is not None:
             mask &= series >= after
-            if verbose:
-                print(f"Filtering from {after} onwards...")
+            self.log_info(f"Filtering from {after} onwards...")
         if before is not None:
             mask &= series <= before
-            if verbose:
-                print(f"Filtering until {before}...")
-        if verbose:
-            print(f"Filtered from {len(df)} rows to {mask.sum()} rows by date.")
+            self.log_info(f"Filtering until {before}...")
+        self.log_info(f"Filtered from {len(df)} rows to {mask.sum()} rows by date.")
         return df.loc[mask].reset_index(drop=True).copy()
 
     def _to_ts(self, s: str) -> pd.Timestamp:
@@ -103,13 +102,12 @@ class DataRetriever(ABC):
 
         return None
 
-    def dump(self, verbose: Optional[bool] = False) -> None:
+    def dump(self) -> None:
 
         if self._retrieved_df is None:
             raise ValueError("No data to dump. Run retrieve_data() first.")
 
         self._retrieved_df.to_csv(self.output_path, index=False)
-        if verbose:
-            print(f"Wrote CSV to {self.output_path}")
+        self.log_info(f"Wrote data to: {self.output_path}")
 
         self._config.to_yaml(self._output_filename)

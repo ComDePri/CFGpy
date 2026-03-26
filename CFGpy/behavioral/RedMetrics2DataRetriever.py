@@ -10,7 +10,7 @@ from CFGpy.behavioral import Configuration, DataRetriever
 
 class RedMetrics2DataRetriever(DataRetriever):
     def __init__(self, *, game_name: str | None = None, game_id: str | None = None, output_filename: str = DATA_RETRIEVER_OUTPUT_FILENAME, 
-                 config: Configuration = None) -> None:
+                 config: Configuration = None, logger = None) -> None:
         """
         Init a RedMetrics2DataRetriever object.
         :param game_id: The game name of the game whose data you want to retrieve from RedMetrics2.
@@ -19,7 +19,7 @@ class RedMetrics2DataRetriever(DataRetriever):
         :param config: a Configuration file.
         """
         super().__init__(game_name=game_name, game_id=game_id, output_filename=output_filename, 
-                         config=config if config is not None else Configuration.default())
+                         config=config if config is not None else Configuration.default(), logger=logger)
         self._validate_input(input=[game_id, game_name, self._config.GAME_ID, self._config.GAME_NAME])
         self._validate_config()
         self._retrieved_events_json = []
@@ -55,9 +55,8 @@ class RedMetrics2DataRetriever(DataRetriever):
 
     
     def _login_to_session(self, email: str, password: str, verbose: Optional[bool] = False) -> None:
-        
-        if verbose:
-            print("Logging into RedMetrics2...")
+        self.log_info("Logging into RedMetrics2...")
+
             
         login_url: str = "https://api.creativeforagingtask.com/v2/login"
         login_data: dict = {
@@ -68,15 +67,12 @@ class RedMetrics2DataRetriever(DataRetriever):
         response = self.session.post(login_url, data=login_data)
 
         if response.status_code == 200:
-            if verbose:
-                print("Successfully logged into RedMetrics2.")
+            self.log_info("Successfully logged into RedMetrics2.")
         else:
-            print(f"Login failed: {response.text}")
+            self.log_error(f"Failed to log into RedMetrics2: {response.status_code} - {response.text}")
 
     def _download_data_from_rm2(self, verbose: Optional[bool] = False) -> dict:
-        
-        if verbose:
-            print("Downloading data from RedMetrics2...")
+        self.log_info("Downloading data from RedMetrics2...")
         
         if self._game_name:
             self._game_id = self._get_rm2_game_id(session=self.session, verbose=verbose)
@@ -86,29 +82,24 @@ class RedMetrics2DataRetriever(DataRetriever):
 
         if not response.status_code == 200:
             msg = f"Error: {response.status_code} - failed to download data for game: {self._game_id}."
-            print(msg)
+            self.log_error(msg)
             raise(ValueError(msg))
-        
-        if verbose:
-                print("Data downloaded successfully from RedMetrics2.")
-                
+        self.log_info("Data downloaded successfully from RedMetrics2.")
+
         return response.json()
     
     def _get_rm2_game_id(self, session: requests.Session, verbose: Optional[bool] = False) -> str:
-        if verbose:
-            print(f"Retrieving game id for {self._game_name}...")
+        self.log_info(f"Retrieving game id for {self._game_name}...")
         
         download_url: str = f"https://api.creativeforagingtask.com/v2/game"
         response = session.get(url=download_url)
 
         if not response.status_code == 200:
             msg = f"Error: {response.status_code} - failed to download all games data."
-            print(msg)
+            self.log_error(msg)
             raise(ValueError(msg))
-        
-        if verbose:
-                print("Data downloaded successfully from RedMetrics2.")
-               
+        self.log_info("Data downloaded successfully from RedMetrics2.")
+
         for game in response.json():
             if game.get('name') == self._game_name:
                 return game.get('id')
@@ -118,9 +109,8 @@ class RedMetrics2DataRetriever(DataRetriever):
     def _create_rm2_output(self, verbose: Optional[bool] = False) -> pd.DataFrame:
        
         sessions_iterator = self._retrieved_events_json.get("sessions", {})
-        
+        self.log_info("Handling events...")
         if verbose:
-            print("\nHandling events...")
             sessions_iterator = tqdm(sessions_iterator, desc="sessions")
             
         output_json: list[dict] = []
@@ -156,8 +146,7 @@ class RedMetrics2DataRetriever(DataRetriever):
         return output_json_record
 
     def _create_df(self, *, output_json: dict, verbose: Optional[bool] = False) -> pd.DataFrame:
-        if verbose:
-            print("Formatting DataFrame...")
+        self.log_info("Formatting DataFrame...")
         df = pd.DataFrame(output_json)
         self._extra_fields = set(df.columns) - set(self._config.DOWNLOADER_FIELD_ORDER)
         all_fields = self._config.DOWNLOADER_FIELD_ORDER + tuple(self._extra_fields)

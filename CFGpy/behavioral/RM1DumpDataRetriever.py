@@ -11,7 +11,7 @@ from CFGpy.utils._nas_path import get_nas_path
 class RM1DumpDataRetriever(DataRetriever):
     def __init__(self, *, game_name: str | None = None, game_id: str | None = None, game_version_ids: list[str] | None = None, 
                  output_filename: str = DATA_RETRIEVER_OUTPUT_FILENAME, config: Configuration = None,
-                 csv_directory: str = None) -> None:
+                 csv_directory: str = None, logger = None) -> None:
         """
         :param game_name: The game name of the game whose data you want to retrieve from local CSV files.
         :param game_id: The game id of the game whose data you want to retrieve from local CSV files.
@@ -21,7 +21,7 @@ class RM1DumpDataRetriever(DataRetriever):
         :param csv_directory: Directory containing the CSV files (events.csv, players.csv, games.csv, game_versions.csv)
         """
         super().__init__(game_name=game_name, game_id=game_id, output_filename=output_filename, 
-                         config=config if config is not None else Configuration.default())
+                         config=config if config is not None else Configuration.default(), logger=logger)
 
         self._validate_input(input=[game_id, game_name, game_version_ids, self._config.GAME_ID, self._config.GAME_NAME, self._config.GAME_VERSION_IDS])
         self._validate_config()
@@ -119,8 +119,7 @@ class RM1DumpDataRetriever(DataRetriever):
         game_version_ids = self.get_game_version_ids()
 
         for game_version_id in game_version_ids:
-            if verbose:
-                print(f"Fetching game_version_id={game_version_id}...")
+            self.log_info(f"Fetching game version {game_version_id}")
             
             df = self._create_df(
                 game_version_id=game_version_id,
@@ -134,9 +133,7 @@ class RM1DumpDataRetriever(DataRetriever):
                 all_dfs.append(df)
 
         result_df = pd.concat(all_dfs, ignore_index=True) if all_dfs else pd.DataFrame()
-
-        if verbose:
-            print(f"Fetched {len(result_df)} rows total from {len(game_version_ids)} game version(s).")
+        self.log_info(f"Fetched {len(result_df)} rows total from {len(game_version_ids)} game version(s).")
 
         return result_df
 
@@ -162,9 +159,7 @@ class RM1DumpDataRetriever(DataRetriever):
     def _format_df(self, *, verbose: Optional[bool] = False) -> pd.DataFrame:
         """Format the retrieved DataFrame to match expected output format"""
         if not self._retrieved_df.empty:
-            
-            if verbose:
-                print("Formatting dataframe...")
+            self.log_info(f"Formatting retrieved DataFrame to match expected output format.")
                 
             self._retrieved_df.rename(columns={
                 "gameVersion_id": "gameVersion",

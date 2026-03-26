@@ -15,7 +15,7 @@ import warnings
 
 class RedMetrics1Downloader(DataRetriever):
     def __init__(self, csv_url: str | None = None, output_filename: str = DATA_RETRIEVER_OUTPUT_FILENAME,
-                 config: Configuration = None) -> None:
+                 config: Configuration = None, logger = None) -> None:
         """
         Init a Downloader object.
         :param csv_url: Web address of the "Download all pages as CSV" in RedMetrics. Optional. If None, URL is expected
@@ -23,11 +23,14 @@ class RedMetrics1Downloader(DataRetriever):
         :param output_filename: filename for output.
         :param config: a Configuration file. If this defines a RedMetrics URL, `csv_url` shouldn't.
         """
+
+        super().__init__(output_filename=output_filename, config=config if config is not None else Configuration.default(), logger=logger)
         # print a deprecation warning as RM1 downloading will not be supported in the future and users should transition to using the new platform or dumped data.
-        warnings.warn("The RM1 downloading functionality will not be supported in the future. Please transition to using the new platform or dumped data.",
-                      DeprecationWarning,
-                      stacklevel=2)
-        super().__init__(output_filename=output_filename, config=config if config is not None else Configuration.default())
+        self.log_warning("The RM1 downloading functionality will not be supported in the future. Please transition to using the new platform or dumped data.")
+        warnings.warn(
+            "The RM1 downloading functionality will not be supported in the future. Please transition to using the new platform or dumped data.",
+            FutureWarning,
+            stacklevel=2)
         self.csv_url = csv_url
         self._validate_url()
         self.json_url = self.csv_url.replace("/event.csv", "/event.json")
@@ -46,6 +49,7 @@ class RedMetrics1Downloader(DataRetriever):
         self._write_csv(output_json, verbose)
         df = pd.read_csv(self._temp_output_filename)
         # delete temp file:
+        self.log_info(f"Deleting temporary file: {self._temp_output_filename}")
         os.remove(self._temp_output_filename)
         return df
 
@@ -152,8 +156,8 @@ class RedMetrics1Downloader(DataRetriever):
         output_json = []
 
         event_iterator = self.downloaded_events_json
+        self.log_info("Handling events...")
         if verbose:
-            print("\nHandling events...")
             event_iterator = tqdm(event_iterator, desc="events")
 
         for event in event_iterator:
@@ -201,9 +205,8 @@ class RedMetrics1Downloader(DataRetriever):
             output_file_writer.writeheader()
             for output_json_record in output_json:
                 output_file_writer.writerow(output_json_record)
+        self.log_info(f"Wrote output to temporary file: {self._temp_output_filename}")
 
-        if verbose:
-            print(f"Wrote CSV to {self._output_filename}")
 
     def get_net_requested_players(self) -> list:
         """

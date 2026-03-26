@@ -28,25 +28,27 @@ class CFGAppSyncDataRetriever(DataRetriever):
         DOWNLOADER_FIELD_ORDER
     """
 
-
-
     def __init__(
-        self,
-        *,
-        game_name: str | None = None,
-        game_id: str | None = None,
-        output_filename: str = DATA_RETRIEVER_OUTPUT_FILENAME,
-        config: Configuration = None,
+            self,
+            *,
+            game_name: str | None = None,
+            game_id: str | None = None,
+            output_filename: str = DATA_RETRIEVER_OUTPUT_FILENAME,
+            config: Configuration = None,
+            logger=None
     ) -> None:
-        # warn that this is an experimental backend for now:
-        warnings.warn("The CFGAppSyncDataRetriever is an experimental data retriever for the new CFG platform. "
-                      "Please report any issues or inaccuracies you encounter when using it.", UserWarning, stacklevel=2)
         super().__init__(
             game_name=game_name,
             game_id=game_id,
             output_filename=output_filename,
             config=config,
+            logger=logger
         )
+        # warn that this is an experimental backend for now:
+        warnings.warn("The CFGAppSyncDataRetriever is an experimental data retriever for the new CFG platform. "
+                      "Please report any issues or inaccuracies you encounter when using it.", UserWarning,
+                      stacklevel=2)
+        self.log_warning("The CFGAppSyncDataRetriever is an experimental data retriever for the new CFG platform. ")
         self._validate_input([game_id, game_name, self._config.GAME_ID, self._config.GAME_NAME])
         self._session: Optional[requests.Session] = None
         self._games_cache: Optional[list[dict[str, Any]]] = None
@@ -120,9 +122,7 @@ class CFGAppSyncDataRetriever(DataRetriever):
             raise ValueError("CFG_COGNITO_CLIENT_ID is required")
         if not user_pool_id:
             raise ValueError("CFG_COGNITO_USER_POOL_ID is required")
-
-        if verbose:
-            print("Logging into CFG user pool with SRP...")
+        self.log_info("Logging into CFG user pool with SRP...")
 
         cognito = boto3.client("cognito-idp", region_name=region)
 
@@ -143,16 +143,18 @@ class CFGAppSyncDataRetriever(DataRetriever):
 
         self._session.headers.update({"Authorization": token})
 
-        if verbose:
-            print("Successfully logged into CFG.")
+        self.log_info(
+            f"Logged in as {username} to user pool {user_pool_id} (region: {region})"
+        )
+
 
     def _retrieve_data(
-        self,
-        *,
-        date_from: Optional[str] = None,
-        date_to: Optional[str] = None,
-        version_id: Optional[str] = None,
-        verbose: bool = False,
+            self,
+            *,
+            date_from: Optional[str] = None,
+            date_to: Optional[str] = None,
+            version_id: Optional[str] = None,
+            verbose: bool = False,
     ) -> pd.DataFrame:
         if self._game_name and not self._game_id:
             self._game_id = self._get_game_id_by_name(self._game_name, verbose=verbose)
@@ -160,8 +162,7 @@ class CFGAppSyncDataRetriever(DataRetriever):
         if not self._game_id:
             raise ValueError("Could not determine game_id")
 
-        if verbose:
-            print(f"Using game_id={self._game_id}")
+        self.log_info(f"Using game_id={self._game_id}")
 
         sessions = self._fetch_sessions(
             game_id=self._game_id,
@@ -188,7 +189,8 @@ class CFGAppSyncDataRetriever(DataRetriever):
         )
 
         self._retrieved_df = self._create_df(rows)
-        self._retrieved_df = parse_json_column(df=self._retrieved_df, column_name=self._config.EVENT_CUSTOM_DATA_KEY, prefix=self._config.EVENT_CUSTOM_DATA_KEY)
+        self._retrieved_df = parse_json_column(df=self._retrieved_df, column_name=self._config.EVENT_CUSTOM_DATA_KEY,
+                                               prefix=self._config.EVENT_CUSTOM_DATA_KEY)
         self._retrieved_df = self._order_df(self._retrieved_df)
         return self._retrieved_df
 
@@ -210,8 +212,7 @@ class CFGAppSyncDataRetriever(DataRetriever):
         if self._games_cache is not None:
             return self._games_cache
 
-        if verbose:
-            print("Fetching games...")
+        self.log_info("Listing games...")
 
         query = """
         query ListGames($nextToken: String) {
@@ -234,8 +235,8 @@ class CFGAppSyncDataRetriever(DataRetriever):
         if game_id in self._versions_cache:
             return self._versions_cache[game_id]
 
-        if verbose:
-            print(f"Fetching versions for game_id={game_id}...")
+        self.log_info(f"Fetching versions for game_id={game_id}...")
+
 
         query = """
         query ListGameVersions($filter: ModelGameVersionFilterInput, $nextToken: String) {
@@ -276,16 +277,16 @@ class CFGAppSyncDataRetriever(DataRetriever):
         return matches[0]["id"]
 
     def _fetch_sessions(
-        self,
-        *,
-        game_id: str,
-        version_id: Optional[str],
-        date_from: Optional[str],
-        date_to: Optional[str],
-        verbose: bool = False,
+            self,
+            *,
+            game_id: str,
+            version_id: Optional[str],
+            date_from: Optional[str],
+            date_to: Optional[str],
+            verbose: bool = False,
     ) -> list[dict]:
-        if verbose:
-            print("Fetching sessions...")
+        self.log_info(f"Fetching sessions for game_id={game_id}, version_id={version_id}, date_from={date_from}, date_to={date_to}...")
+
 
         query = """
         query ListSessions($filter: ModelSessionFilterInput, $nextToken: String) {
@@ -324,13 +325,14 @@ class CFGAppSyncDataRetriever(DataRetriever):
             variables={"filter": filter_obj},
         )
 
-
     def _fetch_events_for_sessions(self, sessions: list[dict], *, verbose: bool = False) -> list[dict]:
         if not sessions:
             return []
 
-        if verbose:
-            print(f"Fetching events via session connections ({len(sessions)} sessions)...")
+        self.log_info(
+            f"Fetching events for sessions={len(sessions)}..."
+        )
+
 
         query = """
         query GetSessionWithEvents($id: ID!, $nextToken: String) {
@@ -382,8 +384,9 @@ class CFGAppSyncDataRetriever(DataRetriever):
         return all_events
 
     def _fetch_players_for_sessions(self, sessions: list[dict], *, verbose: bool = False) -> dict[str, dict]:
-        if verbose:
-            print("Fetching player records...")
+        self.log_info(
+            f"Fetching players for sessions={len(sessions)}...")
+
 
         query = """
         query GetPlayer($id: ID!) {
@@ -398,13 +401,11 @@ class CFGAppSyncDataRetriever(DataRetriever):
 
         player_ids = sorted({s["playerId"] for s in sessions if s.get("playerId")})
         player_map: dict[str, dict] = {}
+        self.log_info("Fetching players...")
         if verbose:
-            print("\nFetching players...")
             player_ids = tqdm.tqdm(player_ids, desc="players", unit="player")
 
         for i, pid in enumerate(player_ids, start=1):
-            if verbose and (i == 1 or i % 100 == 0):
-                print(f"  player {i}/{len(player_ids)}")
 
             data = self._graphql(query, {"id": pid})
             player = data.get("getPlayer")
@@ -414,10 +415,10 @@ class CFGAppSyncDataRetriever(DataRetriever):
         return player_map
 
     def _list_all_graphql(
-        self,
-        root_field: str,
-        query: str,
-        variables: Optional[dict] = None,
+            self,
+            root_field: str,
+            query: str,
+            variables: Optional[dict] = None,
     ) -> list[dict]:
         results: list[dict] = []
         next_token = None
@@ -456,13 +457,13 @@ class CFGAppSyncDataRetriever(DataRetriever):
             return {}
 
     def _build_rows(
-        self,
-        *,
-        game_map: dict[str, dict],
-        sessions: list[dict],
-        events: list[dict],
-        player_map: dict[str, dict],
-        version_map: dict[str, str],
+            self,
+            *,
+            game_map: dict[str, dict],
+            sessions: list[dict],
+            events: list[dict],
+            player_map: dict[str, dict],
+            version_map: dict[str, str],
     ) -> list[dict[str, str]]:
         session_map = {s["id"]: s for s in sessions}
         rows: list[dict[str, str]] = []
@@ -495,7 +496,8 @@ class CFGAppSyncDataRetriever(DataRetriever):
                 self._config.EVENT_CUSTOM_DATA_KEY: ev.get("data") if ev.get("data") is not None else "",
             }
             if row["sessionMetadata"]:
-                row[self._config.RAW_PLAYER_CUSTOM_DATA] = json.dumps(row["sessionMetadata"].get("customData")) if (row["sessionMetadata"].get("customData") is not None) else "{}"
+                row[self._config.RAW_PLAYER_CUSTOM_DATA] = json.dumps(row["sessionMetadata"].get("customData")) if (
+                            row["sessionMetadata"].get("customData") is not None) else "{}"
             player_metadata = row.get("playerMetadata", {})
             row[self._config.RAW_PLAYER_BIRTHDATE] = player.get("birthDate", None)
             row[self._config.RAW_PLAYER_REGION] = player.get("region", None)
@@ -509,7 +511,6 @@ class CFGAppSyncDataRetriever(DataRetriever):
 
         return rows
 
-
     def _order_df(self, df: pd.DataFrame) -> pd.DataFrame:
         if self._config.DOWNLOADER_FIELD_ORDER:
             ordered_cols = [col for col in self._config.DOWNLOADER_FIELD_ORDER if col in df.columns]
@@ -517,6 +518,7 @@ class CFGAppSyncDataRetriever(DataRetriever):
             return df[ordered_cols + extra_cols]
         else:
             return df
+
     def _create_df(self, rows: list[dict[str, str]]) -> pd.DataFrame:
         df = pd.DataFrame(rows)
 

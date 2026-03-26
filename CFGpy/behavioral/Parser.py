@@ -7,9 +7,9 @@ from CFGpy.behavioral._utils import server_coords_to_binary_shape, prettify_game
 from CFGpy.behavioral._consts import (PARSED_PLAYER_ID_KEY, PARSED_TIME_KEY, PARSED_ALL_SHAPES_KEY,
                                       PARSED_CHOSEN_SHAPES_KEY, MERGED_ID_KEY, DEFAULT_ID, PARSER_OUTPUT_FILENAME)
 from CFGpy.behavioral import Configuration
+from CFGpy.behavioral._logging import HasLogger
 
-
-class Parser:
+class Parser(HasLogger):
     old_date_format_with_placeholder = 'DateObject<{%Y, %m, %d, %H, %M, %S.%f}, "Instant", "Gregorian", 2.>'  # The actual format has '[' instead of '<' but it makes everything easier this way
     datetime_re = '"(DateObject\[\{\d+, \d+, \d+, \d+, \d+, \d+(?:\.\d+)?}, "Instant", "Gregorian", \d+\.\])"'  # Used to remove quotes from game strings
     parse_datetime_re_day = 'DateObject\[\{(\d+), (\d+), (\d+)}, "Day", "Gregorian", \d+\.\]'
@@ -21,7 +21,8 @@ class Parser:
         parse_datetime_re_millisecond,
     ]
 
-    def __init__(self, *, raw_data: pd.DataFrame, config: Configuration = None):
+    def __init__(self, *, raw_data: pd.DataFrame, config: Configuration = None, logger=None):
+        super().__init__(logger)
         self.raw_data = raw_data
         self.config = config or Configuration.default()
         self.parsed_data = None
@@ -48,6 +49,7 @@ class Parser:
         prepared_data = self._prepare_data()
         games_grouped_by_unique_id = prepared_data.groupby(self.config.UNIQUE_INTERNAL_ID_COLUMN)
         hard_filtered_games = games_grouped_by_unique_id.filter(self._apply_hard_filters)
+        self.log_info(f"Filtered from {len(games_grouped_by_unique_id)} games to {len(hard_filtered_games.groupby(self.config.UNIQUE_INTERNAL_ID_COLUMN))} games by applying hard filters.")
         self.parsed_data = self._parse_all_player_games(hard_filtered_games)
         return self.parsed_data
 
@@ -68,6 +70,7 @@ class Parser:
             lambda x: json.loads(x) if isinstance(x, str) else x
         )
         all_json_keys = self.get_all_json_keys_from_csv_data(data)
+        self.log_info(f"Found {len(all_json_keys)} unique custom data json keys: {all_json_keys}.")
         for key in all_json_keys:
             # Take the json inside the csv file and turn them into columns
             data[key] = data[self.config.PARSER_JSON_COLUMN].apply(lambda json_dict: json_dict.get(key))
@@ -88,6 +91,8 @@ class Parser:
                                                               format=self.config.SERVER_DATE_FORMAT)
         # ensure that the time parsing worked correctly by checking that there are no NaT values in the time column
         if data[self.config.PARSER_TIME_COLUMN].isna().any():
+            # find the rows with NaT values in the time column and log them as a warning
+            self.log_warning(f"Time parsing resulted in NaT values for the following rows:\n{data[data[self.config.PARSER_TIME_COLUMN].isna()]}")
             raise CFGPipelineException('Time parsing failed, there are NaT values in the time column after parsing.')
         data = data.sort_values(by=self.config.PARSER_TIME_COLUMN).reset_index(drop=True)
 
@@ -97,18 +102,33 @@ class Parser:
         '''Small patchy bugfix for temporary problems'''
         # Bug no.1 sometimes player external id is this instead of a random number
         if 'playerExternalId' in data.columns: # For rm2 this column does not exist
-            data.loc[data['playerExternalId'] == '${rand://int/100000:10000000}', 'playerExternalId'] = None
+            bad_ext_id_mask = data['playerExternalId'] == '${rand://int/100000:10000000}'
+            if bad_ext_id_mask.any():
+                data.loc[bad_ext_id_mask, 'playerExternalId'] = None
+                self.log_info("Applied patchfix for playerExternalId column to replace '${rand://int/100000:10000000}' with None.")
 
         # Bug no.2 sometimes the endPosition and shape columns switch places
         switched_column_indices = np.flatnonzero(
             data['customData.endPosition'].apply(lambda x: len(json.loads(x)) == 10 if type(x) is str else False))
-        data.loc[switched_column_indices, 'customData.shape'] = data.loc[
-            switched_column_indices, 'customData.endPosition']
+        if len(switched_column_indices) > 0:
+            self.log_info(f"Applied patchfix for switched columns for {len(switched_column_indices)} rows where 'customData.endPosition' contains shape data.")
+            self.log_info(f"Switched rows indices: {switched_column_indices}")
+            data.loc[switched_column_indices, 'customData.shape'] = data.loc[
+                switched_column_indices, 'customData.endPosition']
+        before_customdata_shape = data['customData.shape'].copy()
+
         data['customData.shape'] = data['customData.shape'].apply(
             lambda x: x if isinstance(x, list) 
             else json.loads(x) if isinstance(x, str) 
             else []).apply(lambda x: str(x) if len(x) == 10 else np.nan
         )
+        self.log_info("Applied patchfix for 'customData.shape' column to ensure it contains valid shape data or NaN.")
+        if (before_customdata_shape.notna() & data['customData.shape'].isna()).any():
+            invalid_indices = data.index[before_customdata_shape.notna() & data['customData.shape'].isna()]
+            shape_unique_values = before_customdata_shape[invalid_indices].unique()
+            unique_events = data.loc[invalid_indices, self.config.EVENT_TYPE].unique()
+            elaborate_msg = f"Changed rows had the following unique values in 'customData.shape' before the patchfix: {shape_unique_values}, and the following unique event types: {unique_events}."
+            self.log_warning(f"After applying the patchfix for 'customData.shape', the following rows were found to have invalid shape data that could not be parsed and were set to NaN:\n{before_customdata_shape[invalid_indices]}.\n{elaborate_msg}")
 
         return data
 
@@ -122,11 +142,19 @@ class Parser:
 
         for id_column in self.config.PARSER_ID_COLUMNS:
             if id_column in data.columns:
-                missing_indices = missing_str_field(data[MERGED_ID_KEY])
-                data.loc[missing_indices, MERGED_ID_KEY] = data[id_column].loc[missing_indices].astype("string")
+                missing_mask = missing_str_field(data[MERGED_ID_KEY])
+                new_col_missing_mask = missing_str_field(data[id_column])
+                data.loc[missing_mask, MERGED_ID_KEY] = data[id_column].loc[missing_mask].astype("string")
+                filled_mask = missing_mask & ~new_col_missing_mask
+                self.log_info(f"Merged id column '{id_column}' into merged id column for {filled_mask.sum()} rows.\n {missing_mask.sum() - filled_mask.sum()} rows were still missing after attempting to merge this column.")
+            else:
+                self.log_info(f"Id column '{id_column}' is missing from the data column. Will not be used for merging ids.")
 
-        missing_indices = missing_str_field(data[MERGED_ID_KEY])
-        data.loc[missing_indices, MERGED_ID_KEY] = DEFAULT_ID
+
+        missing_mask = missing_str_field(data[MERGED_ID_KEY])
+        data.loc[missing_mask, MERGED_ID_KEY] = DEFAULT_ID
+        if missing_mask.sum() > 0:
+            self.log_warning(f"{missing_mask.sum()} rows were filled with the default id '{DEFAULT_ID}' after attempting to merge all id columns. This means that for these rows, all id columns specified in the config were missing or empty. These rows will be grouped together under the same id, which may affect parsing results.\n Rows indices: {data.index[missing_mask].tolist()}")
 
         return data
 
@@ -134,7 +162,11 @@ class Parser:
         return self.is_game_started(game)
 
     def is_game_started(self, game):
-        return game[self.config.EVENT_TYPE].str.contains(self.config.TUTORIAL_END_EVENT_TYPE).sum() > 0
+        game_started = game[self.config.EVENT_TYPE].str.contains(self.config.TUTORIAL_END_EVENT_TYPE).sum() > 0
+        game_id = game.name
+        if not game_started:
+            self.log_info(f"Game {game_id} did not pass the hard filter of containing the tutorial end event, and will be excluded from parsing.")
+        return game_started
 
     def _parse_all_player_games(self, games):
         all_parsed_games = []
@@ -167,10 +199,10 @@ class Parser:
 
         game_data[self.config.GALLERY_SAVE_TIME_COLUMN] = None
 
-        gallery_save_indices = game_data[self.config.SHAPE_MOVE_COLUMN].isna()[
-            game_data[self.config.SHAPE_MOVE_COLUMN].isna()].index # TODO: retrieves indices of all the None values
+        gallery_save_indices = game_data.index[game_data[self.config.SHAPE_MOVE_COLUMN].isna()]
         game_data.loc[gallery_save_indices - 1, self.config.GALLERY_SAVE_TIME_COLUMN] = game_data.loc[
             gallery_save_indices, self.config.PARSER_TIME_COLUMN].values
+        # TODO: we need to ensure that the saved shape is the same as the one before (for missing shapes cases)
         # Now that we have the save time in all move rows, we can get rid of save rows:
         game_data = game_data[game_data[self.config.EVENT_TYPE].isin([self.config.SHAPE_MOVE_EVENT_TYPE])]
 
