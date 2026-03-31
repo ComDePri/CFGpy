@@ -134,7 +134,7 @@ class Configuration:
     AFTER_DATE: str | None = None
 
     RED_METRICS_CSV_URL: str | None = None
-    DOWNLOAD_PLAYER_REQUEST: str = None
+    DOWNLOAD_PLAYER_REQUEST: str | None = None
     EVENT_CSV_PATH: str = None
     RAW_GAME_VERSION: str = None
     RAW_PLAYER_BIRTHDATE: str = None
