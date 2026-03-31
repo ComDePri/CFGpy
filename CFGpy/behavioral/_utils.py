@@ -2,6 +2,7 @@ import copy
 
 import numpy as np
 import pandas as pd
+from pandas.api.types import is_string_dtype
 import json
 import re
 import warnings
@@ -321,6 +322,8 @@ def resolve_path(name, path, default_suffix):
         return default_suffix
 
 def missing_str_field(series: pd.Series, possible_missing_strs=("null", "nan", "none")):
+    if not is_string_dtype(series):
+        series = series.astype("string")
     # start with actual NaNs:
     missing_mask = series.isna()
     # add empty strings:
