@@ -115,14 +115,18 @@ class FilesHandler:
             raise type(e)(f"An error occurred while trying to retrieve the file downloaded date: {e}").with_traceback(e.__traceback__)
     
     @staticmethod
-    def re_download_file(*, local_file_path: str, repo_owner: str, repo_name: str, git_file_path: str, branch: Optional[str] = "main") -> bool:
+    def re_download_file(*, local_file_path: str, repo_owner: str, repo_name: str, git_file_path: str, branch: Optional[str] = "main", allow_errors=True) -> bool:
         try:
             git_date = FilesHandler().get_github_file_last_updated_date(repo_owner=repo_owner, repo_name=repo_name, file_path=git_file_path, branch=branch)
         except Exception as e:
-            # If we can't get the GitHub file last updated date, we will skip this check but warn the user that files may be outdated.
-            warnings.warn(f"An error occurred while trying to retrieve the file downloaded date: {e}"
-                          f"\nSkipping the check for whether to re-download the file. The file at {local_file_path} may be outdated.")
-            return False
+            if allow_errors:
+                # If we can't get the GitHub file last updated date, we will skip this check but warn the user that files may be outdated.
+                warnings.warn(f"An error occurred while trying to retrieve the file downloaded date: {e}"
+                              f"\nSkipping the check for whether to re-download the file. The file at {local_file_path} may be outdated.")
+                return False
+            else:
+                # raise the exception to the user
+                raise type(e)(f"An error occurred while trying to retrieve the file downloaded date: {e}").with_traceback(e.__traceback__)
         downloaded_date = FilesHandler().get_file_downloaded_date(file_path=local_file_path)
         return downloaded_date < git_date
     
