@@ -10,6 +10,7 @@ from CFGpy.behavioral import Configuration, DataRetriever
 from CFGpy.behavioral._consts import DATA_RETRIEVER_OUTPUT_FILENAME
 from CFGpy.behavioral._utils import parse_json_column
 import warnings
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 class CFGAppSyncDataRetriever(DataRetriever):
@@ -147,7 +148,6 @@ class CFGAppSyncDataRetriever(DataRetriever):
             f"Logged in as {username} to user pool {user_pool_id} (region: {region})"
         )
 
-
     def _retrieve_data(
             self,
             *,
@@ -237,7 +237,6 @@ class CFGAppSyncDataRetriever(DataRetriever):
 
         self.log_info(f"Fetching versions for game_id={game_id}...")
 
-
         query = """
         query ListGameVersions($filter: ModelGameVersionFilterInput, $nextToken: String) {
           listGameVersions(filter: $filter, nextToken: $nextToken) {
@@ -285,8 +284,8 @@ class CFGAppSyncDataRetriever(DataRetriever):
             date_to: Optional[str],
             verbose: bool = False,
     ) -> list[dict]:
-        self.log_info(f"Fetching sessions for game_id={game_id}, version_id={version_id}, date_from={date_from}, date_to={date_to}...")
-
+        self.log_info(
+            f"Fetching sessions for game_id={game_id}, version_id={version_id}, date_from={date_from}, date_to={date_to}...")
 
         query = """
         query ListSessions($filter: ModelSessionFilterInput, $nextToken: String) {
@@ -325,15 +324,7 @@ class CFGAppSyncDataRetriever(DataRetriever):
             variables={"filter": filter_obj},
         )
 
-    def _fetch_events_for_sessions(self, sessions: list[dict], *, verbose: bool = False) -> list[dict]:
-        if not sessions:
-            return []
-
-        self.log_info(
-            f"Fetching events for sessions={len(sessions)}..."
-        )
-
-
+    def _fetch_events_for_one_session(self, session_id: str) -> list[dict]:
         query = """
         query GetSessionWithEvents($id: ID!, $nextToken: String) {
           getSession(id: $id) {
@@ -351,68 +342,77 @@ class CFGAppSyncDataRetriever(DataRetriever):
           }
         }
         """
+        session_events = []
+        next_token = None
 
+        while True:
+            data = self._graphql(query, {"id": session_id, "nextToken": next_token})
+            events_block = data["getSession"]["events"]
+            session_events.extend(events_block["items"])
+            next_token = events_block.get("nextToken")
+            if not next_token:
+                break
+
+        return session_events
+
+    def _fetch_events_for_sessions(self, sessions: list[dict], *, verbose: bool = False) -> list[dict]:
+        if not sessions:
+            return []
+
+        session_ids = [s["id"] for s in sessions if s.get("id")]
         all_events = []
 
-        sess_iter = sessions
-        if verbose:
-            import tqdm
-            sess_iter = tqdm.tqdm(sessions, desc="sessions")
+        max_workers = min(16, max(1, len(session_ids)))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(self._fetch_events_for_one_session, sid): sid for sid in session_ids}
 
-        for sess in sess_iter:
-            session_id = sess.get("id")
-            if not session_id:
-                continue
+            iterator = as_completed(futures)
+            if verbose:
+                iterator = tqdm.tqdm(iterator, total=len(futures), desc="sessions", unit="session")
 
-            next_token = None
-
-            while True:
-                data = self._graphql(
-                    query,
-                    {"id": session_id, "nextToken": next_token},
-                )
-
-                events_block = data["getSession"]["events"]
-                items = events_block["items"]
-                all_events.extend(items)
-
-                next_token = events_block.get("nextToken")
-                if not next_token:
-                    break
+            for fut in iterator:
+                all_events.extend(fut.result())
 
         all_events.sort(key=lambda x: x.get("occurredAt", ""))
         return all_events
 
-    def _fetch_players_for_sessions(self, sessions: list[dict], *, verbose: bool = False) -> dict[str, dict]:
-        self.log_info(
-            f"Fetching players for sessions={len(sessions)}...")
 
-
+    def _fetch_one_player(self, pid: str) -> tuple[str, dict | None]:
         query = """
-        query GetPlayer($id: ID!) {
-          getPlayer(id: $id) {
-            id
-            anonymousId
-            firstSeenAt
-            metadata
-          }
-        }
-        """
+                query GetPlayer($id: ID!) {
+                  getPlayer(id: $id) {
+                    id
+                    anonymousId
+                    firstSeenAt
+                    metadata
+                  }
+                }
+                """
+        data = self._graphql(query, {"id": pid})
+        player = data.get("getPlayer")
+        return pid, player
 
+    def _fetch_players_for_sessions(self, sessions: list[dict], *, verbose: bool = False) -> dict[str, dict]:
         player_ids = sorted({s["playerId"] for s in sessions if s.get("playerId")})
-        player_map: dict[str, dict] = {}
-        self.log_info("Fetching players...")
-        if verbose:
-            player_ids = tqdm.tqdm(player_ids, desc="players", unit="player")
+        if not player_ids:
+            return {}
 
-        for i, pid in enumerate(player_ids, start=1):
+        player_map = {}
+        max_workers = min(16, max(1, len(player_ids)))
 
-            data = self._graphql(query, {"id": pid})
-            player = data.get("getPlayer")
-            if player:
-                player_map[player["id"]] = player
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(self._fetch_one_player, pid): pid for pid in player_ids}
+            iterator = as_completed(futures)
+            if verbose:
+                iterator = tqdm.tqdm(iterator, total=len(futures), desc="players", unit="player")
+
+            for fut in iterator:
+                pid, player = fut.result()
+                if player:
+                    player_map[pid] = player
 
         return player_map
+
 
     def _list_all_graphql(
             self,
@@ -497,7 +497,7 @@ class CFGAppSyncDataRetriever(DataRetriever):
             }
             if row["sessionMetadata"]:
                 row[self._config.RAW_PLAYER_CUSTOM_DATA] = json.dumps(row["sessionMetadata"].get("customData")) if (
-                            row["sessionMetadata"].get("customData") is not None) else "{}"
+                        row["sessionMetadata"].get("customData") is not None) else "{}"
             player_metadata = row.get("playerMetadata", {})
             row[self._config.RAW_PLAYER_BIRTHDATE] = player.get("birthDate", None)
             row[self._config.RAW_PLAYER_REGION] = player.get("region", None)
