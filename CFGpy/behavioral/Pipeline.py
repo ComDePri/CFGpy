@@ -1,3 +1,5 @@
+import os
+
 import tqdm
 
 from datetime import datetime, timezone
@@ -167,10 +169,19 @@ class Pipeline(HasLogger):
 
     def visualize(self, verbose):
         postparsed_data = self.postparsed_data
+        if not os.path.isdir(self.config.VISUALIZATION_MAIN_DIR):
+            os.mkdir(self.config.VISUALIZATION_MAIN_DIR)
+
+        if self.config.VISUALIZATION_ANIMATE:
+            self.log_info("Visualizing games with animation...")
+        else:
+            self.log_info("Visualizing games without animation...")
         if verbose:
             postparsed_data = tqdm.tqdm(self.postparsed_data, desc="Visualizing games", unit="game")
         for game in postparsed_data:
-            visualization.animate_game(game=game, speed=self.config.VISUALIZATION_ANIMATION_SPEED, output_dir_path=self.config.VISUALIZATION_ANIMATION_OUTPUT_DIR)
+            if self.config.VISUALIZATION_ANIMATE:
+                visualization.animate_game(game=game, speed=self.config.VISUALIZATION_ANIMATION_SPEED, output_dir_path=self.config.VISUALIZATION_ANIMATION_OUTPUT_DIR)
+
             visualization.plot_game(game=game, output_dir_path=self.config.VISUALIZATION_PLOT_OUTPUT_DIR)
 
     def run_pipeline(self):
