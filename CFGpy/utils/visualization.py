@@ -1,19 +1,19 @@
+import io
 import os
 import tqdm
 
-from rectpack import newPacker
 import numpy as np
-import sys
-import simCFG
+
+from PIL import Image
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-
-from CFGpy.behavioral._consts import PARSED_ALL_SHAPES_KEY, PARSED_PLAYER_ID_KEY, EXPLOIT_KEY
-from matplotlib.offsetbox import OffsetImage, AnnotationBbox, BboxImage
-from matplotlib.transforms import Bbox, TransformedBbox
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-from functools import partial
+from matplotlib.colors import ListedColormap
 from matplotlib.text import Text
+from functools import partial
+
+from CFGpy.behavioral._consts import PARSED_ALL_SHAPES_KEY, PARSED_PLAYER_ID_KEY, EXPLOIT_KEY, VIS_SHAPE_COLOR, VIS_EXPLOIT_SHAPE_COLOR, VIS_SHAPE_BG_COLOR, VIS_GALLERY_BG_COLOR
+
+from .utils import get_shape_binary_matrix
 
 def animate_game(game, speed=1, output_dir_path='./', verbose=False):
     game_id = game[PARSED_PLAYER_ID_KEY]
@@ -37,8 +37,8 @@ def animate_game(game, speed=1, output_dir_path='./', verbose=False):
         fig.clear()
         shape = frame[0]
         is_gallery = frame[2] is not None
-        shape = simCFG.utils.get_shape_binary_matrix(int(shape))
-        simCFG.utils.show_binary_matrix(shape, show=False, is_gallery=is_gallery, is_exploit=False, render=False, save_filename=None, title=f'{game_id}', res=None, use_figure=fig)
+        shape = get_shape_binary_matrix(int(shape))
+        show_binary_matrix(shape, show=False, is_gallery=is_gallery, is_exploit=False, render=False, save_filename=None, title=f'{game_id}', res=None, use_figure=fig)
         ax = plt.gca()
         if show_time:
             text = np.round(frame[1], 2).astype(str)
@@ -97,7 +97,7 @@ def plot_game(game, output_dir_path='./'):
     game_id = game[PARSED_PLAYER_ID_KEY]
     cleaned_actions = np.array(remove_duplicate_actions(game))
     exploit_times = [range(*exploit_slice) for exploit_slice in game[EXPLOIT_KEY]]
-    gallery_shapes = [[index, simCFG.utils.get_shape_binary_matrix(int(action[0])), action[2]] for index, action in enumerate(game[PARSED_ALL_SHAPES_KEY]) if action[2] is not None]
+    gallery_shapes = [[index, get_shape_binary_matrix(int(action[0])), action[2]] for index, action in enumerate(game[PARSED_ALL_SHAPES_KEY]) if action[2] is not None]
     len_shapes = len(gallery_shapes)
     cols = np.ceil(len_shapes**0.5).astype(int)
     fig, ax = plt.subplots(nrows=cols, ncols=cols, figsize = (16, 12))
@@ -120,7 +120,7 @@ def plot_game(game, output_dir_path='./'):
         steps_between_shapes = np.where(cleaned_actions == curr_save_time)[0] - np.where(cleaned_actions == prev_save_time)[0]
         delta_t_and_steps.append([delta_t, steps_between_shapes[0]])
         res = (900/100, 900/100)
-        shape_image = simCFG.utils.show_binary_matrix(shape, show=False, is_gallery=is_new_exploit, is_exploit=is_exploit, render=True, save_filename=None, title='', res=res)
+        shape_image = show_binary_matrix(shape, show=False, is_gallery=is_new_exploit, is_exploit=is_exploit, render=True, save_filename=None, title='', res=res)
         ax.flat[counter].imshow(shape_image)
         ax.flat[counter].set_xlabel('{}'.format(np.round(save_time, 3)))
 
@@ -157,36 +157,6 @@ def plot_game(game, output_dir_path='./'):
 
     return
 
-# Move somewhere else when I finish with this
-def show_community(community, community_number, subfolder=''):
-    # unique_community_shapes = set([shape for community_set in community for shape in community_set])
-    unique_community_shapes = community
-    unique_community_shapes = [simCFG.utils.get_shape_binary_matrix(int(shape)) for shape in unique_community_shapes]
-
-    len_community = len(unique_community_shapes)
-
-    cols = np.ceil(len_community**0.5).astype(int)
-    fig, ax = plt.subplots(nrows=cols, ncols=cols, figsize = (16, 12))
-    for counter, shape in enumerate(unique_community_shapes):
-        res = (900/100, 900/100)
-        shape_image = simCFG.utils.show_binary_matrix(shape, show=False, is_gallery=False, is_exploit=False, render=True, save_filename=None, title='', res=res)
-        ax.flat[counter].imshow(shape_image)
-        x_position = 305 * (counter % cols)
-        y_position = 305 * (counter // cols)
-        ax.flat[counter].set_xticklabels([])
-        ax.flat[counter].set_yticklabels([])
-    
-    for axis in ax.flat[counter + 1:]:
-        axis.remove()
-    
-    plt.tight_layout()
-    folder = os.path.normpath(os.path.join('communities', subfolder))
-    if not os.path.isdir(folder):
-        os.mkdir(folder)
-    plt.savefig('{folder}\\community_{community_number}.png'.format(folder=folder, community_number=community_number))
-    plt.close()
-    return
-
 def remove_duplicate_actions(game):
     cleaned_actions = [game[PARSED_ALL_SHAPES_KEY][0]]
     prev_action = game[PARSED_ALL_SHAPES_KEY][0]
@@ -199,49 +169,54 @@ def remove_duplicate_actions(game):
     
     return cleaned_actions
 
-def show_shape_from_size_dict(shapes_dict):
-    min_size = 3
-    shapes = [
-        simCFG.utils.show_binary_matrix(simCFG.utils.get_shape_binary_matrix(int(shape)), show=False, is_gallery=False, is_exploit=False, render=True, save_filename=None, title='', res=(min_size + (size/20), min_size + (size/20)))
-        for shape, size in shapes_dict.items()
-    ]
+def show_binary_matrix(binary_mat, show=True, is_gallery=False, is_exploit=False, render=False, save_filename=None, title='', res=(750/100, 750/100), use_figure=None):
+    """
+    Displays the binary matrix representation of a shape.
+    :param binary_mat: a binary matrix representation of a shape.
+    :param is_gallery: True iff this a gallery shape. affects background color.
+    :param save_filename: a filename to save the image, or None (to avoid saving).
+    """
+    bg_color = VIS_GALLERY_BG_COLOR if is_gallery else VIS_SHAPE_BG_COLOR
+    shape_color = VIS_SHAPE_COLOR if not is_exploit else VIS_EXPLOIT_SHAPE_COLOR
+    nrow, ncol = binary_mat.shape
+    pad_rows = (10 - nrow) / 2
+    pad_rows = (np.ceil(pad_rows).astype('int'), np.floor(pad_rows).astype('int'))
+    pad_cols = (10 - ncol) / 2
+    pad_cols = (np.ceil(pad_cols).astype('int'), np.floor(pad_cols).astype('int'))
+    binary_mat = np.pad(binary_mat, (pad_rows, pad_cols))
 
-    packer = newPacker()
-    for im in shapes:
-        packer.add_rect(*im.size)
+    if use_figure is None:
+        dpi = 100
+        fig = plt.figure(figsize=res, dpi=dpi)
 
-    total_area = np.sum([im.size[0]**2 for im in shapes])
-    bin_size = int(2 * (total_area**0.5))
-    packer.add_bin(bin_size, bin_size)
-    packer.pack()
-    bin = packer[0]
-    if len(shapes) != len(bin):
-        raise IndexError('Amount of shapes is not amount of bins, probably requries to increase the bin size')
+    ax = plt.gca()
+    ax.matshow(binary_mat, cmap=ListedColormap([bg_color, shape_color]))
 
-    rect_arr = np.array(packer.rect_list())
-    rightmost_shape = rect_arr[np.argmax(rect_arr[:, 1])]
-    highest_shape = rect_arr[np.argmax(rect_arr[:, 2])]
-    fig_width = (rightmost_shape[1] + rightmost_shape[3])/100
-    fig_height = (highest_shape[2] + highest_shape[4])/100
+    ax.set_xticks(np.arange(0, 10, 1))
+    ax.set_yticks(np.arange(0, 10, 1))
 
-    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
-    for index, pil_obj in enumerate(shapes):
-        rect = [bin[index].x, bin[index].y, bin[index].width, bin[index].height]
-        bbox = Bbox.from_bounds(*rect)
-        bbox_image = BboxImage(bbox)
-        bbox_image.set_data(pil_obj)
-        fig.add_artist(bbox_image)
+    ax.set_xticklabels(['' for i in np.arange(1, 11, 1)])
+    ax.set_yticklabels(['' for i in np.arange(1, 11, 1)])
+
+    ax.set_xticks(np.arange(-.5, 10, 1), minor=True)
+    ax.set_yticks(np.arange(-.5, 10, 1), minor=True)
+    ax.grid(which='minor', color=bg_color, linestyle='-', linewidth=3)
+    ax.tick_params(which='minor', bottom=False, left=False)
+    ax.set_title(title)
+
+    if save_filename:
+        plt.savefig(save_filename)
     
-    plt.axis('off')
-    
-    return fig
+    if show:
+        plt.show()
 
-def save_plot(fig, file_name, path, subfolder='', close=True):
-    folder = os.path.normpath(os.path.join(path, subfolder))
-    if not os.path.isdir(folder):
-        os.mkdir(folder)
-    full_path = os.path.normpath(os.path.join(folder, file_name))
+    if render:
+        buf = io.BytesIO()
+        fig.savefig(buf, format="jpg")
+        buf.seek(0)
+        img = Image.open(buf)
+        plt.close(fig)
+        return img
 
-    fig.savefig(full_path)
-    if close:
+    if use_figure is None:
         plt.close(fig)

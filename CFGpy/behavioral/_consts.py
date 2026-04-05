@@ -121,3 +121,9 @@ DEFAULT_FINAL_OUTPUT_FILENAME = "measures.csv"
 # utils
 SERVER_COORDS_TYPE_ERROR = "Received incorrect type as csv_coords, should be str or list, received {}"
 PRETTIFY_WARNING = "Creating a pretty JSON may take a while! Avoid if the file is very big."
+
+# Visualization
+VIS_SHAPE_COLOR = "#32CD32"  # CSS "limegreen", as used in the game
+VIS_EXPLOIT_SHAPE_COLOR = '#1DA7EF'
+VIS_SHAPE_BG_COLOR = "k"
+VIS_GALLERY_BG_COLOR = "r"
