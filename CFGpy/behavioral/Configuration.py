@@ -155,3 +155,7 @@ class Configuration:
     WRITE_G_ALPHA: bool = False # to support old data
 
     MAX_IGNORED_GAME_DURATION_SEC: float = 0
+
+    VISUALIZATION_ANIMATION_SPEED: int = 8
+    VISUALIZATION_PLOT_OUTPUT_DIR = './visualizations/plots'
+    VISUALIZATION_ANIMATION_OUTPUT_DIR = './visualizations/animations'

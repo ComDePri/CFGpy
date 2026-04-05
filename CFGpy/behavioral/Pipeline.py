@@ -1,11 +1,14 @@
+import tqdm
+
 from datetime import datetime, timezone
 from CFGpy.behavioral import DataRetriever, RM1DumpDataRetriever, RedMetrics2DataRetriever, Parser, PostParser, \
     FeatureExtractor, Configuration, RedMetrics1Downloader, CFGAppSyncDataRetriever, LocalDataRetriever
 from CFGpy.behavioral._consts import DEFAULT_FINAL_OUTPUT_FILENAME, RM1, RM1_NAS_DUMP, RM2, \
     UNSUPPORTED_DATA_SOURCE_ERROR, APPSync, VALID_DATA_SOURCES, LOCAL, ARG_TO_CONF_MAP, DATA_SOURCE_ARG, GAME_NAME_ARG, \
-    GAME_ID_ARG, GAME_VERSION_IDS_ARG, BEFORE_DATE_ARG, AFTER_DATE_ARG, EVENTS_CSV_PATH_ARG
+    GAME_ID_ARG, GAME_VERSION_IDS_ARG, BEFORE_DATE_ARG, AFTER_DATE_ARG, EVENTS_CSV_PATH_ARG, PARSED_PLAYER_ID_KEY
 from CFGpy.behavioral._utils import CFGPipelineException
 from CFGpy.behavioral._logging import build_pipeline_logger, HasLogger
+from CFGpy.utils import visualization
 
 class Pipeline(HasLogger):
     def __init__(self, game_name: str | None = None, game_id: str | None = None,
@@ -162,10 +165,19 @@ class Pipeline(HasLogger):
         features_path = self.feature_extractor.dump(name=self.output_filename, with_exclusions=True, with_config=False)
         self.log_info(f"Results written to: {features_path}")
 
+    def visualize(self, verbose):
+        postparsed_data = self.postparsed_data
+        if verbose:
+            postparsed_data = tqdm.tqdm(self.postparsed_data, desc="Visualizing games", unit="game")
+        for game in postparsed_data:
+            visualization.animate_game(game=game, speed=self.config.VISUALIZATION_ANIMATION_SPEED, output_dir_path=self.config.VISUALIZATION_ANIMATION_OUTPUT_DIR)
+            visualization.plot_game(game=game, output_dir_path=self.config.VISUALIZATION_PLOT_OUTPUT_DIR)
+
     def run_pipeline(self):
         self.retrieve_data(verbose=self.verbose)
         self.parse(verbose=self.verbose)
         self.postparse(verbose=self.verbose)
+        self.visualize(verbose=self.verbose)
         self.extract_features(verbose=self.verbose)
         return self.features_df
 
