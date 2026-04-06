@@ -1,50 +1,184 @@
-import io
 import os
+import math
 import tqdm
-
 import numpy as np
-
-from PIL import Image
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.colors import ListedColormap
 from matplotlib.text import Text
 from functools import partial
 
-from CFGpy.behavioral._consts import PARSED_ALL_SHAPES_KEY, PARSED_PLAYER_ID_KEY, EXPLOIT_KEY, VIS_SHAPE_COLOR, VIS_EXPLOIT_SHAPE_COLOR, VIS_SHAPE_BG_COLOR, VIS_GALLERY_BG_COLOR
+from CFGpy.behavioral._consts import (
+    PARSED_ALL_SHAPES_KEY,
+    PARSED_PLAYER_ID_KEY,
+    EXPLOIT_KEY,
+    VIS_SHAPE_COLOR,
+    VIS_EXPLOIT_SHAPE_COLOR,
+    VIS_SHAPE_BG_COLOR,
+    VIS_GALLERY_BG_COLOR,
+)
 
 from .utils import get_shape_binary_matrix
 
-def animate_game(game, speed=1, output_dir_path='./', verbose=False):
+
+# ---------- Fast helpers ----------
+
+def _pad_binary_matrix(binary_mat, canvas_size=10):
+    """Pad a binary matrix to a centered fixed-size square canvas."""
+    nrow, ncol = binary_mat.shape
+    if nrow > canvas_size or ncol > canvas_size:
+        raise ValueError(f"Shape size {binary_mat.shape} exceeds canvas size {canvas_size}")
+
+    pad_rows = (canvas_size - nrow) / 2
+    pad_rows = (int(np.ceil(pad_rows)), int(np.floor(pad_rows)))
+    pad_cols = (canvas_size - ncol) / 2
+    pad_cols = (int(np.ceil(pad_cols)), int(np.floor(pad_cols)))
+
+    return np.pad(binary_mat, (pad_rows, pad_cols))
+
+
+def draw_binary_matrix(
+    ax,
+    binary_mat,
+    *,
+    is_gallery=False,
+    is_exploit=False,
+    title="",
+    canvas_size=10,
+):
+    """
+    Draw a shape directly onto an existing axis.
+    Much faster than rendering to an intermediate figure/image buffer.
+    """
+    bg_color = VIS_GALLERY_BG_COLOR if is_gallery else VIS_SHAPE_BG_COLOR
+    shape_color = VIS_EXPLOIT_SHAPE_COLOR if is_exploit else VIS_SHAPE_COLOR
+
+    padded = _pad_binary_matrix(binary_mat, canvas_size=canvas_size)
+
+    ax.imshow(
+        padded,
+        cmap=ListedColormap([bg_color, shape_color]),
+        interpolation="none",
+        vmin=0,
+        vmax=1,
+        origin="upper",
+    )
+
+    # gridlines
+    ax.set_xticks(np.arange(-0.5, canvas_size, 1), minor=True)
+    ax.set_yticks(np.arange(-0.5, canvas_size, 1), minor=True)
+    ax.grid(which="minor", color=bg_color, linestyle="-", linewidth=3)
+
+    # hide axes labels/ticks
+    ax.tick_params(which="both", bottom=False, left=False, labelbottom=False, labelleft=False)
+    ax.set_title(title)
+
+    return ax
+
+
+def show_binary_matrix(
+    binary_mat,
+    show=True,
+    is_gallery=False,
+    is_exploit=False,
+    save_filename=None,
+    title="",
+    res=(750 / 100, 750 / 100),
+    use_figure=None,
+    ax=None,
+):
+    """
+    Backward-compatible version that now draws directly instead of rendering to JPG/PIL.
+    If ax is provided, draw into that axis.
+    Otherwise create a new figure and axis.
+    """
+    created_fig = False
+
+    if ax is None:
+        if use_figure is None:
+            fig, ax = plt.subplots(figsize=res, dpi=100)
+            created_fig = True
+        else:
+            fig = use_figure
+            fig.clear()
+            ax = fig.add_subplot(111)
+    else:
+        fig = ax.figure
+
+    draw_binary_matrix(
+        ax,
+        binary_mat,
+        is_gallery=is_gallery,
+        is_exploit=is_exploit,
+        title=title,
+    )
+
+    if save_filename:
+        fig.savefig(save_filename, bbox_inches="tight")
+
+    if show:
+        plt.show()
+
+    if created_fig:
+        plt.close(fig)
+
+    return ax
+
+
+# ---------- Existing animation, updated to use direct axis drawing ----------
+
+def animate_game(game, speed=1, output_dir_path="./", verbose=False):
     game_id = game[PARSED_PLAYER_ID_KEY]
-    fig = plt.figure()
+    fig, ax = plt.subplots()
     fps = 20
-    text_pos = (10, 10)
+    text_pos = (0.02, 0.95)  # axis coordinates
     interval = int((1 / fps) * 1000)
+
+    time_text = ax.text(
+        text_pos[0],
+        text_pos[1],
+        "",
+        transform=ax.transAxes,
+        ha="left",
+        va="top",
+        color="white",
+    )
 
     def update(frame, show_time, tqdm_obj, verbose):
         if verbose:
             tqdm_obj.update(1)
-        if type(frame) is not list:
+
+        if not isinstance(frame, list):
             if show_time:
-                ax = plt.gca()
-                for match in ax.findobj(lambda artist: isinstance(artist, Text) and artist.get_position() == text_pos):
-                    match.remove()
-                text = frame
-                ax.text(text_pos[0], text_pos[1], s=text)
+                time_text.set_text(str(frame))
             return
 
-        fig.clear()
+        ax.clear()
         shape = frame[0]
         is_gallery = frame[2] is not None
         shape = get_shape_binary_matrix(int(shape))
-        show_binary_matrix(shape, show=False, is_gallery=is_gallery, is_exploit=False, render=False, save_filename=None, title=f'{game_id}', res=None, use_figure=fig)
-        ax = plt.gca()
+
+        draw_binary_matrix(
+            ax,
+            shape,
+            is_gallery=is_gallery,
+            is_exploit=False,
+            title=f"{game_id}",
+        )
+
         if show_time:
             text = np.round(frame[1], 2).astype(str)
             if is_gallery:
                 text = np.round(frame[2], 2).astype(str)
-            ax.text(text_pos[0], text_pos[1], s=text)
+            ax.text(
+                text_pos[0],
+                text_pos[1],
+                s=text,
+                transform=ax.transAxes,
+                ha="left",
+                va="top",
+                color="white",
+            )
 
     frames = []
     for action_index, action in enumerate(game[PARSED_ALL_SHAPES_KEY][:-1]):
@@ -55,15 +189,24 @@ def animate_game(game, speed=1, output_dir_path='./', verbose=False):
         if time_to_save is not None:
             dt_create = time_to_save - time_to_create
             total_frames_create = np.ceil(dt_create * fps / speed).astype(int)
-            frames += [[action[0], action[1], None]] + [np.round(float(time_to_create) + (i/fps)*speed, 2).astype(str) for i in range(1, total_frames_create)]
+            frames += [[action[0], action[1], None]] + [
+                np.round(float(time_to_create) + (i / fps) * speed, 2).astype(str)
+                for i in range(1, total_frames_create)
+            ]
 
             dt_save = next_shape_create_time - time_to_save
             total_frames_save = np.ceil(dt_save * fps / speed).astype(int)
-            frames += [action] + [np.round(float(time_to_save) + (i/fps)*speed, 2).astype(str) for i in range(1, total_frames_save)]
+            frames += [action] + [
+                np.round(float(time_to_save) + (i / fps) * speed, 2).astype(str)
+                for i in range(1, total_frames_save)
+            ]
         else:
             dt_create = next_shape_create_time - time_to_create
             total_frames_create = np.ceil(dt_create * fps / speed).astype(int)
-            frames += [action] + [np.round(float(time_to_create) + (i/fps)*speed, 2).astype(str) for i in range(1, total_frames_create)]
+            frames += [action] + [
+                np.round(float(time_to_create) + (i / fps) * speed, 2).astype(str)
+                for i in range(1, total_frames_create)
+            ]
 
     action = game[PARSED_ALL_SHAPES_KEY][-1]
     last_time = 720
@@ -72,90 +215,199 @@ def animate_game(game, speed=1, output_dir_path='./', verbose=False):
     if time_to_save is not None:
         dt_create = time_to_save - time_to_create
         total_frames_create = np.ceil(dt_create * fps / speed).astype(int)
-        frames += [[action[0], action[1], None]] + [np.round(float(time_to_create) + (i/fps)*speed, 2).astype(str) for i in range(1, total_frames_create)]
+        frames += [[action[0], action[1], None]] + [
+            np.round(float(time_to_create) + (i / fps) * speed, 2).astype(str)
+            for i in range(1, total_frames_create)
+        ]
 
         dt_save = last_time - time_to_save
         total_frames_save = np.ceil(dt_save * fps / speed).astype(int)
-        frames += [action] + [np.round(float(time_to_save) + (i/fps)*speed, 2).astype(str) for i in range(1, total_frames_save)]
+        frames += [action] + [
+            np.round(float(time_to_save) + (i / fps) * speed, 2).astype(str)
+            for i in range(1, total_frames_save)
+        ]
     else:
         dt_create = last_time - time_to_create
         total_frames_create = np.ceil(dt_create * fps / speed).astype(int)
-        frames += [action] + [np.round(float(time_to_create) + (i/fps)*speed, 2).astype(str) for i in range(1, total_frames_create)]
+        frames += [action] + [
+            np.round(float(time_to_create) + (i / fps) * speed, 2).astype(str)
+            for i in range(1, total_frames_create)
+        ]
 
     update_func = partial(update, show_time=True, tqdm_obj=None, verbose=False)
     if verbose:
-        tqdm_obj = tqdm(total=len(frames))
+        tqdm_obj = tqdm.tqdm(total=len(frames))
         update_func = partial(update, show_time=True, tqdm_obj=tqdm_obj, verbose=True)
-    ani = animation.FuncAnimation(fig=fig, func=update_func, frames=frames, interval=interval)
 
-    if not os.path.isdir(output_dir_path):
-        os.mkdir(output_dir_path)
-    path = os.path.join(output_dir_path, 'game_{game_id}.gif'.format(game_id=game_id))
+    ani = animation.FuncAnimation(fig=fig, func=update_func, frames=frames, interval=interval)
+    os.makedirs(output_dir_path, exist_ok=True)
+    path = os.path.join(output_dir_path, f"game_{game_id}.gif")
     ani.save(path)
 
-def plot_game(game, output_dir_path='./'):
+
+# ---------- Faster plot_game ----------
+def compute_layout_params(cols, gap_ratio=0.5, left_margin=0.05, right_margin=0.05):
+    """
+    Compute wspace and subplot region so that:
+    - gap between subplots = gap_ratio * subplot width
+    - right margin = one gap
+    """
+
+    # Effective usable width
+    usable_width = 1 - left_margin - right_margin
+
+    # Let subplot width = W
+    # Total width = cols*W + (cols-1)*gap + right_gap
+    # gap = gap_ratio * W
+    # right_gap = gap_ratio * W
+
+    # total = cols*W + (cols-1)*gap_ratio*W + gap_ratio*W
+    #       = W * (cols + cols*gap_ratio)
+
+    total_units = cols + cols * gap_ratio
+    W = usable_width / total_units
+
+    gap = gap_ratio * W
+
+    # Convert to matplotlib wspace definition:
+    # wspace = gap / W
+    wspace = gap / W  # == gap_ratio
+
+    # Adjust right margin to enforce final gap
+    right = left_margin + cols * W + (cols - 1) * gap + gap
+
+    return {
+        "left": left_margin,
+        "right": right,
+        "wspace": wspace,
+    }
+
+def plot_game(game, output_dir_path="./"):
     game_id = game[PARSED_PLAYER_ID_KEY]
-    cleaned_actions = np.array(remove_duplicate_actions(game))
-    exploit_times = [range(*exploit_slice) for exploit_slice in game[EXPLOIT_KEY]]
-    gallery_shapes = [[index, get_shape_binary_matrix(int(action[0])), action[2]] for index, action in enumerate(game[PARSED_ALL_SHAPES_KEY]) if action[2] is not None]
+    all_actions = game[PARSED_ALL_SHAPES_KEY]
+
+    cleaned_actions = remove_duplicate_actions(game)
+    cleaned_save_times = [action[2] for action in cleaned_actions if action[2] is not None]
+    save_time_to_clean_idx = {save_time: idx for idx, save_time in enumerate(cleaned_save_times)}
+
+    # Precompute exploit phase membership once
+    exploit_phase_by_index = {}
+    for phase_idx, exploit_slice in enumerate(game[EXPLOIT_KEY]):
+        for idx in range(*exploit_slice):
+            exploit_phase_by_index[idx] = phase_idx
+
+    gallery_shapes = [
+        (index, get_shape_binary_matrix(int(action[0])), action[2])
+        for index, action in enumerate(all_actions)
+        if action[2] is not None
+    ]
+
     len_shapes = len(gallery_shapes)
-    cols = np.ceil(len_shapes**0.5).astype(int)
-    fig, ax = plt.subplots(nrows=cols, ncols=cols, figsize = (16, 12))
-    plt.suptitle('Player {player_id}'.format(player_id=game_id))
-    prev_exploit_time = -1
+    if len_shapes == 0:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.text(0.5, 0.5, f"Player {game_id}\nNo gallery shapes", ha="center", va="center")
+        ax.axis("off")
+        if not os.path.isdir(output_dir_path):
+            os.mkdir(output_dir_path)
+        fig.savefig(os.path.join(output_dir_path, f"game_{game_id}.png"), bbox_inches="tight")
+        plt.close(fig)
+        return
+
+    cols = max(int(np.ceil(np.sqrt(len_shapes))),2)
+    rows = max(int(np.ceil(len_shapes / cols)), 2)
+
+    fig, ax = plt.subplots(
+        nrows=rows,
+        ncols=cols,
+        figsize=(cols * 2.4 + 2, rows * 2.4),
+        squeeze=False,
+    )
+    plt.suptitle(f"Player {game_id}")
+
+    prev_exploit_phase = -1
     prev_index = gallery_shapes[0][0]
     delta_t_and_steps = []
-    for counter, shape_and_index in enumerate(gallery_shapes):
-        index, shape, save_time = shape_and_index
-        is_new_exploit = False
-        exploit_time_index = np.nonzero([index in exploit_time for exploit_time in exploit_times])[0]
-        is_exploit = exploit_time_index.size == 1
+
+    for counter, (index, shape, save_time) in enumerate(gallery_shapes):
+        axis = ax.flat[counter]
+
+        exploit_phase = exploit_phase_by_index.get(index, None)
+        is_exploit = exploit_phase is not None
+        is_new_exploit = is_exploit and (exploit_phase > prev_exploit_phase)
+
         if is_exploit:
-            is_new_exploit =  exploit_time_index[0] - prev_exploit_time > 0
-            prev_exploit_time = exploit_time_index[0]
+            prev_exploit_phase = exploit_phase
 
-        curr_save_time = game[PARSED_ALL_SHAPES_KEY][index][2]
-        prev_save_time = game[PARSED_ALL_SHAPES_KEY][prev_index][2]
-        delta_t = curr_save_time - prev_save_time
-        steps_between_shapes = np.where(cleaned_actions == curr_save_time)[0] - np.where(cleaned_actions == prev_save_time)[0]
-        delta_t_and_steps.append([delta_t, steps_between_shapes[0]])
-        res = (900/100, 900/100)
-        shape_image = show_binary_matrix(shape, show=False, is_gallery=is_new_exploit, is_exploit=is_exploit, render=True, save_filename=None, title='', res=res)
-        ax.flat[counter].imshow(shape_image)
-        ax.flat[counter].set_xlabel('{}'.format(np.round(save_time, 3)))
+        curr_save_time = all_actions[index][2]
+        prev_save_time = all_actions[prev_index][2]
 
-        ax.flat[counter].set_xticklabels([])
-        ax.flat[counter].set_yticklabels([])
+        if counter == 0:
+            delta_t_and_steps.append((None, None))
+        else:
+            delta_t = curr_save_time - prev_save_time
+            steps_between_shapes = (
+                save_time_to_clean_idx[curr_save_time] - save_time_to_clean_idx[prev_save_time]
+            )
+            delta_t_and_steps.append((delta_t, steps_between_shapes))
+
+        draw_binary_matrix(
+            axis,
+            shape,
+            is_gallery=is_new_exploit,
+            is_exploit=is_exploit,
+            title="",
+        )
+        axis.set_xlabel(f"{np.round(save_time, 3)}")
 
         prev_index = index
-    
-    for axis in ax.flat[counter + 1:]:
+
+    for axis in ax.flat[len_shapes:]:
         axis.remove()
 
-    fig.tight_layout()
-    for counter, _ in enumerate(gallery_shapes[1:]):
-        delta_t, steps_between_shapes = delta_t_and_steps[counter + 1]
-        pos = ax.flat[counter + 1].get_position()
-        prev_pos = ax.flat[counter].get_position()
-        if (counter + 1) % cols != 0:
+    # fig.tight_layout()
+    # # leave extra space on the right of the same size as between axes gap:
+    # gap_ratio = (fig.subplotpars.right - fig.subplotpars.left) / cols
+    # fig.subplots_adjust(right=1 - gap_ratio)
+    layout = compute_layout_params(cols, gap_ratio=0.5)
+
+    fig.subplots_adjust(
+        left=layout["left"],
+        right=layout["right"],
+        top=0.9,
+        bottom=0.05,
+        wspace=layout["wspace"],
+        hspace=layout["wspace"],  # same vertically
+    )
+
+
+    for counter in range(1, len(gallery_shapes)):
+        delta_t, steps_between_shapes = delta_t_and_steps[counter]
+
+        pos = ax.flat[counter].get_position()
+        prev_pos = ax.flat[counter - 1].get_position()
+
+        if counter % cols != 0:
             x_pos = (pos.x0 + prev_pos.x1) / 2
             y_pos = (pos.y0 + prev_pos.y1) / 2
-
         else:
-            x_pos = (prev_pos.x1) + (prev_pos.x1 - prev_pos.x0) / 4
+            x_pos = prev_pos.x1 + (prev_pos.x1 - prev_pos.x0) / 4
             y_pos = (prev_pos.y0 + prev_pos.y1) / 2
 
-        fig.text(x_pos, y_pos, 'v={ratio}\nsbs={sbs}\ndt={dt}'.format(ratio=np.round(steps_between_shapes/delta_t, 2), dt=np.round(delta_t, 2), sbs=steps_between_shapes), color='black', ha='center', va='center')
-    
-    fig.set_size_inches(fig.get_size_inches()[0] + 2, fig.get_size_inches()[1])
-    if not os.path.isdir(output_dir_path):
-        os.mkdir(output_dir_path)
+        ratio = np.round(steps_between_shapes / delta_t, 2) if delta_t not in (0, None) else np.nan
+        fig.text(
+            x_pos,
+            y_pos,
+            f"v={ratio}\nsbs={steps_between_shapes}\ndt={np.round(delta_t, 2)}",
+            color="black",
+            ha="center",
+            va="center",
+        )
+    os.makedirs(output_dir_path, exist_ok=True)
 
-    fig.subplots_adjust(right=0.85)
-    plt.savefig(os.path.join(output_dir_path, 'game_{game_id}.png'.format(game_id=game_id)), bbox_inches='tight')
+
+    plt.savefig(os.path.join(output_dir_path, f"game_{game_id}.png"), bbox_inches="tight")
     plt.close()
 
-    return
 
 def remove_duplicate_actions(game):
     cleaned_actions = [game[PARSED_ALL_SHAPES_KEY][0]]
@@ -164,59 +416,8 @@ def remove_duplicate_actions(game):
         if action[2] is None and action[0] == prev_action[0]:
             continue
         else:
-            cleaned_actions.append(action)    
+            cleaned_actions.append(action)
         prev_action = action
-    
+
     return cleaned_actions
 
-def show_binary_matrix(binary_mat, show=True, is_gallery=False, is_exploit=False, render=False, save_filename=None, title='', res=(750/100, 750/100), use_figure=None):
-    """
-    Displays the binary matrix representation of a shape.
-    :param binary_mat: a binary matrix representation of a shape.
-    :param is_gallery: True iff this a gallery shape. affects background color.
-    :param save_filename: a filename to save the image, or None (to avoid saving).
-    """
-    bg_color = VIS_GALLERY_BG_COLOR if is_gallery else VIS_SHAPE_BG_COLOR
-    shape_color = VIS_SHAPE_COLOR if not is_exploit else VIS_EXPLOIT_SHAPE_COLOR
-    nrow, ncol = binary_mat.shape
-    pad_rows = (10 - nrow) / 2
-    pad_rows = (np.ceil(pad_rows).astype('int'), np.floor(pad_rows).astype('int'))
-    pad_cols = (10 - ncol) / 2
-    pad_cols = (np.ceil(pad_cols).astype('int'), np.floor(pad_cols).astype('int'))
-    binary_mat = np.pad(binary_mat, (pad_rows, pad_cols))
-
-    if use_figure is None:
-        dpi = 100
-        fig = plt.figure(figsize=res, dpi=dpi)
-
-    ax = plt.gca()
-    ax.matshow(binary_mat, cmap=ListedColormap([bg_color, shape_color]))
-
-    ax.set_xticks(np.arange(0, 10, 1))
-    ax.set_yticks(np.arange(0, 10, 1))
-
-    ax.set_xticklabels(['' for i in np.arange(1, 11, 1)])
-    ax.set_yticklabels(['' for i in np.arange(1, 11, 1)])
-
-    ax.set_xticks(np.arange(-.5, 10, 1), minor=True)
-    ax.set_yticks(np.arange(-.5, 10, 1), minor=True)
-    ax.grid(which='minor', color=bg_color, linestyle='-', linewidth=3)
-    ax.tick_params(which='minor', bottom=False, left=False)
-    ax.set_title(title)
-
-    if save_filename:
-        plt.savefig(save_filename)
-    
-    if show:
-        plt.show()
-
-    if render:
-        buf = io.BytesIO()
-        fig.savefig(buf, format="jpg")
-        buf.seek(0)
-        img = Image.open(buf)
-        plt.close(fig)
-        return img
-
-    if use_figure is None:
-        plt.close(fig)

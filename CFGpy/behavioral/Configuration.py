@@ -157,7 +157,4 @@ class Configuration:
     MAX_IGNORED_GAME_DURATION_SEC: float = 0
 
     VISUALIZATION_ANIMATION_SPEED: int = 8
-    VISUALIZATION_ANIMATE = True
-    VISUALIZATION_MAIN_DIR = './visualizations'
-    VISUALIZATION_PLOT_OUTPUT_DIR = './visualizations/plots'
-    VISUALIZATION_ANIMATION_OUTPUT_DIR = './visualizations/animations'
+    VISUALIZATION_ANIMATE = False
