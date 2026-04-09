@@ -182,6 +182,7 @@ class Pipeline(HasLogger):
             if self.config.VISUALIZATION_ANIMATE:
                 visualization.animate_game(game=game, speed=self.config.VISUALIZATION_ANIMATION_SPEED, output_dir_path=os.path.join(viz_dir, "animations"))
 
+            #visualization.plot_game(game=game, output_dir_path=os.path.join(viz_dir, "plots"))
             visualization.plot_game(game=game, output_dir_path=os.path.join(viz_dir, "plots"))
 
     def run_pipeline(self):

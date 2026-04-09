@@ -282,132 +282,6 @@ def compute_layout_params(cols, gap_ratio=0.5, left_margin=0.05, right_margin=0.
         "wspace": wspace,
     }
 
-def plot_game(game, output_dir_path="./"):
-    game_id = game[PARSED_PLAYER_ID_KEY]
-    all_actions = game[PARSED_ALL_SHAPES_KEY]
-
-    cleaned_actions = remove_duplicate_actions(game)
-    cleaned_save_times = [action[2] for action in cleaned_actions if action[2] is not None]
-    save_time_to_clean_idx = {save_time: idx for idx, save_time in enumerate(cleaned_save_times)}
-
-    # Precompute exploit phase membership once
-    exploit_phase_by_index = {}
-    for phase_idx, exploit_slice in enumerate(game[EXPLOIT_KEY]):
-        for idx in range(*exploit_slice):
-            exploit_phase_by_index[idx] = phase_idx
-
-    gallery_shapes = [
-        (index, get_shape_binary_matrix(int(action[0])), action[2])
-        for index, action in enumerate(all_actions)
-        if action[2] is not None
-    ]
-
-    len_shapes = len(gallery_shapes)
-    if len_shapes == 0:
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax.text(0.5, 0.5, f"Player {game_id}\nNo gallery shapes", ha="center", va="center")
-        ax.axis("off")
-        if not os.path.isdir(output_dir_path):
-            os.mkdir(output_dir_path)
-        fig.savefig(os.path.join(output_dir_path, f"game_{game_id}.png"), bbox_inches="tight")
-        plt.close(fig)
-        return
-
-    cols = max(int(np.ceil(np.sqrt(len_shapes))),2)
-    rows = max(int(np.ceil(len_shapes / cols)), 2)
-
-    fig, ax = plt.subplots(
-        nrows=rows,
-        ncols=cols,
-        figsize=(cols * 2.4 + 2, rows * 2.4),
-        squeeze=False,
-    )
-    plt.suptitle(f"Player {game_id}")
-
-    prev_exploit_phase = -1
-    prev_index = gallery_shapes[0][0]
-    delta_t_and_steps = []
-
-    for counter, (index, shape, save_time) in enumerate(gallery_shapes):
-        axis = ax.flat[counter]
-
-        exploit_phase = exploit_phase_by_index.get(index, None)
-        is_exploit = exploit_phase is not None
-        is_new_exploit = is_exploit and (exploit_phase > prev_exploit_phase)
-
-        if is_exploit:
-            prev_exploit_phase = exploit_phase
-
-        curr_save_time = all_actions[index][2]
-        prev_save_time = all_actions[prev_index][2]
-
-        if counter == 0:
-            delta_t_and_steps.append((None, None))
-        else:
-            delta_t = curr_save_time - prev_save_time
-            steps_between_shapes = (
-                save_time_to_clean_idx[curr_save_time] - save_time_to_clean_idx[prev_save_time]
-            )
-            delta_t_and_steps.append((delta_t, steps_between_shapes))
-
-        draw_binary_matrix(
-            axis,
-            shape,
-            is_gallery=is_new_exploit,
-            is_exploit=is_exploit,
-            title="",
-        )
-        axis.set_xlabel(f"{np.round(save_time, 3)}")
-
-        prev_index = index
-
-    for axis in ax.flat[len_shapes:]:
-        axis.remove()
-
-    # fig.tight_layout()
-    # # leave extra space on the right of the same size as between axes gap:
-    # gap_ratio = (fig.subplotpars.right - fig.subplotpars.left) / cols
-    # fig.subplots_adjust(right=1 - gap_ratio)
-    layout = compute_layout_params(cols, gap_ratio=0.5)
-
-    fig.subplots_adjust(
-        left=layout["left"],
-        right=layout["right"],
-        top=0.9,
-        bottom=0.05,
-        wspace=layout["wspace"],
-        hspace=layout["wspace"],  # same vertically
-    )
-
-
-    for counter in range(1, len(gallery_shapes)):
-        delta_t, steps_between_shapes = delta_t_and_steps[counter]
-
-        pos = ax.flat[counter].get_position()
-        prev_pos = ax.flat[counter - 1].get_position()
-
-        if counter % cols != 0:
-            x_pos = (pos.x0 + prev_pos.x1) / 2
-            y_pos = (pos.y0 + prev_pos.y1) / 2
-        else:
-            x_pos = prev_pos.x1 + (prev_pos.x1 - prev_pos.x0) / 4
-            y_pos = (prev_pos.y0 + prev_pos.y1) / 2
-
-        ratio = np.round(steps_between_shapes / delta_t, 2) if delta_t not in (0, None) else np.nan
-        fig.text(
-            x_pos,
-            y_pos,
-            f"v={ratio}\nsbs={steps_between_shapes}\ndt={np.round(delta_t, 2)}",
-            color="black",
-            ha="center",
-            va="center",
-        )
-    os.makedirs(output_dir_path, exist_ok=True)
-
-
-    plt.savefig(os.path.join(output_dir_path, f"game_{game_id}.png"), bbox_inches="tight")
-    plt.close()
-
 
 def remove_duplicate_actions(game):
     cleaned_actions = [game[PARSED_ALL_SHAPES_KEY][0]]
@@ -421,3 +295,168 @@ def remove_duplicate_actions(game):
 
     return cleaned_actions
 
+def plot_game(game, output_dir_path="./"):
+    game_id = game[PARSED_PLAYER_ID_KEY]
+    all_actions = game[PARSED_ALL_SHAPES_KEY]
+    os.makedirs(output_dir_path, exist_ok=True)
+
+    # ==========================================
+    # 1. Prepare Data for the Graph (Top)
+    # ==========================================
+    exploit_shape_ranges = game[EXPLOIT_KEY]
+    gallery_shape_times_and_indices = np.array([[idx, action[0], action[2]] for idx, action in enumerate(all_actions) if action[2] is not None])
+    if gallery_shape_times_and_indices.size == 0:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.text(0.5, 0.5, f"Player {game_id}\nNo gallery shapes", ha="center", va="center")
+        ax.axis("off")
+        fig.savefig(os.path.join(output_dir_path, f"game_{game_id}.png"), bbox_inches="tight")
+        plt.close(fig)
+        return
+
+    gallery_save_indices = gallery_shape_times_and_indices[:, 0]
+    gallery_save_shapes = gallery_shape_times_and_indices[:, 1]
+    gallery_save_times = gallery_shape_times_and_indices[:, 2]
+    gallery_shape_dts = np.diff(gallery_save_times, prepend=gallery_save_times[0])
+    duplicate_actions_indices = [idx for idx in range(1, len(all_actions)) if all_actions[idx][2] is None and all_actions[idx][0] == all_actions[idx - 1][0]]
+    corrected_gallery_save_indices = gallery_save_indices.copy()
+    for indices in [np.where(gallery_save_indices > duplicate_action_index) for duplicate_action_index in duplicate_actions_indices]:
+        corrected_gallery_save_indices[indices] -= 1
+
+    steps_between_shapes = np.diff(corrected_gallery_save_indices, prepend=corrected_gallery_save_indices[0])
+
+    # To avoid division by zero or near-zero, we can set a minimum threshold for delta_t when calculating velocity. If delta_t is below this threshold, we can set velocity to NaN or some predefined value.
+    gallery_save_velocity = np.round(np.divide(steps_between_shapes, gallery_shape_dts, out=np.zeros_like(steps_between_shapes), where=gallery_shape_dts!=0), 2)
+    gallery_shape_dts = np.round(gallery_shape_dts, 2)
+    gallery_save_velocity[gallery_shape_dts == 0] = np.nan
+
+    is_exploit = np.zeros_like(steps_between_shapes)
+    is_start_of_exploit_phase = np.zeros_like(steps_between_shapes)
+    
+    exploit_bouts = []
+    for exploit_range in exploit_shape_ranges:
+        # Gets the new indices of the gallery saves that are in the current exploit range, and adds them as a bout
+        exploit_range_indices = list(range(*exploit_range))
+        exploit_bout = np.where(np.isin(gallery_save_indices, exploit_range_indices))[0]
+        is_exploit[exploit_bout] = 1
+        exploit_bouts.append(exploit_bout)
+        if len(exploit_bout) > 0:
+            is_start_of_exploit_phase[exploit_bout[0]] = 1
+
+    # ==========================================
+    # 2. Prepare Data for the Grid (Bottom)
+    # ==========================================
+    cleaned_actions = remove_duplicate_actions(game)
+    cleaned_save_times = [action[2] for action in cleaned_actions if action[2] is not None]
+    save_time_to_clean_idx = {save_time: idx for idx, save_time in enumerate(cleaned_save_times)}
+
+    gallery_shapes = [
+        (index, get_shape_binary_matrix(int(action[0])), action[2])
+        for index, action in enumerate(all_actions)
+        if action[2] is not None
+    ]
+
+    # ==========================================
+    # 3. Figure & Subfigure Setup
+    # ==========================================
+    cols = max(int(np.ceil(np.sqrt(gallery_save_indices.size))), 2)
+    rows = max(int(np.ceil(gallery_save_indices.size / cols)), 2)
+
+    grid_width = cols * 2.4 + 2
+    grid_height = rows * 2.4
+    graph_height = 6.0 
+
+    # Overall figure size accommodates both plots
+    fig_width = max(10, grid_width)
+    fig_height = graph_height + grid_height
+
+    fig = plt.figure(figsize=(fig_width, fig_height))
+    fig.suptitle(f"Player {game_id}", fontsize=16, y=1.02)
+
+    # Split the main figure into two isolated subfigures (Top and Bottom)
+    subfigs = fig.subfigures(2, 1, height_ratios=[graph_height, grid_height])
+    subfig_top = subfigs[0]
+    subfig_bottom = subfigs[1]
+
+    # ==========================================
+    # 4. Plot Top: The Line Graph
+    # ==========================================
+    ax_graph = subfig_top.subplots()
+
+    ax_graph.scatter(gallery_save_times, gallery_shape_dts, marker='*', color='orange', label='Explore Saves')
+
+    for exploit_bout in exploit_bouts:
+        ax_graph.plot(gallery_save_times[exploit_bout], gallery_shape_dts[exploit_bout], marker='o')
+    
+    ax_graph.set_xlabel('Save Time [$s$]')
+    ax_graph.set_ylabel('$\\Delta$ t between gallery saves')
+    ax_graph.set_title("Gallery Shape Saves Over Time vs $\\Delta$ t")
+
+    # ==========================================
+    # 5. Plot Bottom: The Image Grid
+    # ==========================================
+    ax_bottom = subfig_bottom.subplots(
+        nrows=rows,
+        ncols=cols,
+        squeeze=False,
+    )
+
+    for save_index, shape in enumerate(gallery_save_shapes):
+        binary_mat = get_shape_binary_matrix(int(shape))
+        axis = ax_bottom.flat[save_index]
+        is_shape_exploit = is_exploit[save_index]
+        is_shape_exploit_start = is_start_of_exploit_phase[save_index]
+
+        draw_binary_matrix(
+            ax=axis,
+            binary_mat=binary_mat,
+            is_gallery=is_shape_exploit_start, # We're abusing the is_gallery parameter to indicate the start of an exploit phase
+            is_exploit=is_shape_exploit,
+            title="",
+        )
+        axis.set_xlabel(f"{np.round(gallery_save_times[save_index], 3)}")
+
+    # Remove extra axes
+    for axis in ax_bottom.flat[gallery_save_indices.size:]:
+        axis.remove()
+
+    # Isolate the layout adjustment to ONLY the bottom subfigure
+    layout = compute_layout_params(cols, gap_ratio=0.5)
+    subfig_bottom.subplots_adjust(
+        left=layout["left"],
+        right=layout["right"],
+        top=0.9,
+        bottom=0.05,
+        wspace=layout["wspace"],
+        hspace=layout["wspace"],
+    )
+
+    # Calculate text placement (Using subfig_bottom.text keeps your math valid)
+    for counter in range(1, gallery_save_shapes.size):
+        steps_between_shapes_for_shape = int(steps_between_shapes[counter])
+        delta_t_for_shape = gallery_shape_dts[counter]
+        velocity_for_shape = gallery_save_velocity[counter]
+
+        pos = ax_bottom.flat[counter].get_position()
+        prev_pos = ax_bottom.flat[counter - 1].get_position()
+
+        if counter % cols != 0:
+            x_pos = (pos.x0 + prev_pos.x1) / 2
+            y_pos = (pos.y0 + prev_pos.y1) / 2
+        else:
+            x_pos = prev_pos.x1 + (prev_pos.x1 - prev_pos.x0) / 4
+            y_pos = (prev_pos.y0 + prev_pos.y1) / 2
+
+        subfig_bottom.text(
+            x_pos,
+            y_pos,
+            f"v={velocity_for_shape}\nsbs={steps_between_shapes_for_shape}\ndt={delta_t_for_shape}",
+            color="black",
+            ha="center",
+            va="center",
+        )
+
+    # ==========================================
+    # 6. Save the Combined Figure
+    # ==========================================
+    plt.savefig(os.path.join(output_dir_path, f"game_{game_id}_combined.png"), bbox_inches="tight")
+    plt.close(fig)
