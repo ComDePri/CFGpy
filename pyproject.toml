@@ -1,9 +1,9 @@
 [project]
 name = "CFGpy"
-version = "1.0.0" 
+dynamic = ["version"]
 description = "A python package for handling Creative Foraging Game behavioral data and numerical simulations"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "boto3",
     "pycognito",
@@ -34,3 +34,10 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["CFGpy"]
+
+[tool.hatch.build]
+# This ensures your .yml config file is included in the build
+artifacts = ["CFGpy/behavioral/default_config.yml"]
+
+[tool.hatch.version]
+path = "CFGpy/_version.py"  # Path to the file containing __version__
