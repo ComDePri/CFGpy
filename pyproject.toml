@@ -1,19 +1,36 @@
 [project]
 name = "CFGpy"
-version = "1.0.0"
-description = "For all your parsing needs"
+version = "1.0.0" 
+description = "A python package for handling Creative Foraging Game behavioral data and numerical simulations"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "boto3>=1.42.79",
-    "dacite>=1.9.2",
-    "matplotlib>=3.10.8",
-    "networkx>=3.6.1",
-    "numpy>=2.4.4",
-    "pandas>=3.0.1",
-    "pycognito>=2024.5.1",
-    "requests>=2.33.1",
-    "scipy>=1.17.1",
-    "seaborn>=0.13.2",
-    "tqdm>=4.67.3",
+    "boto3,
+    "pycognito,
+    "appdirs",
+    "numpy",
+    "pandas",
+    "requests",
+    "tqdm",
+    "networkx",
+    "matplotlib",
+    "seaborn",
+    "scipy",
+    "dacite",
+    "PyYAML",
+    # Based on our previous discussion, adding this ensures pkg_resources works
+    "setuptools",
 ]
+
+[project.urls]
+Homepage = "https://github.com/ComDePri/CFGpy"
+
+[project.scripts]
+run_cfg_pipeline = "CFGpy.behavioral.Pipeline:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["CFGpy"]
