@@ -71,7 +71,7 @@ class Pipeline(HasLogger):
             return RedMetrics2DataRetriever(game_name=self._game_name, game_id=self._game_id, config=self.config,
                                             output_filename=self.output_filename, logger=self.logger)
         elif self.config.DATA_SOURCE == RM1:
-            return RedMetrics1Downloader(csv_url=self.config.RED_METRICS_CSV_URL, config=self.config,
+            return RedMetrics1Downloader(csv_url=self.config.RED_METRICS_CSV_URL, game_id=self._game_id, config=self.config,
                                          output_filename=self.output_filename, logger=self.logger)
         elif self.config.DATA_SOURCE == APPSync:
             return CFGAppSyncDataRetriever(game_name=self._game_name, game_id=self._game_id, config=self.config,
