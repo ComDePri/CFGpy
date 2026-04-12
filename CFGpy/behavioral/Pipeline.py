@@ -71,7 +71,7 @@ class Pipeline(HasLogger):
             return RedMetrics2DataRetriever(game_name=self._game_name, game_id=self._game_id, config=self.config,
                                             output_filename=self.output_filename, logger=self.logger)
         elif self.config.DATA_SOURCE == RM1:
-            return RedMetrics1Downloader(csv_url=self.config.RED_METRICS_CSV_URL, config=self.config,
+            return RedMetrics1Downloader(csv_url=self.config.RED_METRICS_CSV_URL, game_id=self._game_id, config=self.config,
                                          output_filename=self.output_filename, logger=self.logger)
         elif self.config.DATA_SOURCE == APPSync:
             return CFGAppSyncDataRetriever(game_name=self._game_name, game_id=self._game_id, config=self.config,
@@ -242,7 +242,12 @@ def main():
     if arg_data_source:
         config.DATA_SOURCE = arg_data_source  # set data source early to allow validation of other args
     config = update_config_with_args(config, args)  # keep config as single source of truth for downstream usage
+    # check if output_filename as a path is inside a dir
 
+    # Ensure parent directory exists (if any)
+    parent_dir = os.path.dirname(args.output_filename)
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
     pl = Pipeline(output_filename=args.output_filename, config=config, verbose=args.verbose)
 
     pl.run_pipeline()

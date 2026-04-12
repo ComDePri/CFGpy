@@ -110,7 +110,7 @@ class CFGAppSyncDataRetriever(DataRetriever):
         If missing, they are requested interactively.
         """
         boto3, AWSSRP = self._import_auth_dependencies()
-        username = os.getenv("CFG_USERNAME") or input("Please enter your CFG username/email: ")
+        username = os.getenv("CFG_USERNAME") or input("Please enter your CFG username/email (or set CFG_USERNAME & CFG_PASSWORD environment variables and rerun): ")
         password = os.getenv("CFG_PASSWORD") or getpass.getpass("Please enter your CFG password: ")
 
         region = self._config.CFG_COGNITO_REGION

@@ -9,7 +9,7 @@ import warnings
 import matplotlib.pyplot as plt
 import seaborn as sns
 from CFGpy.behavioral._consts import (SERVER_COORDS_TYPE_ERROR, EXPLORE_KEY, PRETTIFY_WARNING, PARSED_ALL_SHAPES_KEY,
-                                      PARSED_CHOSEN_SHAPES_KEY, EXPLOIT_KEY, RM1)
+                                      PARSED_CHOSEN_SHAPES_KEY, EXPLOIT_KEY, DATA_SOURCES_ALIASES_LOW, RM1)
 from _ctypes import PyObj_FromPtr
 
 
@@ -22,6 +22,11 @@ def load_json(json_path):
         j = json.load(json_fp)
     return j
 
+def normalize_data_source_name(data_source_name: str):
+    for canonical_name, aliases in DATA_SOURCES_ALIASES_LOW.items():
+        if data_source_name.lower().strip() in aliases:
+            return canonical_name
+    raise ValueError(f"Unsupported data source: {data_source_name}. Valid options are: {list(DATA_SOURCES_ALIASES_LOW.keys())}")
 
 def server_coords_to_binary_shape(coords):
     """
@@ -294,8 +299,9 @@ def get_default_data_source(cfgpy_version: str | None = None) -> str:
     cfgpy_version_tuple = version_to_tuple(cfgpy_version)
     if cfgpy_version_tuple < version_to_tuple("1.0.1"):
         return RM1
-    else: # should be updated once we migrate to a stable platform for data storage
+    else:  # should be updated once we migrate to a stable platform for data storage
         raise ValueError(f"Unsupported CFGpy version: {cfgpy_version}. No default data source available.")
+
 
 def parse_json_column(*, df: pd.DataFrame, column_name: str, prefix: str):
     """Parse JSON columns in the DataFrame"""
@@ -313,6 +319,7 @@ def parse_json_column(*, df: pd.DataFrame, column_name: str, prefix: str):
 
     return pd.concat([df.drop(columns=[column_name]), parsed_df], axis=1)
 
+
 def resolve_path(name, path, default_suffix):
     if path:
         return path
@@ -320,6 +327,7 @@ def resolve_path(name, path, default_suffix):
         return f"{name}_{default_suffix}"
     else:
         return default_suffix
+
 
 def missing_str_field(series: pd.Series, possible_missing_strs=("null", "nan", "none")):
     if not is_string_dtype(series):
@@ -338,6 +346,7 @@ def median_handle_empty(arr):
     if arr.size == 0:
         return np.nan
     return np.median(arr)
+
 
 def mean_handle_empty(arr):
     arr = np.array(arr)
