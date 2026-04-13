@@ -77,7 +77,6 @@ class PostParser(HasLogger):
             out_file.write(json_str)
 
         # dump config
-        self.config.to_yaml(path)
         if with_config:
             # dump config
             self.config.to_yaml(path.replace('.json', ''))
