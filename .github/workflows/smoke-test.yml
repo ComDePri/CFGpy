@@ -13,7 +13,7 @@ jobs:
       fail-fast: false
       matrix:
         # Testing on 3.11 and 3.12 covers your current and previous bases
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.12"]
     env:
         CFG_USERNAME: ${{ secrets.MY_USER }}
         CFG_PASSWORD: ${{ secrets.MY_PASS }}
@@ -37,5 +37,5 @@ jobs:
       # If this raises any Exception, the 'uv run' exit code will be non-zero 
       # and the GitHub Action will mark this step as "Failed".
       run: |
-        uv run run_cfg_pipeline --data-source=AppSync -v -o smoke_test.test --game-id=4cc80fb7-8aac-4a5b-b71e-c71287d6f587
-        rm smoke_test.*
+        source .venv/bin/activate
+        run_cfg_pipeline --data-source=AppSync -v -o smoke_test.test --game-id=4cc80fb7-8aac-4a5b-b71e-c71287d6f587

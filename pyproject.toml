@@ -1,0 +1,43 @@
+[project]
+name = "CFGpy"
+dynamic = ["version"]
+description = "A python package for handling Creative Foraging Game behavioral data and numerical simulations"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "boto3",
+    "pycognito",
+    "appdirs",
+    "numpy",
+    "pandas",
+    "requests",
+    "tqdm",
+    "networkx",
+    "matplotlib",
+    "seaborn",
+    "scipy",
+    "dacite",
+    "PyYAML",
+    # Based on our previous discussion, adding this ensures pkg_resources works
+    "setuptools",
+]
+
+[project.urls]
+Homepage = "https://github.com/ComDePri/CFGpy"
+
+[project.scripts]
+run_cfg_pipeline = "CFGpy.behavioral.Pipeline:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["CFGpy"]
+
+[tool.hatch.build]
+# This ensures your .yml config file is included in the build
+artifacts = ["CFGpy/behavioral/default_config.yml"]
+
+[tool.hatch.version]
+path = "CFGpy/_version.py"  # Path to the file containing __version__
