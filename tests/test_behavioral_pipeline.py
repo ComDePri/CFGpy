@@ -1,37 +1,138 @@
 from pathlib import Path
 import pytest
-from CFGpy.behavioral import RedMetrics1Downloader, Parser, PostParser, FeatureExtractor, Pipeline, Configuration
+from CFGpy.behavioral import RedMetrics1Downloader, Parser, PostParser, FeatureExtractor, Pipeline, Configuration, LocalDataRetriever, RM1DumpDataRetriever, CFGAppSyncDataRetriever
+from CFGpy.behavioral._consts import RM1, APPSync, MERGED_ID_KEY
 import os
 import json
 import numpy as np
 import pandas as pd
 import sys
 
-TEST_FILES_DIR = os.path.join(Path(__file__).parent, "test_files")
+PIPELINE_TEST_FILES_DIR = os.path.join(Path(__file__).parent, "test_files")
+DUMP_TEST_FILES_DIR = os.path.join(Path(__file__).parent, "dump_test_files")
+TEST_CONFIGURABLES_DIR = os.path.join(Path(__file__).parent, "test_config_logics_files")
 CONFIG_FILENAME = "config.yml"
 TEST_DOWNLOADED_FILENAME = "test_raw.csv"
+
 
 TEST_PARSED_FILENAME = "test_parsed.json"
 TEST_PARSED_OLD_FORMAT_FILENAME = "test_parsed_old_format.txt"
 TEST_POSTPARSED_FILENAME = "test_postparsed.json"
 TEST_FEATURES_FILENAME = "test_features.csv"
 
-test_dirs = [entry.path for entry in os.scandir(TEST_FILES_DIR) if entry.is_dir()]
+pipeline_test_dirs = [entry.path for entry in os.scandir(PIPELINE_TEST_FILES_DIR) if entry.is_dir()]
+rm1_dump_test_dirs = [entry.path for entry in os.scandir(DUMP_TEST_FILES_DIR) if entry.is_dir()]
+
+def test_user_columns_ordering():
+    """
+    Test that the parser takes the correct ID field based on the order defined in the config
+    """
+    UID_COLUMN = "userId"
+    UPID_COLUMN = "userProvidedId"
+    PROID_COLUMN = "prolificId"
+    PEID_COLUMN = "playerExternalId"
+
+    COLUMNS2SUFFIXES = {
+        UID_COLUMN: "uid",
+        UPID_COLUMN: "upid",
+        PROID_COLUMN: "proid",
+        PEID_COLUMN: "peid"
+    }
+    config = Configuration.default()
+    config.PARSER_ID_COLUMNS = (UID_COLUMN, UPID_COLUMN, PROID_COLUMN, PEID_COLUMN)
+    expected_col = UID_COLUMN
+    expected_suffix = COLUMNS2SUFFIXES[expected_col]
+    raw_data_full_user_fields = pd.read_csv(os.path.join(TEST_CONFIGURABLES_DIR, "all_user_columns_events.csv"))
+    parser = Parser(config=config, raw_data=raw_data_full_user_fields)
+    parsed_data = parser.parse()
+    assert all(game["id"].endswith(expected_suffix) for game in parsed_data), f"ID field is not {expected_col} as expected based on the config"
+
+    # same for user provided ID:
+    config.PARSER_ID_COLUMNS = (UPID_COLUMN, UID_COLUMN, PROID_COLUMN, PEID_COLUMN)
+    expected_col = UPID_COLUMN
+    expected_suffix = COLUMNS2SUFFIXES[expected_col]
+    parser = Parser(config=config, raw_data=raw_data_full_user_fields)
+    parsed_data = parser.parse()
+    assert all(game["id"].endswith(expected_suffix) for game in parsed_data), f"ID field is not {expected_col} as expected based on the config"
+    # same for prolific ID:
+    config.PARSER_ID_COLUMNS = (PROID_COLUMN, UID_COLUMN, UPID_COLUMN, PEID_COLUMN)
+    expected_col = PROID_COLUMN
+    expected_suffix = COLUMNS2SUFFIXES[expected_col]
+    parser = Parser(config=config, raw_data=raw_data_full_user_fields)
+    parsed_data = parser.parse()
+    assert all(game["id"].endswith(expected_suffix) for game in parsed_data), f"ID field is not {expected_col} as expected based on the config"
+    # same for user external ID:
+    config.PARSER_ID_COLUMNS = (PEID_COLUMN, UID_COLUMN, UPID_COLUMN, PROID_COLUMN)
+    expected_col = PEID_COLUMN
+    expected_suffix = COLUMNS2SUFFIXES[expected_col]
+    parser = Parser(config=config, raw_data=raw_data_full_user_fields)
+    parsed_data = parser.parse()
+    assert all(game["id"].endswith(expected_suffix) for game in
+               parsed_data), f"ID field is not {expected_col} as expected based on the config"
+    # now Check that it works when the external ID is missing
+    raw_data_missing_external = pd.read_csv(os.path.join(TEST_CONFIGURABLES_DIR, "missing_userexternalid_events.csv"))
+    config.PARSER_ID_COLUMNS = (PEID_COLUMN, UID_COLUMN, UPID_COLUMN, PROID_COLUMN)
+    expected_col = UID_COLUMN
+    expected_suffix = COLUMNS2SUFFIXES[expected_col]
+    parser = Parser(config=config, raw_data=raw_data_missing_external)
+    parsed_data = parser.parse()
+    assert all(game["id"].endswith(expected_suffix) for game in parsed_data), f"ID field is not {expected_col} as expected based on the config"
 
 
-@pytest.mark.parametrize("test_dir", test_dirs)
-def test_downloader(test_dir):
-    raw_data_filename = "raw"
+
+
+def test_short_game_filtering():
+    ID_WITH_SHORT_GAME = "pt_69da9d88_20180206233103346_rm_vs_radm"
+    # load postparsed data
+    postparsed_path = os.path.join(TEST_CONFIGURABLES_DIR, "test_postparsed_with_short_game.json")
+    # start with default config
+    config = Configuration.from_yaml(os.path.join(TEST_CONFIGURABLES_DIR, "test_config_with_short_game.yml"))
+    feature_extractor = FeatureExtractor.from_json(postparsed_path, config=config)
+    feats = feature_extractor.extract(verbose=True)
+    config_ignore_shorts = Configuration.from_yaml(os.path.join(TEST_CONFIGURABLES_DIR, "test_config_with_short_game.yml"))
+    # removed all actions after more than 4 seconds in the early game
+    config_ignore_shorts.MAX_IGNORED_GAME_DURATION_SEC = (4 * 60) + 1
+    feats_ignore_shorts = FeatureExtractor.from_json(postparsed_path, config=config_ignore_shorts).extract(verbose=True)
+    # check that the ID with the short game is in the features with default config but not in the features with short games ignored
+    assert ID_WITH_SHORT_GAME not in feats["ID"].values, f"ID {ID_WITH_SHORT_GAME} is present in features with default config"
+    assert ID_WITH_SHORT_GAME in feats_ignore_shorts["ID"].values, f"ID {ID_WITH_SHORT_GAME} is missing from features with short games ignored"
+
+
+def test_time_filtering():
+    test_dir = os.path.join(PIPELINE_TEST_FILES_DIR, "set1")
     config = Configuration.from_yaml(os.path.join(test_dir, CONFIG_FILENAME))
-    downloader = RedMetrics1Downloader(output_filename=raw_data_filename, config=config)
-    downloader.retrieve_data(verbose=True)
-    downloader.dump()
-    
-    test_raw = (pd.read_csv(os.path.join(test_dir, TEST_DOWNLOADED_FILENAME))
-                .sort_values("id")
-                .reset_index(drop=True))
-    raw = pd.read_csv(downloader.output_path).sort_values("id").reset_index(drop=True)
+    config.BEFORE_DATE = "2024"
+    downloader_before2024 = LocalDataRetriever(events_csv_path=os.path.join(test_dir, TEST_DOWNLOADED_FILENAME),
+                                               config=config)
+    df_before2024 = downloader_before2024.retrieve_data(verbose=True)
+    assert pd.to_datetime(df_before2024["userTime"]).max() < pd.to_datetime("2024", utc=True), f"Max userTime is {pd.to_datetime(df_before2024["userTime"]).max()} instead of before 2024"
+    # should remove two games
+    N_ROWS_BEFORE2024 = 32826
+    assert len(df_before2024) == N_ROWS_BEFORE2024, f"{len(df_before2024)} events instead of {N_ROWS_BEFORE2024}"
+    config.BEFORE_DATE = None
+    config.AFTER_DATE = "2024"
+    downloader_after2024 = LocalDataRetriever(events_csv_path=os.path.join(test_dir, TEST_DOWNLOADED_FILENAME),
+                                               config=config)
+    df_after2024 = downloader_after2024.retrieve_data(verbose=True)
+    assert pd.to_datetime(df_after2024[
+               "userTime"]).min() >= pd.to_datetime("2024", utc=True), f"Min userTime is {pd.to_datetime(df_after2024['userTime']).min()} instead of 2024 or later"
+    N_ROWS_AFTER2024 = 6
+    assert len(df_after2024) == N_ROWS_AFTER2024, f"{len(df_after2024)} events instead of {N_ROWS_AFTER2024}"
+    # check both before and after
+    config.BEFORE_DATE = "2024"
+    config.AFTER_DATE = "2023-3"
+    downloader_before2024_after2023_3 = LocalDataRetriever(events_csv_path=os.path.join(test_dir, TEST_DOWNLOADED_FILENAME),
+                                                  config=config)
+    df_before2024_after2023_3 = downloader_before2024_after2023_3.retrieve_data(verbose=True)
+    assert pd.to_datetime(df_before2024_after2023_3["userTime"]).max() < pd.to_datetime("2024", utc=True), f"Max userTime is {pd.to_datetime(df_before2024_after2023_3['userTime']).max()} instead of before 2024"
+    assert pd.to_datetime(df_before2024_after2023_3["userTime"]).min() >= pd.to_datetime("2023-3", utc=True), f"Min userTime is {pd.to_datetime(df_before2024_after2023_3['userTime']).min()} instead of 2023-3 or later"
+    N_ROWS_BEFORE2024_AFTER2023_3 = 856
+    assert len(df_before2024_after2023_3) == N_ROWS_BEFORE2024_AFTER2023_3, f"{len(df_before2024_after2023_3)} events instead of {N_ROWS_BEFORE2024_AFTER2023_3}"
 
+
+
+
+def _compare_raws(test_raw, raw):
     assert len(test_raw) == len(raw), f"{len(raw)} events instead of {len(test_raw)}"
     for col_name in test_raw:
         assert col_name in raw, f"missing column {col_name}"
@@ -42,6 +143,64 @@ def test_downloader(test_dir):
             test_col = test_raw[col_name].astype(str).str.replace(", ", ",")
             col = raw[col_name].astype(str).str.replace(", ", ",")
             assert test_col.equals(col), f"{col_name} comparison failed"
+
+
+@pytest.mark.parametrize("test_dir", pipeline_test_dirs)
+def test_downloader(test_dir):
+    raw_data_filename = "raw"
+    config = Configuration.from_yaml(os.path.join(test_dir, CONFIG_FILENAME))
+    # get the right downloader:
+    if config.DATA_SOURCE == RM1:
+        downloader = RedMetrics1Downloader(output_filename=raw_data_filename, config=config)
+    elif config.DATA_SOURCE == APPSync:
+        downloader = CFGAppSyncDataRetriever(output_filename=raw_data_filename, config=config)
+    else:
+        raise ValueError(f"Unsupported data source for testing: {config.DATA_SOURCE}")
+    downloader.retrieve_data(verbose=True)
+    downloader.dump()
+    
+    test_raw = (pd.read_csv(os.path.join(test_dir, TEST_DOWNLOADED_FILENAME))
+                .sort_values("id")
+                .reset_index(drop=True))
+    raw = pd.read_csv(downloader.output_path).sort_values("id").reset_index(drop=True)
+    _compare_raws(test_raw, raw)
+
+
+@pytest.mark.parametrize("test_dir", pipeline_test_dirs)
+def test_local_downloader(test_dir):
+    """
+    Test that the downloader can read from a local file and produce the same output as the original file downloaded using rm1.
+    """
+    raw_data_filename = "raw"
+    config = Configuration.from_yaml(os.path.join(test_dir, CONFIG_FILENAME))
+    downloader = RedMetrics1Downloader(output_filename=raw_data_filename, config=config)
+    df = downloader.retrieve_data(verbose=True)
+    downloader.dump()
+
+
+    # now do the same with local retriever and compare the outputs
+    local_retriever = LocalDataRetriever(events_csv_path=downloader.output_path, config=config)
+    local_df = local_retriever.retrieve_data(verbose=True)
+    # compare the two
+    _compare_raws(df, local_df)
+
+@pytest.mark.parametrize("test_dir", rm1_dump_test_dirs)
+def test_rm1_dump_server_consistency(test_dir):
+    """
+    Test that the downloader can read from the NAS rm1 dump and produce the same output as the original file downloaded using rm1.
+    """
+    dump_config = Configuration.from_yaml(os.path.join(test_dir, "rm1_dump_config.yml"))
+    online_config = Configuration.from_yaml(os.path.join(test_dir, "rm1_online_config.yml"))
+    dump_downloader = RM1DumpDataRetriever(output_filename="raw_dump", config=dump_config)
+    dump_df = dump_downloader.retrieve_data(verbose=True)
+    dump_df = dump_df.sort_values("id").reset_index(drop=True)
+    online_downloader = RedMetrics1Downloader(output_filename="raw_online", config=online_config)
+    online_df = online_downloader.retrieve_data(verbose=True)
+    online_df = online_df.sort_values("id").reset_index(drop=True)
+    _compare_raws(dump_df, online_df)
+
+
+
 
 def _print_diff(df, test_comp_df, col_name, print_cols=None, allow_deviations=False):
     if not allow_deviations:
@@ -78,7 +237,7 @@ def _compare_parsed(parsed, test_dir):
     # TODO: after parser handles chosen shapes, compare those too
 
 
-@pytest.mark.parametrize("test_dir", test_dirs)
+@pytest.mark.parametrize("test_dir", pipeline_test_dirs)
 def test_parser(test_dir):
     parsed_data_filename = "parsed.json"
 
@@ -90,7 +249,7 @@ def test_parser(test_dir):
     _compare_parsed(parsed, test_dir)
 
 
-@pytest.mark.parametrize("test_dir", test_dirs)
+@pytest.mark.parametrize("test_dir", pipeline_test_dirs)
 def test_parser_conversion_to_old_format(test_dir):
     with open(os.path.join(test_dir, TEST_PARSED_FILENAME), "r") as new_format_fp:
         parsed_new_format = json.load(new_format_fp)
@@ -107,7 +266,7 @@ def test_parser_conversion_to_old_format(test_dir):
         assert False
 
 
-@pytest.mark.parametrize("test_dir", test_dirs)
+@pytest.mark.parametrize("test_dir", pipeline_test_dirs)
 def test_parser_conversion_to_new_format(test_dir):
     mathematica_path = os.path.join(test_dir, TEST_PARSED_OLD_FORMAT_FILENAME)
     converted_to_new_format = Parser.translate_mathematica_to_python(mathematica_path)
@@ -132,7 +291,7 @@ def _print_json_diff(json_ref, json_comp):
                 print(f"Game {game_idx}, action {action_idx} is different: {action_ref} in expected data vs {action_comp} in code run", file=sys.stderr)
 
 
-@pytest.mark.parametrize("test_dir", test_dirs)
+@pytest.mark.parametrize("test_dir", pipeline_test_dirs)
 def test_postparser(test_dir):
     postparsed_data_filename = "test_data"
 
@@ -174,7 +333,7 @@ def _compare_features(test_dir, features_filename):
             _assert_col_equality(features, test_features, col, print_cols=["ID", col])
 
 
-@pytest.mark.parametrize("test_dir", test_dirs)
+@pytest.mark.parametrize("test_dir", pipeline_test_dirs)
 def test_feature_extractor(test_dir):
     features_filename = "test_data"
 
@@ -186,7 +345,7 @@ def test_feature_extractor(test_dir):
     _compare_features(test_dir, features_filename + "_measures.csv")
 
 
-@pytest.mark.parametrize("test_dir", test_dirs)
+@pytest.mark.parametrize("test_dir", pipeline_test_dirs)
 def test_full_pipeline(test_dir):
     features_filename = "test_data"
     config = Configuration.from_yaml(os.path.join(test_dir, CONFIG_FILENAME))
