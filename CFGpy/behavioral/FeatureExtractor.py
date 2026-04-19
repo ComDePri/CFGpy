@@ -51,7 +51,9 @@ class FeatureExtractor(HasLogger):
         self.exclusions = pd.DataFrame(columns=[FEATURES_ID_KEY, EXCLUSION_REASON_KEY])
 
     @classmethod
-    def from_json(cls, path: str, config=Configuration.default()):
+    def from_json(cls, path: str, config: Configuration = None):
+        if config is None:
+            config = Configuration.default()
         return cls(preprocessed_data=load_json(path), config=config)
 
     def _log_missing_values(self):

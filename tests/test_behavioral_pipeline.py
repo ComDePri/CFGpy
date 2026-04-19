@@ -93,7 +93,7 @@ def test_short_game_filtering():
     # removed all actions after more than 4 seconds in the early game
     config_ignore_shorts.MAX_IGNORED_GAME_DURATION_SEC = (4 * 60) + 1
     feats_ignore_shorts = FeatureExtractor.from_json(postparsed_path, config=config_ignore_shorts).extract(verbose=True)
-    # check that the ID with the short game is in the features with default config but not in the features with short games ignored
+    # check that the ID with the short game is in the features with short games ignored but not in the features with default config
     assert ID_WITH_SHORT_GAME not in feats["ID"].values, f"ID {ID_WITH_SHORT_GAME} is present in features with default config"
     assert ID_WITH_SHORT_GAME in feats_ignore_shorts["ID"].values, f"ID {ID_WITH_SHORT_GAME} is missing from features with short games ignored"
 
@@ -105,7 +105,7 @@ def test_time_filtering():
     downloader_before2024 = LocalDataRetriever(events_csv_path=os.path.join(test_dir, TEST_DOWNLOADED_FILENAME),
                                                config=config)
     df_before2024 = downloader_before2024.retrieve_data(verbose=True)
-    assert pd.to_datetime(df_before2024["userTime"]).max() < pd.to_datetime("2024", utc=True), f"Max userTime is {pd.to_datetime(df_before2024["userTime"]).max()} instead of before 2024"
+    assert pd.to_datetime(df_before2024["userTime"]).max() < pd.to_datetime("2024", utc=True), f"Max userTime is {pd.to_datetime(df_before2024['userTime']).max()} instead of before 2024"
     # should remove two games
     N_ROWS_BEFORE2024 = 32826
     assert len(df_before2024) == N_ROWS_BEFORE2024, f"{len(df_before2024)} events instead of {N_ROWS_BEFORE2024}"
@@ -350,5 +350,5 @@ def test_full_pipeline(test_dir):
     features_filename = "test_data"
     config = Configuration.from_yaml(os.path.join(test_dir, CONFIG_FILENAME))
     pipeline = Pipeline(output_filename=features_filename, config=config)
-    pipeline.run_pipeline(verbose=True)
+    pipeline.run_pipeline()
     _compare_features(test_dir, features_filename + "_measures.csv")

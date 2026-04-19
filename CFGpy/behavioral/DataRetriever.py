@@ -41,6 +41,10 @@ class DataRetriever(HasLogger,ABC):
 
 
         if not time_col:
+            self.log_warning("No time column specified in config; skipping date filtering.")
+            return df
+        if time_col not in df.columns:
+            self.log_warning(f"Time column '{time_col}' not found in data; skipping date filtering.")
             return df
 
         self.log_info(f"Attempting to filter data by date using column '{time_col}' with after={after} and before={before}.")
