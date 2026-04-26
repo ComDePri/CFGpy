@@ -35,14 +35,14 @@ CONFIG_DUMP_EXTENSION = ".yml"
 RM1 = "RedMetrics1"
 RM2 = "RedMetrics2"
 RM1_NAS_DUMP = "RedMetrics1Dump"
-APPSync = "AppSync"
+IOCANE = "IOCANE"
 LOCAL = "Local"
-VALID_DATA_SOURCES =  (RM1, RM2, RM1_NAS_DUMP, APPSync, LOCAL)
+VALID_DATA_SOURCES =  (RM1, RM2, RM1_NAS_DUMP, IOCANE, LOCAL)
 DATA_SOURCES_ALIASES_LOW = {
     RM1: [RM1.lower(), "rm1", "red metrics 1", "redmetrics1"],
     RM2: [RM2.lower(), "rm2", "red metrics 2", "redmetrics2"],
     RM1_NAS_DUMP: [RM1_NAS_DUMP.lower(), "rm1 dump", "redmetrics1 dump", "redmetrics1dump"],
-    APPSync: [APPSync.lower(), "appsync"],
+    IOCANE: [IOCANE.lower(), "iocane"],
     LOCAL: [LOCAL.lower(), "local"]
 }
 UNSUPPORTED_DATA_SOURCE_ERROR = "Unsupported data source: {}. Valid options are: {}".format("{}", VALID_DATA_SOURCES)

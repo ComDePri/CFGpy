@@ -4,9 +4,9 @@ import tqdm
 
 from datetime import datetime, timezone
 from CFGpy.behavioral import DataRetriever, RM1DumpDataRetriever, RedMetrics2DataRetriever, Parser, PostParser, \
-    FeatureExtractor, Configuration, RedMetrics1Downloader, CFGAppSyncDataRetriever, LocalDataRetriever
+    FeatureExtractor, Configuration, RedMetrics1Downloader, IOCANEDataRetriever, LocalDataRetriever
 from CFGpy.behavioral._consts import DEFAULT_FINAL_OUTPUT_FILENAME, RM1, RM1_NAS_DUMP, RM2, \
-    UNSUPPORTED_DATA_SOURCE_ERROR, APPSync, VALID_DATA_SOURCES, LOCAL, ARG_TO_CONF_MAP, DATA_SOURCE_ARG, GAME_NAME_ARG, \
+    UNSUPPORTED_DATA_SOURCE_ERROR, IOCANE, VALID_DATA_SOURCES, LOCAL, ARG_TO_CONF_MAP, DATA_SOURCE_ARG, GAME_NAME_ARG, \
     GAME_ID_ARG, GAME_VERSION_IDS_ARG, BEFORE_DATE_ARG, AFTER_DATE_ARG, EVENTS_CSV_PATH_ARG, PARSED_PLAYER_ID_KEY
 from CFGpy.behavioral._utils import CFGPipelineException
 from CFGpy.behavioral._logging import build_pipeline_logger, HasLogger
@@ -73,9 +73,9 @@ class Pipeline(HasLogger):
         elif self.config.DATA_SOURCE == RM1:
             return RedMetrics1Downloader(csv_url=self.config.RED_METRICS_CSV_URL, game_id=self._game_id, config=self.config,
                                          output_filename=self.output_filename, logger=self.logger)
-        elif self.config.DATA_SOURCE == APPSync:
-            return CFGAppSyncDataRetriever(game_name=self._game_name, game_id=self._game_id, config=self.config,
-                                           output_filename=self.output_filename, logger=self.logger)
+        elif self.config.DATA_SOURCE == IOCANE:
+            return IOCANEDataRetriever(game_name=self._game_name, game_id=self._game_id, config=self.config,
+                                       output_filename=self.output_filename, logger=self.logger)
         elif self.config.DATA_SOURCE == LOCAL:
             return LocalDataRetriever(config=self.config, output_filename=self.output_filename,
                                       events_csv_path=self._input_events_csv_path, logger=self.logger)

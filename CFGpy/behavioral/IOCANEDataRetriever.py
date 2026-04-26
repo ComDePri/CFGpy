@@ -13,7 +13,7 @@ import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
-class CFGAppSyncDataRetriever(DataRetriever):
+class IOCANEDataRetriever(DataRetriever):
     """
     Downloader for the new CFG platform backed by Amplify/AppSync.
 
@@ -46,10 +46,10 @@ class CFGAppSyncDataRetriever(DataRetriever):
             logger=logger
         )
         # warn that this is an experimental backend for now:
-        warnings.warn("The CFGAppSyncDataRetriever is an experimental data retriever for the new CFG platform. "
+        warnings.warn("The IOCANEDataRetriever is an experimental data retriever for the new CFG platform. "
                       "Please report any issues or inaccuracies you encounter when using it.", UserWarning,
                       stacklevel=2)
-        self.log_warning("The CFGAppSyncDataRetriever is an experimental data retriever for the new CFG platform. ")
+        self.log_warning("The IOCANEDataRetriever is an experimental data retriever for the new CFG platform. ")
         self._validate_input([game_id, game_name, self._config.GAME_ID, self._config.GAME_NAME])
         self._session: Optional[requests.Session] = None
         self._games_cache: Optional[list[dict[str, Any]]] = None
@@ -84,7 +84,7 @@ class CFGAppSyncDataRetriever(DataRetriever):
             import boto3
         except ImportError as e:
             raise ImportError(
-                "CFGAppSyncDataRetriever requires the optional dependency 'boto3'. "
+                "IOCANEDataRetriever requires the optional dependency 'boto3'. "
                 "Install it with: pip install boto3"
             ) from e
 
@@ -92,7 +92,7 @@ class CFGAppSyncDataRetriever(DataRetriever):
             from pycognito.aws_srp import AWSSRP
         except ImportError as e:
             raise ImportError(
-                "CFGAppSyncDataRetriever requires the optional dependency 'pycognito'. "
+                "IOCANEDataRetriever requires the optional dependency 'pycognito'. "
                 "Install it with: pip install pycognito"
             ) from e
 

@@ -1,7 +1,7 @@
 from pathlib import Path
 import pytest
-from CFGpy.behavioral import RedMetrics1Downloader, Parser, PostParser, FeatureExtractor, Pipeline, Configuration, LocalDataRetriever, RM1DumpDataRetriever, CFGAppSyncDataRetriever
-from CFGpy.behavioral._consts import RM1, APPSync, MERGED_ID_KEY
+from CFGpy.behavioral import RedMetrics1Downloader, Parser, PostParser, FeatureExtractor, Pipeline, Configuration, LocalDataRetriever, RM1DumpDataRetriever, IOCANEDataRetriever
+from CFGpy.behavioral._consts import RM1, IOCANE, MERGED_ID_KEY
 import os
 import json
 import numpy as np
@@ -152,8 +152,8 @@ def test_downloader(test_dir):
     # get the right downloader:
     if config.DATA_SOURCE == RM1:
         downloader = RedMetrics1Downloader(output_filename=raw_data_filename, config=config)
-    elif config.DATA_SOURCE == APPSync:
-        downloader = CFGAppSyncDataRetriever(output_filename=raw_data_filename, config=config)
+    elif config.DATA_SOURCE == IOCANE:
+        downloader = IOCANEDataRetriever(output_filename=raw_data_filename, config=config)
     else:
         raise ValueError(f"Unsupported data source for testing: {config.DATA_SOURCE}")
     downloader.retrieve_data(verbose=True)
