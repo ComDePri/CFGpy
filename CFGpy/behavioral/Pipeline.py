@@ -225,7 +225,7 @@ def main():
     argparser.add_argument(f"--{GAME_NAME_ARG}", help='The name of the name.')
     argparser.add_argument(f"--{GAME_ID_ARG}", help='The id of the game.')
     argparser.add_argument(f"--{GAME_VERSION_IDS_ARG}", nargs="+",
-                           help='A list of the game version ids that you want to retrieve.')
+                           help="A list of the game version ids that you want to retrieve. Supported only for RM1 NAS dump data source. Should be provided only if it doesn't appear in the config file.")
     argparser.add_argument(f"--{BEFORE_DATE_ARG}", type=str, default=None,
                            help='The end of the date range of the games you want to retrieve. Should be in a pandas-parseable datetime format. Only needed if you want to provide it as an argument instead of providing it in the config.')
     argparser.add_argument(f"--{AFTER_DATE_ARG}", type=str, default=None,
