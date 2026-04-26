@@ -9,7 +9,7 @@ import warnings
 import matplotlib.pyplot as plt
 import seaborn as sns
 from CFGpy.behavioral._consts import (SERVER_COORDS_TYPE_ERROR, EXPLORE_KEY, PRETTIFY_WARNING, PARSED_ALL_SHAPES_KEY,
-                                      PARSED_CHOSEN_SHAPES_KEY, EXPLOIT_KEY, DATA_SOURCES_ALIASES_LOW, RM1)
+                                      PARSED_CHOSEN_SHAPES_KEY, EXPLOIT_KEY, DATA_SOURCES_ALIASES_LOW, RM1, IOCANE)
 from _ctypes import PyObj_FromPtr
 
 
@@ -297,8 +297,10 @@ def get_default_data_source(cfgpy_version: str | None = None) -> str:
     if cfgpy_version is None:
         from CFGpy._version import __version__ as cfgpy_version
     cfgpy_version_tuple = version_to_tuple(cfgpy_version)
-    if cfgpy_version_tuple < version_to_tuple("1.0.1"):
+    if cfgpy_version_tuple <= version_to_tuple("1.0.0"):
         return RM1
+    elif cfgpy_version_tuple > version_to_tuple("1.0.0"):
+        return IOCANE
     else:  # should be updated once we migrate to a stable platform for data storage
         raise ValueError(f"Unsupported CFGpy version: {cfgpy_version}. No default data source available.")
 
