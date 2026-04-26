@@ -6,7 +6,13 @@ from tqdm import tqdm
 import pandas as pd
 from CFGpy.behavioral._consts import (DATA_RETRIEVER_OUTPUT_FILENAME, CONFIG_URL_MISMATCH_ERROR)
 from CFGpy.behavioral import Configuration, DataRetriever
+RM2_EVENT_ID_KEY = "id"
+RM2_RAW_SERVER_TIME = "serverTimestamp"
+RM2_RAW_USER_TIME = "userTimestamp"
+RM2_EVENT_TYPE = "type"
+RM2_RAW_COORDINATES = "coordinates"
 
+RM2_DOWNLOADER_COMMON_FIELDS = (RM2_EVENT_ID_KEY, RM2_RAW_SERVER_TIME, RM2_RAW_USER_TIME, RM2_EVENT_TYPE, RM2_RAW_COORDINATES)
 
 class RedMetrics2DataRetriever(DataRetriever):
     def __init__(self, *, game_name: str | None = None, game_id: str | None = None, output_filename: str = DATA_RETRIEVER_OUTPUT_FILENAME, 
@@ -21,7 +27,6 @@ class RedMetrics2DataRetriever(DataRetriever):
         super().__init__(game_name=game_name, game_id=game_id, output_filename=output_filename, 
                          config=config if config is not None else Configuration.default(), logger=logger)
         self._validate_input(input=[game_id, game_name, self._config.GAME_ID, self._config.GAME_NAME])
-        self._validate_config()
         self._retrieved_events_json = []
         self._session = None
     
@@ -30,11 +35,7 @@ class RedMetrics2DataRetriever(DataRetriever):
         if self._session is None:
             self._init_session()
         return self._session
-    
-    def _validate_config(self) -> None:
-        if self._config.is_rm1:
-            raise ValueError(CONFIG_URL_MISMATCH_ERROR)
-        return None
+
         
     def _retrieve_data(self, *, verbose: bool = False) -> pd.DataFrame:
         
@@ -128,8 +129,21 @@ class RedMetrics2DataRetriever(DataRetriever):
         return output_json
     
     def _process_event(self, event: dict) -> dict:
+        # fix naming conventions for common fields between RM2 and the other formats
+        rm2_standard_field_map = {
+            RM2_EVENT_ID_KEY: self._config.EVENT_ID_KEY,
+            RM2_RAW_SERVER_TIME: self._config.RAW_SERVER_TIME,
+            RM2_RAW_USER_TIME: self._config.RAW_USER_TIME,
+            RM2_EVENT_TYPE: self._config.EVENT_TYPE,
+            RM2_RAW_COORDINATES: self._config.RAW_COORDINATES
+        }
+        def normalize_key(key: str) -> str:
+            return rm2_standard_field_map.get(key, key)
         # filter to common fields
-        output_json_record = {k: v for (k, v) in event.items() if k in self._config.DOWNLOADER_COMMON_FIELDS}
+        output_json_record = {normalize_key(k): v for (k, v) in event.items() if (k in self._config.DOWNLOADER_COMMON_FIELDS) or (k in RM2_DOWNLOADER_COMMON_FIELDS)}
+        # lowercase event type:
+        if self._config.EVENT_TYPE in output_json_record:
+            output_json_record[self._config.EVENT_TYPE] = output_json_record[self._config.EVENT_TYPE].lower()
 
         # add event's custom data fields
         output_json_record = self._add_events_custom_data(event=event, output_json_record=output_json_record)
