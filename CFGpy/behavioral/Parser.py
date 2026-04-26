@@ -87,6 +87,7 @@ class Parser(HasLogger):
             )
 
         data = self.merge_id_columns(data)
+        data = self.fix_invalid_ids(data)
         data[self.config.PARSER_TIME_COLUMN] = pd.to_datetime(data[self.config.PARSER_TIME_COLUMN],
                                                               format=self.config.SERVER_DATE_FORMAT)
         # ensure that the time parsing worked correctly by checking that there are no NaT values in the time column
@@ -330,3 +331,20 @@ class Parser(HasLogger):
 
         raise CFGPipelineException('Was not able to replace the DateObject with a timestamp in the following game:',
                                    game_string)
+
+    def fix_invalid_ids(self, data):
+        """
+        Check if any player ID (after merging) includes invalid characters (e.g. brackets, commas, quotes) that may cause issues during parsing or later analysis, and if so, log a warning with the affected IDs and how they will be changed, and replace these characters with underscores in the merged ID column.
+        """
+        INVALID_CHARS = ['[', ']', '{', '}', ',', '"', "'", '\\','$','/']
+        invalid_id_mask = data[MERGED_ID_KEY].apply(lambda x: any(char in str(x) for char in INVALID_CHARS))
+        def replace_chars(str):
+            for char in INVALID_CHARS:
+                str = str.replace(char, '_')
+            return str
+        if invalid_id_mask.any():
+            affected_ids = data.loc[invalid_id_mask, MERGED_ID_KEY].unique()
+            elaborate_msg = f"The following unique merged IDs were found to contain invalid characters {INVALID_CHARS} that may cause issues during parsing or later analysis: {affected_ids}. These characters will be replaced with underscores in the merged ID column to ensure proper parsing and analysis. Affected rows indices: {data.index[invalid_id_mask].tolist()}"
+            self.log_warning(elaborate_msg)
+            data.loc[invalid_id_mask, MERGED_ID_KEY] = data.loc[invalid_id_mask, MERGED_ID_KEY].apply(replace_chars)
+        return data
