@@ -38,4 +38,4 @@ jobs:
       # and the GitHub Action will mark this step as "Failed".
       run: |
         source .venv/bin/activate
-        run_cfg_pipeline --data-source=AppSync -v -o smoke_test.test --game-id=4cc80fb7-8aac-4a5b-b71e-c71287d6f587
+        run_cfg_pipeline --data-source=IOCANE -v -o smoke_test.test --game-id=4cc80fb7-8aac-4a5b-b71e-c71287d6f587
