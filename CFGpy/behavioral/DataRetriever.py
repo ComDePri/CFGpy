@@ -77,15 +77,13 @@ class DataRetriever(HasLogger,ABC):
         Generic optional filtering (applies to all data sources):
             before: datetime string (inclusive upper bound)
             after: datetime string (inclusive lower bound)
-
-        These are popped from kwargs before delegating to the subclass' `_retrieve_data`, so subclasses that don't
-        accept them won't break.
         """
         # validate date filtering early before doing any work:
         before = self._config.BEFORE_DATE
         after = self._config.AFTER_DATE
         before_ts = self._to_ts(before) if before else None
         after_ts = self._to_ts(after) if after else None
+
         self._retrieved_df = self._retrieve_data(*args, **kwargs)
 
         verbose = kwargs.pop("verbose", False)
@@ -93,7 +91,12 @@ class DataRetriever(HasLogger,ABC):
         return self._retrieved_df
 
     def _validate_input(self, input: list[str]) -> None:
-        unique_inputs = set([inp for inp in input if inp is not None])
+        def normalize_input(inp: str | None | list[str]) -> str | None | tuple[str]:
+            if isinstance(inp, list):
+                return tuple(inp)
+            return inp
+
+        unique_inputs = set([normalize_input(inp) for inp in input if inp is not None])
         count: int = len(unique_inputs)
 
         # at least one URL should not be None:

@@ -42,7 +42,7 @@ class IOCANEDataRetriever(DataRetriever):
             game_name=game_name,
             game_id=game_id,
             output_filename=output_filename,
-            config=config,
+            config=config if config is not None else Configuration.default(),
             logger=logger
         )
         # warn that this is an experimental backend for now:

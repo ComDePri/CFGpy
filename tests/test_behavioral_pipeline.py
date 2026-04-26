@@ -200,8 +200,6 @@ def test_rm1_dump_server_consistency(test_dir):
     _compare_raws(dump_df, online_df)
 
 
-
-
 def _print_diff(df, test_comp_df, col_name, print_cols=None, allow_deviations=False):
     if not allow_deviations:
         diff_mask = df[col_name] != test_comp_df[col_name]
