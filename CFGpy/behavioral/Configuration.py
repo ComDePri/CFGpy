@@ -151,7 +151,6 @@ class Configuration:
     CFG_COGNITO_CLIENT_ID: str | None = None
     CFG_COGNITO_USER_POOL_ID: str | None = None
 
-    PRETTIFY_PARSER_OUPUT: bool = True
     WRITE_G_ALPHA: bool = False # to support old data
 
     MAX_IGNORED_GAME_DURATION_SEC: float = 0
