@@ -66,15 +66,34 @@ class Parser(HasLogger):
     def _prepare_data(self):
         data = self.raw_data
         data = self.patchfix_csv_data(data)
-        data[self.config.PARSER_JSON_COLUMN] = data[self.config.PARSER_JSON_COLUMN].apply(
-            lambda x: json.loads(x) if isinstance(x, str) else x
-        )
-        all_json_keys = self.get_all_json_keys_from_csv_data(data)
-        self.log_info(f"Found {len(all_json_keys)} unique custom data json keys: {all_json_keys}.")
-        for key in all_json_keys:
-            # Take the json inside the csv file and turn them into columns
-            data[key] = data[self.config.PARSER_JSON_COLUMN].apply(lambda json_dict: json_dict.get(key))
+        def normalize_json_dict_val(val):
+            """
+            create a dictionary of key values out of val that can be either a json string of a dict, a dictionary or missing value
+            """
+            if isinstance(val, str):
+                try:
+                    val = json.loads(val)
+                except json.JSONDecodeError:
+                    self.log_warning(f"Failed to parse JSON from string: {val}. Setting value to NaN.")
+                    val = {}
+            if isinstance(val, dict):
+                return val
+            elif pd.isna(val):
+                return {}
+            else:
+                self.log_warning(f"Unexpected value type for JSON column: {type(val)}. Setting value to NaN.")
+                return {}
 
+        if self.config.PARSER_JSON_COLUMN in data.columns:
+            data[self.config.PARSER_JSON_COLUMN] = data[self.config.PARSER_JSON_COLUMN].apply(normalize_json_dict_val)
+
+            all_json_keys = self.get_all_json_keys_from_csv_data(data)
+            self.log_info(f"Found {len(all_json_keys)} unique custom data json keys: {all_json_keys}.")
+            for key in all_json_keys:
+                # Take the json inside the csv file and turn them into columns
+                data[key] = data[self.config.PARSER_JSON_COLUMN].apply(lambda json_dict: json_dict.get(key))
+        else:
+            self.log_info(f"No JSON column '{self.config.PARSER_JSON_COLUMN}' found in the data. Skipping JSON parsing and column extraction.")
         data[self.config.SHAPE_MOVE_COLUMN] = data[self.config.SHAPE_MOVE_COLUMN].apply(
             lambda val: val if isinstance(val, list) 
             else json.loads(val) if isinstance(val, str) 
