@@ -63,7 +63,8 @@ class FeatureExtractor(HasLogger):
             n_missing = self.output_df[column].isna().sum()
             if n_missing > 0:
                 missing_ids = self.output_df.loc[self.output_df[column].isna(), FEATURES_ID_KEY].tolist()
-                self.log_warning(f"Column '{column}' contains {n_missing} missing values for player IDs: {missing_ids}. Consider investigating the cause of these missing values and whether they should be imputed or lead to exclusion of the affected players.")
+                self.log_warning(
+                    f"Column '{column}' contains {n_missing} missing values for player IDs: {missing_ids}. Consider investigating the cause of these missing values and whether they should be imputed or lead to exclusion of the affected players.")
 
     def extract(self, verbose=False):
         self.all_absolute_features = self._extract_absolute_features(verbose)
@@ -76,9 +77,10 @@ class FeatureExtractor(HasLogger):
         self.output_df = self.output_df.merge(vanilla_relative_features, on=FEATURES_ID_KEY)
         self.log_info(f"Applying soft filters...")
         self._apply_soft_filters()
-        sample_relative_features = self._extract_relative_features(self.input_data.get_stats(), verbose=verbose,
-                                                                   label=SAMPLE_RELATIVE_FEATURES_LABEL)
-        self.output_df = self.output_df.merge(sample_relative_features, on=FEATURES_ID_KEY, how="left")
+        if len(self.output_df) > 0:
+            sample_relative_features = self._extract_relative_features(self.input_data.get_stats(), verbose=verbose,
+                                                                       label=SAMPLE_RELATIVE_FEATURES_LABEL)
+            self.output_df = self.output_df.merge(sample_relative_features, on=FEATURES_ID_KEY, how="left")
         self._log_missing_values()
         return self.output_df
 
@@ -118,7 +120,8 @@ class FeatureExtractor(HasLogger):
         id_counts = self.output_df[FEATURES_ID_KEY].value_counts()
         non_unique_ids = id_counts[id_counts > 1].index
         for user_id in non_unique_ids:
-            self.log_warning(f"Found multiple games for player id {user_id} in the data. Only the first game will be kept for further processing.")
+            self.log_warning(
+                f"Found multiple games for player id {user_id} in the data. Only the first game will be kept for further processing.")
         self.output_df = (self.output_df.
                           sort_values(by=[FEATURES_START_TIME_KEY], ascending=True).
                           drop_duplicates(subset=[FEATURES_ID_KEY], keep="first").
@@ -128,8 +131,12 @@ class FeatureExtractor(HasLogger):
         """
         Applies absolute filters first, then sample-relative filters with the remaining sample.
         """
-        for filter_getter, filters_cat in zip((self._get_absolute_filters, self._get_sample_relative_filters),("absolute filters", "sample-relative filters")):
-            unfiltered_df = self.output_df.copy() # for logging purposes
+        for filter_getter, filters_cat in zip((self._get_absolute_filters, self._get_sample_relative_filters),
+                                              ("absolute filters", "sample-relative filters")):
+            if len(self.output_df) == 0:
+                self.log_info("No games left - skipping soft filtering")
+                return
+            unfiltered_df = self.output_df.copy()  # for logging purposes
             self.log_info(f"Applying {filters_cat}...")
             masks, reasons = filter_getter()
             self._update_exclusion_info(masks, reasons)
@@ -144,7 +151,6 @@ class FeatureExtractor(HasLogger):
                 if n_excluded > 0:
                     excluded_ids = unfiltered_df.loc[mask, FEATURES_ID_KEY].tolist()
                     self.log_info(f"Excluded player IDs for reason '{reason}': {excluded_ids}")
-
 
     def _get_absolute_filters(self):
         """
@@ -238,12 +244,23 @@ class FeatureExtractor(HasLogger):
 
         # vectorized operations
         features_df = pd.DataFrame(absolute_features)
-        features_df[AVERAGE_SPEED_KEY] = features_df[N_MOVES_KEY] / features_df[GAME_DURATION_KEY]
-        features_df[FRACTION_GALLERY_IN_EXPLORE_KEY] = pd.Series(n_galleries_in_explore) / features_df[N_GALLERIES_KEY]
-        features_df[FRACTION_TIME_IN_EXPLORE_KEY] = pd.Series(total_explore_times) / features_df[GAME_DURATION_KEY]
-        features_df[EFFICIENCY_RATIO_KEY] = features_df[EXPLORE_EFFICIENCY_KEY] / features_df[EXPLOIT_EFFICIENCY_KEY]
-        features_df[EXPLORE_SPEED_KEY] = pd.Series(total_explore_lengths) / pd.Series(total_explore_times)
-        features_df[EXPLOIT_SPEED_KEY] = pd.Series(total_exploit_lengths) / pd.Series(total_exploit_times)
+        if len(features_df) > 0:
+            features_df[AVERAGE_SPEED_KEY] = features_df[N_MOVES_KEY] / features_df[GAME_DURATION_KEY]
+            features_df[FRACTION_GALLERY_IN_EXPLORE_KEY] = pd.Series(n_galleries_in_explore) / features_df[
+                N_GALLERIES_KEY]
+            features_df[FRACTION_TIME_IN_EXPLORE_KEY] = pd.Series(total_explore_times) / features_df[GAME_DURATION_KEY]
+            features_df[EFFICIENCY_RATIO_KEY] = features_df[EXPLORE_EFFICIENCY_KEY] / features_df[
+                EXPLOIT_EFFICIENCY_KEY]
+            features_df[EXPLORE_SPEED_KEY] = pd.Series(total_explore_lengths) / pd.Series(total_explore_times)
+            features_df[EXPLOIT_SPEED_KEY] = pd.Series(total_exploit_lengths) / pd.Series(total_exploit_times)
+        else:
+            # add columns to empty dataframe:
+            features_df[[AVERAGE_SPEED_KEY,
+                         FRACTION_GALLERY_IN_EXPLORE_KEY,
+                         FRACTION_TIME_IN_EXPLORE_KEY,
+                         EFFICIENCY_RATIO_KEY,
+                         EXPLORE_SPEED_KEY,
+                         EXPLOIT_SPEED_KEY]] = None
 
         return features_df
 
@@ -310,8 +327,20 @@ class FeatureExtractor(HasLogger):
                 f"{G_KEY}{label_ext}": g,
                 f"{ALPHA_KEY}{label_ext}": alpha
             })
-
-        return pd.DataFrame(relative_features)
+        columns = None
+        if len(relative_features)== 0:
+            columns = [FEATURES_ID_KEY, f"{STEP_ORIG_KEY}{label_ext}",
+                            f"{FRACTION_STEPS_UNIQUELY_COVERED_KEY}{label_ext}", f"{GALLERY_ORIG_KEY}{label_ext}",
+                            f"{GALLERY_ORIG_EXPLORE_KEY}{label_ext}",f"{GALLERY_ORIG_EXPLOIT_KEY}{label_ext}",
+                            f"{FRACTION_GALLERIES_UNIQUELY_COVERED_KEY}{label_ext}",
+                            f"{FRACTION_GALLERIES_UNIQUELY_COVERED_EXPLORE_KEY}{label_ext}",
+                            f"{FRACTION_GALLERIES_UNIQUELY_COVERED_EXPLOIT_KEY}{label_ext}",
+                            f"{N_CLUSTERS_IN_GC_KEY}{label_ext}",
+                            f"{FRACTION_CLUSTERS_IN_GC_KEY}{label_ext}",
+                            f"{G_KEY}{label_ext}",
+                            f"{ALPHA_KEY}{label_ext}"
+                            ]
+        return pd.DataFrame(relative_features, columns=columns)
 
     def _drop_short_games(self):
         if self.config.MAX_IGNORED_GAME_DURATION_SEC <= 0:
