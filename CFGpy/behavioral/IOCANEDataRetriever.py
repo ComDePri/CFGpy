@@ -281,6 +281,81 @@ class IOCANEDataRetriever(DataRetriever):
             verbose: bool = False,
     ) -> list[dict]:
         self.log_info(
+            f"Fetching sessions via game.sessions for game_id={game_id}, "
+            f"version_id={version_id}, date_from={date_from}, date_to={date_to}..."
+        )
+
+        query = """
+        query GetGameWithSessions($id: ID!, $filter: ModelSessionFilterInput, $nextToken: String) {
+          getGame(id: $id) {
+            sessions(filter: $filter, nextToken: $nextToken) {
+              items {
+                id
+                playerId
+                gameId
+                gameVersionId
+                startedAt
+                endedAt
+                metadata
+              }
+              nextToken
+            }
+          }
+        }
+        """
+
+        conditions: list[dict[str, Any]] = []
+
+        if version_id:
+            conditions.append({"gameVersionId": {"eq": version_id}})
+        if date_from:
+            conditions.append({"startedAt": {"ge": self._date_to_iso_start(date_from)}})
+        if date_to:
+            conditions.append({"startedAt": {"le": self._date_to_iso_end(date_to)}})
+
+        if len(conditions) == 0:
+            filter_obj = None
+        elif len(conditions) == 1:
+            filter_obj = conditions[0]
+        else:
+            filter_obj = {"and": conditions}
+
+        sessions: list[dict] = []
+        next_token = None
+
+        while True:
+            data = self._graphql(
+                query,
+                {
+                    "id": game_id,
+                    "filter": filter_obj,
+                    "nextToken": next_token,
+                },
+            )
+
+            game = data.get("getGame")
+            if not game:
+                raise ValueError(f"Game not found: {game_id}")
+
+            page = game["sessions"]
+            sessions.extend(page["items"])
+
+            next_token = page.get("nextToken")
+            if not next_token:
+                break
+
+        return sessions
+
+    def _fetch_sessions_old(
+            self,
+            *,
+            game_id: str,
+            version_id: Optional[str],
+            date_from: Optional[str],
+            date_to: Optional[str],
+            verbose: bool = False,
+    ) -> list[dict]:
+        self.log_info(
             f"Fetching sessions for game_id={game_id}, version_id={version_id}, date_from={date_from}, date_to={date_to}...")
 
         query = """
