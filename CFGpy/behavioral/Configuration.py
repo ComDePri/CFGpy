@@ -159,3 +159,5 @@ class Configuration:
     VISUALIZATION_ANIMATION_SPEED: int = 8
     VISUALIZATION_ANIMATE: bool = False
     VISUALIZATION_MAKE_PLOTS: bool = True
+
+    SAVE_INTERMEDIATE_FILES: bool = False

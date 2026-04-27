@@ -103,7 +103,10 @@ class Pipeline(HasLogger):
         :return: parsed data
         """
         self.parser = Parser(raw_data=self.raw_data, config=self.config, logger=self.logger)
-        return self.parser.parse()
+        parsed_data = self.parser.parse()
+        if self.config.SAVE_INTERMEDIATE_FILES:
+            self.parser.dump(name=self.output_filename, with_config=False, pretty=True)
+        return parsed_data
 
     def parse(self, verbose):
         """
@@ -118,7 +121,7 @@ class Pipeline(HasLogger):
         self.log_info("Parsing data...")
 
         self.parsed_data = self._parse()
-        self.parser.dump(name=self.output_filename, with_config=False, pretty=self.config.PRETTIFY_PARSER_OUPUT)
+
 
     def _postparse(self):
         """
@@ -127,7 +130,8 @@ class Pipeline(HasLogger):
         """
         self.postparser = PostParser(parsed_data=self.parsed_data, config=self.config, logger=self.logger)
         postparsed = self.postparser.postparse()
-        self.postparser.dump(name=self.output_filename, with_config=False, pretty=self.config.PRETTIFY_PARSER_OUPUT)
+        if self.config.SAVE_INTERMEDIATE_FILES:
+            self.postparser.dump(name=self.output_filename, with_config=False, pretty=True)
         return postparsed
 
     def postparse(self, verbose):
