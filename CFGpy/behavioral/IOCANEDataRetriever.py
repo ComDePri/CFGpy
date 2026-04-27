@@ -566,6 +566,9 @@ class IOCANEDataRetriever(DataRetriever):
                 self._config.RAW_USER_TIME: ev.get("occurredAt", ""),
                 self._config.EVENT_CUSTOM_DATA_KEY: ev.get("data") if ev.get("data") is not None else "",
             }
+            # ensure user time includes decimal points for seconds, for consistency with other backends:
+            if row[self._config.RAW_USER_TIME] and ('.' not in row[self._config.RAW_USER_TIME]):
+                row[self._config.RAW_USER_TIME] = row[self._config.RAW_USER_TIME].replace("Z",".000Z")
             if row["sessionMetadata"]:
                 row[self._config.RAW_PLAYER_CUSTOM_DATA] = json.dumps(row["sessionMetadata"].get("customData")) if (
                         row["sessionMetadata"].get("customData") is not None) else "{}"
