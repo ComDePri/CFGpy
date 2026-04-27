@@ -8,7 +8,7 @@ from CFGpy.behavioral import DataRetriever, RM1DumpDataRetriever, RedMetrics2Dat
 from CFGpy.behavioral._consts import DEFAULT_FINAL_OUTPUT_FILENAME, RM1, RM1_NAS_DUMP, RM2, \
     UNSUPPORTED_DATA_SOURCE_ERROR, IOCANE, VALID_DATA_SOURCES, LOCAL, ARG_TO_CONF_MAP, DATA_SOURCE_ARG, \
     GAME_ID_ARG, GAME_VERSION_IDS_ARG, BEFORE_DATE_ARG, AFTER_DATE_ARG, EVENTS_CSV_PATH_ARG, PARSED_PLAYER_ID_KEY
-from CFGpy.behavioral._utils import CFGPipelineException
+from CFGpy.behavioral._utils import CFGPipelineException, get_default_data_source
 from CFGpy.behavioral._logging import build_pipeline_logger, HasLogger
 from CFGpy.utils import visualization
 
