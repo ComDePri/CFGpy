@@ -10,12 +10,14 @@ import dacite
 import importlib.resources as ir
 import sys
 
+from typing import Self
+
 
 @dataclass
 class Configuration:
 
     @classmethod
-    def default(cls):
+    def default(cls) -> Self:
         config_filename = CONFIG_FILENAME
         if sys.version_info[1] >= 9:
             config_path = ir.files(CONFIG_PACKAGE).joinpath(config_filename)
@@ -25,13 +27,13 @@ class Configuration:
         return config
 
     @classmethod
-    def from_yaml(cls, yaml_path):
+    def from_yaml(cls, yaml_path) -> Self:
         with open(yaml_path) as yaml_fp:
             config_dict = yaml.safe_load(yaml_fp)
         return cls.from_dict(config_dict)
 
     @classmethod
-    def from_dict(cls, config_dict: dict):
+    def from_dict(cls, config_dict: dict) -> Self:
         config = dacite.from_dict(data_class=cls, data=config_dict, config=dacite.Config(cast=[tuple]))
         config._post_init()
         return config
