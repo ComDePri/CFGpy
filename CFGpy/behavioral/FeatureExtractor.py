@@ -17,7 +17,8 @@ from CFGpy.behavioral._consts import (FEATURES_ID_KEY, FEATURES_START_TIME_KEY, 
                                       ABSOLUTE_FEATURES_MESSAGE, RELATIVE_FEATURES_MESSAGE, EXPLORE_OUTLIER_REASON,
                                       EXPLOIT_OUTLIER_REASON, NO_EXPLOIT_EXCLUSION_REASON, MANUAL_EXCLUSION_REASON,
                                       GAME_LENGTH_EXCLUSION_REASON, GAME_DURATION_EXCLUSION_REASON,
-                                      PAUSE_EXCLUSION_REASON, SAMPLE_RELATIVE_FEATURES_LABEL, G_KEY, ALPHA_KEY)
+                                      PAUSE_EXCLUSION_REASON, SAMPLE_RELATIVE_FEATURES_LABEL, G_KEY, ALPHA_KEY,
+                                      DEFAULT_POSTPARSED_FILTERED_OUTPUT_FILENAME)
 from CFGpy.behavioral import Configuration
 from CFGpy.behavioral._utils import (load_json, is_semantic_connection, resolve_path, median_handle_empty as median,
                                      mean_handle_empty as mean)
@@ -82,15 +83,18 @@ class FeatureExtractor(HasLogger):
         return self.output_df
 
     def dump(self, name: str = None, path: str = None, with_config=True, with_exclusions=True):
-        path = resolve_path(name=name, path=path, default_suffix=DEFAULT_FINAL_OUTPUT_FILENAME)
+        measures_path = resolve_path(name=name, path=path, default_suffix=DEFAULT_FINAL_OUTPUT_FILENAME)
 
-        self.output_df.to_csv(path, index=False)  # reorder columns
+        self.output_df.to_csv(measures_path, index=False)
+        postparsed_path = resolve_path(name=name, path=path, default_suffix=DEFAULT_POSTPARSED_FILTERED_OUTPUT_FILENAME)
+        self.input_data.dump(postparsed_path, prettify=True)
+
         if with_exclusions:
             exclusions_path = f"{name}_exclusions.csv" if name else path.replace(".csv", "") + "_exclusions.csv"
             self.exclusions.to_csv(exclusions_path, index=False)
         if with_config:
             self.config.to_yaml(path.replace(".csv", ""))
-        return path
+        return measures_path
 
         # TODO: document all filtered ids and filtering criteria
         # TODO: write html with dashboards to inspect data quality and some summary stats

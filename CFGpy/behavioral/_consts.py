@@ -122,6 +122,7 @@ PAUSE_EXCLUSION_REASON = "Paused for too long"
 ABSOLUTE_FEATURES_MESSAGE = "Extracting absolute features..."
 RELATIVE_FEATURES_MESSAGE = "Extracting relative{} features..."
 DEFAULT_FINAL_OUTPUT_FILENAME = "measures.csv"
+DEFAULT_POSTPARSED_FILTERED_OUTPUT_FILENAME = "postparsed_clean.json"
 
 # utils
 SERVER_COORDS_TYPE_ERROR = "Received incorrect type as csv_coords, should be str or list, received {}"

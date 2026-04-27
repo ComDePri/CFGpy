@@ -9,7 +9,7 @@ import networkx as nx
 from CFGpy.behavioral._consts import (PARSED_PLAYER_ID_KEY, PARSED_TIME_KEY, PARSED_ALL_SHAPES_KEY,
                                       PARSED_CHOSEN_SHAPES_KEY, EXPLORE_KEY, EXPLOIT_KEY)
 from CFGpy.behavioral import Configuration
-from CFGpy.behavioral._utils import is_semantic_connection, load_json, median_handle_empty as median
+from CFGpy.behavioral._utils import is_semantic_connection, load_json, median_handle_empty as median, prettify_games_json
 from CFGpy.utils import  FilesHandler, get_vanilla_features
 
 
@@ -166,6 +166,12 @@ class ParsedDataset:
         self.input_data = []
         self.players_data = []
         self._reset_state(input_data)
+
+
+    def dump(self, path, prettify=False):
+        json_str = prettify_games_json(self.input_data) if prettify else json.dumps(self.input_data)
+        with open(path, "w") as f:
+            f.write(json_str)
 
     @classmethod
     def from_json(cls, path: str):
