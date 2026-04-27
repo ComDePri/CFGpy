@@ -16,18 +16,20 @@ As of v2.0.0, this package can be used to retrieve data from IOCANE, RedMetrics2
 The Pipeline can be run from the terminal as follows:
 
 ```
-run_cfg_pipeline --data-source <data_source> --game-name <game-name> --game-id <game_id> --game-version-ids <game_version_id_1> <game_version_id_2> <...> --config-path <config_file_path> -o <output_filename>
+run_cfg_pipeline --data-source <data_source> --game-id <game_id> --config-path <config_file_path> -o <output_filename>
 ```
 
-`output_filename` and `config_file_path` are optional. The default output filename would be "cfg" and this will be used as the prefix for all outputted files, e.g., "cfg_features.csv", "cfg_config.yaml". The default configuration file is the default configuration provided with this package, which can be found in `CFGpy/behavioral/default_config.yaml`.
-Either `game_name`, `game_id` or as many `game_version_ids` (if you are using RedMetrics1 dump) as you want must be provided - but only one of them. Alternatively, if one of them is present in the configuration file, then none of them may be provided.
-`data_source` must be one of "Redmetrics1", "Redmetrics2", "IOCANE", "RedMetrics1Dump" or "Local".
+Either `config_file_path` or `game_id` most be provided.
+The default output filename would be "cfg" and this will be used as the prefix for all outputted files, e.g., "cfg_features.csv", "cfg_config.yaml". The default configuration file is the default configuration provided with this package, which can be found in `CFGpy/behavioral/default_config.yaml`.
+`game_id` most be provided, or alternatively, you can provide the GAME_ID or GAME_VERSIONS_ID (for the rm1 dump) in the configuration file.
+`game_id` can consist of multiple comma-separated game ids, e.g., "123,456,789", in such a case - data from all of those games will be analyzed together.
+`data_source` must be one of "Redmetrics1", "Redmetrics2", "IOCANE", "RedMetrics1Dump" or "Local". It is "IOCANE" by default.
 
 Specific requirements for each data source:
+- IOCANE: If you are using IOCANE, you can set the following environment variables to avoid being prompted for your email and password to your IOCANE account every time: CFG_USERNAME, CFG_PASSWORD
 - RedMetrics2: If you are using RedMetrics2, you can set the following environment variables to avoid being prompted for you email and password to your RedMetrics2 account every time: RM2_EMAIL, RM2_PASSWORD
 - RedMetrics1Dump: If you are using RedMetrics1 dump, then the NAS_PATH environment variable must be set to the path of the mounted NAS drive where the dump is located.
 - Local: If you are using a local events csv file, then the path to the file must be provided either as an argument --events-csv-path <path_to_csv> or as config field EVENT_CSV_PATH.
-- IOCANE: If you are using IOCANE, you can set the following environment variables to avoid being prompted for your email and password to your IOCANE account every time: CFG_USERNAME, CFG_PASSWORD
 
 To set an environment variable in a linux terminal, you can use the following command:
 ```
@@ -40,21 +42,11 @@ Note: for passwords, it is better to use single inverted commas because the term
 ```python
 from CFGpy.behavioral import Pipeline
 
-Pipeline(game_name=game_name, game_id=game_id, output_filename=output_filename, game_version_ids=game_version_ids, config=config).run_pipeline()
+Pipeline(game_id=game_id, output_filename=output_filename, game_version_ids=game_version_ids, config=config).run_pipeline()
 ```
-`output_filename` and `config` are optional parameters.
-Either `game_name`, `game_id` or as many `game_version_ids` as you want (if you are using RedMetrics1Dump) must be provided - but only one of them. Alternatively, if one of them is present in the configuration file, then none of them may be provided.
+One of `game_id` or `game_version_ids` (only for RM1 dump) or `config`, with a specified GAME_ID or GAME_VERSION_IDS field, must be provided. If both are provided, then the game id(s) or game version ids provided as an argument will be used, and those provided in the configuration file will be ignored. If only one of them is provided, then it will be used. If none of them are provided, then an error will be raised.
 
-The game name or id(s) can also be passed as part of a configuration object:
-
-Game name:
-```python
-from CFGpy.behavioral import Configuration, Pipeline
-
-config = Configuration.default()
-config.GAME_NAME = game_name
-Pipeline(config=config, output_filename=output_filename).run_pipeline()
-```
+The game id(s) or game version ids can also be passed as part of a configuration object:
 
 Game id:
 ```python

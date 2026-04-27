@@ -7,7 +7,6 @@ Please do not change this file unless you're absolutely sure you know what you'r
 
 # script
 DATA_SOURCE_ARG = "data-source"
-GAME_NAME_ARG = "game-name"
 GAME_ID_ARG = "game-id"
 GAME_VERSION_IDS_ARG = "game-version-ids"
 BEFORE_DATE_ARG = "before"
@@ -17,7 +16,6 @@ EVENTS_CSV_PATH_ARG = "events-csv-path"
 
 ARG_TO_CONF_MAP = {
         DATA_SOURCE_ARG: "DATA_SOURCE",
-        GAME_NAME_ARG: "GAME_NAME",
         GAME_ID_ARG: "GAME_ID",
         GAME_VERSION_IDS_ARG: "GAME_VERSION_IDS",
         BEFORE_DATE_ARG: "BEFORE_DATE",

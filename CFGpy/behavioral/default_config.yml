@@ -29,7 +29,6 @@
   RAW_SHAPE: &RAW_SHAPE "customData.shape",
 
   ## Downloading
-  GAME_NAME: null,  # Name of the game 
   GAME_ID: null, # ID of the game
   GAME_VERSION_IDS: null, # A list of the game versions
   DOWNLOADER_COMMON_FIELDS: [

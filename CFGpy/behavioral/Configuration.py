@@ -127,7 +127,7 @@ class Configuration:
     MAX_PAUSE_DURATION_SEC: float
     MAX_ZSCORE_FOR_OUTLIERS: float
 
-    GAME_NAME: str | None = None
+    GAME_NAME: str | None = None # deprecated, use GAME_ID instead
     GAME_ID: str | None = None
     GAME_VERSION_IDS: list[str] | None = None
     BEFORE_DATE: str | None = None

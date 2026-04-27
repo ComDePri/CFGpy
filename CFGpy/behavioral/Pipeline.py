@@ -4,29 +4,27 @@ import tqdm
 
 from datetime import datetime, timezone
 from CFGpy.behavioral import DataRetriever, RM1DumpDataRetriever, RedMetrics2DataRetriever, Parser, PostParser, \
-    FeatureExtractor, Configuration, RedMetrics1Downloader, IOCANEDataRetriever, LocalDataRetriever
+    FeatureExtractor, Configuration, RedMetrics1Downloader, IOCANEDataRetriever, LocalDataRetriever, MultiGameDataRetriever
 from CFGpy.behavioral._consts import DEFAULT_FINAL_OUTPUT_FILENAME, RM1, RM1_NAS_DUMP, RM2, \
-    UNSUPPORTED_DATA_SOURCE_ERROR, IOCANE, VALID_DATA_SOURCES, LOCAL, ARG_TO_CONF_MAP, DATA_SOURCE_ARG, GAME_NAME_ARG, \
+    UNSUPPORTED_DATA_SOURCE_ERROR, IOCANE, VALID_DATA_SOURCES, LOCAL, ARG_TO_CONF_MAP, DATA_SOURCE_ARG, \
     GAME_ID_ARG, GAME_VERSION_IDS_ARG, BEFORE_DATE_ARG, AFTER_DATE_ARG, EVENTS_CSV_PATH_ARG, PARSED_PLAYER_ID_KEY
 from CFGpy.behavioral._utils import CFGPipelineException
 from CFGpy.behavioral._logging import build_pipeline_logger, HasLogger
 from CFGpy.utils import visualization
 
 class Pipeline(HasLogger):
-    def __init__(self, game_name: str | None = None, game_id: str | None = None,
+    def __init__(self, game_id: str | None = None,
                  game_version_ids: list[str] | None = None,
                  output_filename=DEFAULT_FINAL_OUTPUT_FILENAME, config: Configuration = None,
                  input_events_csv_path: str | None = None, verbose=True) -> None:
         self.output_filename = output_filename
         logger = build_pipeline_logger(self.output_filename, verbose=verbose)
         super().__init__(logger)
-        self._game_name = game_name
         self._game_id: str = game_id
         self._game_version_ids = game_version_ids
         self._input_events_csv_path = input_events_csv_path
-
-
         self.config = config or Configuration.default()
+        self._add_input_params_to_config()
 
         self.data_retriever = None
         self.raw_data = None
@@ -57,30 +55,24 @@ class Pipeline(HasLogger):
         return now_str
 
     def _add_input_params_to_config(self):
-        self.config.GAME_NAME = self.data_retriever._game_name
-        self.config.GAME_ID = self.data_retriever._game_id
-        if self.config.DATA_SOURCE == RM1_NAS_DUMP:
-            self.config.GAME_VERSION_IDS = self.data_retriever._game_version_ids
+        def override_with_warning(config_key, input_value):
+            if not hasattr(self.config, config_key):
+                raise AttributeError(f"Configuration object has no attribute '{config_key}'")
+            config_value = getattr(self.config, config_key, None)
+            if input_value is not None:
+                if config_value is not None and config_value != input_value:
+                    self.log_warning(f"Conflict for config key '{config_key}': current value '{config_value}' vs input value '{input_value}'. Using input value.")
+                setattr(self.config, config_key, input_value)
+        override_with_warning("GAME_ID", self._game_id)
+        override_with_warning("GAME_VERSION_IDS", self._game_version_ids)
+        override_with_warning("EVENT_CSV_PATH", self._input_events_csv_path)
 
-    def _get_data_retriever(self) -> DataRetriever:
-        if self.config.DATA_SOURCE == RM1_NAS_DUMP:
-            return RM1DumpDataRetriever(game_name=self._game_name, game_id=self._game_id,
-                                        game_version_ids=self._game_version_ids, config=self.config,
-                                        output_filename=self.output_filename, logger=self.logger)
-        elif self.config.DATA_SOURCE == RM2:
-            return RedMetrics2DataRetriever(game_name=self._game_name, game_id=self._game_id, config=self.config,
-                                            output_filename=self.output_filename, logger=self.logger)
-        elif self.config.DATA_SOURCE == RM1:
-            return RedMetrics1Downloader(csv_url=self.config.RED_METRICS_CSV_URL, game_id=self._game_id, config=self.config,
-                                         output_filename=self.output_filename, logger=self.logger)
-        elif self.config.DATA_SOURCE == IOCANE:
-            return IOCANEDataRetriever(game_name=self._game_name, game_id=self._game_id, config=self.config,
-                                       output_filename=self.output_filename, logger=self.logger)
-        elif self.config.DATA_SOURCE == LOCAL:
-            return LocalDataRetriever(config=self.config, output_filename=self.output_filename,
-                                      events_csv_path=self._input_events_csv_path, logger=self.logger)
-        else:
-            raise ValueError(UNSUPPORTED_DATA_SOURCE_ERROR.format(self.config.DATA_SOURCE))
+    @staticmethod
+    def _is_multi_value(value) -> bool:
+        return isinstance(value, (list, tuple)) or (isinstance(value, str) and "," in value)
+
+    def _is_multi_game_request(self) -> bool:
+        return self._is_multi_value(self.config.GAME_ID)
 
     def _retrieve_data(self, verbose):
         """
@@ -100,7 +92,6 @@ class Pipeline(HasLogger):
             raise CFGPipelineException("Raw data has already been retrieved")
 
         self.data_retriever = self._get_data_retriever()
-        self._add_input_params_to_config()
         self.logger.info("Retrieving data...")
 
         self.raw_data = self._retrieve_data(verbose=verbose)
@@ -195,6 +186,62 @@ class Pipeline(HasLogger):
         self.extract_features(verbose=self.verbose)
         return self.features_df
 
+    def _single_retriever_factory(self):
+        data_source = self.config.DATA_SOURCE
+
+        def factory(cfg: Configuration, logger):
+            if data_source == RM1_NAS_DUMP:
+                return RM1DumpDataRetriever(
+                    game_id=cfg.GAME_ID,
+                    game_version_ids=cfg.GAME_VERSION_IDS,
+                    config=cfg,
+                    output_filename=self.output_filename,
+                    logger=logger,
+                )
+            if data_source == RM2:
+                return RedMetrics2DataRetriever(
+                    game_id=cfg.GAME_ID,
+                    config=cfg,
+                    output_filename=self.output_filename,
+                    logger=logger,
+                )
+            if data_source == RM1:
+                return RedMetrics1Downloader(
+                    csv_url=cfg.RED_METRICS_CSV_URL,
+                    game_id=cfg.GAME_ID,
+                    config=cfg,
+                    output_filename=self.output_filename,
+                    logger=logger,
+                )
+            if data_source == IOCANE:
+                return IOCANEDataRetriever(
+                    game_id=cfg.GAME_ID,
+                    config=cfg,
+                    output_filename=self.output_filename,
+                    logger=logger,
+                )
+            if data_source == LOCAL:
+                return LocalDataRetriever(
+                    config=cfg,
+                    output_filename=self.output_filename,
+                    events_csv_path=cfg.EVENT_CSV_PATH,
+                    logger=logger,
+                )
+            raise ValueError(UNSUPPORTED_DATA_SOURCE_ERROR.format(data_source))
+
+        return factory
+
+    def _get_data_retriever(self) -> DataRetriever:
+        factory = self._single_retriever_factory()
+
+        if self._is_multi_game_request():
+            return MultiGameDataRetriever(
+                base_retriever_constructor=factory,
+                config=self.config,
+                logger=self.logger,
+            )
+        return factory(self.config, self.logger)
+
 
 def safe_update(config: Configuration, key: str, new_value):
     if not hasattr(config, key):
@@ -220,12 +267,9 @@ def main():
 
     argparser = argparse.ArgumentParser(description="Run CFG behavioral data pipeline")
     # can give any of the valid data sources as argument to override the config data source
-    argparser.add_argument(f"--{DATA_SOURCE_ARG}", choices=VALID_DATA_SOURCES,
+    argparser.add_argument(f"--{DATA_SOURCE_ARG}", choices=VALID_DATA_SOURCES, default=get_default_data_source(),
                            help="The data source to retrieve data from. Should be provided only if it doesn't appear in the config file.")
-    argparser.add_argument(f"--{GAME_NAME_ARG}", help='The name of the name.')
     argparser.add_argument(f"--{GAME_ID_ARG}", help='The id of the game.')
-    argparser.add_argument(f"--{GAME_VERSION_IDS_ARG}", nargs="+",
-                           help="A list of the game version ids that you want to retrieve. Supported only for RM1 NAS dump data source. Should be provided only if it doesn't appear in the config file.")
     argparser.add_argument(f"--{BEFORE_DATE_ARG}", type=str, default=None,
                            help='The end of the date range of the games you want to retrieve. Should be in a pandas-parseable datetime format. Only needed if you want to provide it as an argument instead of providing it in the config.')
     argparser.add_argument(f"--{AFTER_DATE_ARG}", type=str, default=None,

@@ -9,21 +9,20 @@ from CFGpy.behavioral._utils import parse_json_column
 from CFGpy.utils._nas_path import get_nas_path
 
 class RM1DumpDataRetriever(DataRetriever):
-    def __init__(self, *, game_name: str | None = None, game_id: str | None = None, game_version_ids: list[str] | None = None, 
+    def __init__(self, *, game_id: str | None = None, game_version_ids: list[str] | None = None,
                  output_filename: str = DATA_RETRIEVER_OUTPUT_FILENAME, config: Configuration = None,
                  csv_directory: str = None, logger = None) -> None:
         """
-        :param game_name: The game name of the game whose data you want to retrieve from local CSV files.
         :param game_id: The game id of the game whose data you want to retrieve from local CSV files.
         :param game_version_ids: List of game version IDs to filter by.
         :param output_filename: filename for output.
         :param config: a Configuration file.
         :param csv_directory: Directory containing the CSV files (events.csv, players.csv, games.csv, game_versions.csv)
         """
-        super().__init__(game_name=game_name, game_id=game_id, output_filename=output_filename, 
+        super().__init__(game_id=game_id, output_filename=output_filename,
                          config=config if config is not None else Configuration.default(), logger=logger)
 
-        self._validate_input(input=[game_id, game_name, game_version_ids, self._config.GAME_ID, self._config.GAME_NAME, self._config.GAME_VERSION_IDS])
+        self._validate_input(input=[game_id, game_version_ids, self._config.GAME_ID, self._config.GAME_VERSION_IDS])
         self._validate_config()
         self._game_version_ids = self._config.GAME_VERSION_IDS or game_version_ids
         self.nas_path = get_nas_path()
@@ -67,17 +66,7 @@ class RM1DumpDataRetriever(DataRetriever):
                 raise ValueError(f"No game_versions found for game_id: {self._game_id}")
 
         else:
-            merged_df = self._game_versions_df.merge(
-                self._games_df, 
-                left_on='game_id', 
-                right_on='id', 
-                suffixes=('', '_game')
-            )
-            matching_versions = merged_df[merged_df['name_game'] == self._game_name]
-            if not matching_versions.empty:
-                return matching_versions['id'].tolist()
-            else:
-                raise ValueError(f"No game_versions found for game name: {self._game_name}")
+            raise ValueError("No game_version_ids or game_id provided in config to determine which game versions to fetch.")
 
     def _create_df(self, *, game_version_id: str, after: str = None, before: str = None, event_type: str = None, 
                           section: str = None) -> pd.DataFrame:

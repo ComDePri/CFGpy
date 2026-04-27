@@ -32,14 +32,12 @@ class IOCANEDataRetriever(DataRetriever):
     def __init__(
             self,
             *,
-            game_name: str | None = None,
             game_id: str | None = None,
             output_filename: str = DATA_RETRIEVER_OUTPUT_FILENAME,
             config: Configuration = None,
             logger=None
     ) -> None:
         super().__init__(
-            game_name=game_name,
             game_id=game_id,
             output_filename=output_filename,
             config=config if config is not None else Configuration.default(),
@@ -50,7 +48,7 @@ class IOCANEDataRetriever(DataRetriever):
                       "Please report any issues or inaccuracies you encounter when using it.", UserWarning,
                       stacklevel=2)
         self.log_warning("The IOCANEDataRetriever is an experimental data retriever for the new CFG platform. ")
-        self._validate_input([game_id, game_name, self._config.GAME_ID, self._config.GAME_NAME])
+        self._validate_input([game_id, self._config.GAME_ID])
         self._session: Optional[requests.Session] = None
         self._games_cache: Optional[list[dict[str, Any]]] = None
         self._versions_cache: dict[str, list[dict[str, Any]]] = {}
@@ -156,8 +154,6 @@ class IOCANEDataRetriever(DataRetriever):
             version_id: Optional[str] = None,
             verbose: bool = False,
     ) -> pd.DataFrame:
-        if self._game_name and not self._game_id:
-            self._game_id = self._get_game_id_by_name(self._game_name, verbose=verbose)
 
         if not self._game_id:
             raise ValueError("Could not determine game_id")

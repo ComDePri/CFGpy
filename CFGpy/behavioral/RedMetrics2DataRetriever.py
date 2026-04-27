@@ -15,7 +15,7 @@ RM2_RAW_COORDINATES = "coordinates"
 RM2_DOWNLOADER_COMMON_FIELDS = (RM2_EVENT_ID_KEY, RM2_RAW_SERVER_TIME, RM2_RAW_USER_TIME, RM2_EVENT_TYPE, RM2_RAW_COORDINATES)
 
 class RedMetrics2DataRetriever(DataRetriever):
-    def __init__(self, *, game_name: str | None = None, game_id: str | None = None, output_filename: str = DATA_RETRIEVER_OUTPUT_FILENAME, 
+    def __init__(self, *, game_id: str | None = None, output_filename: str = DATA_RETRIEVER_OUTPUT_FILENAME,
                  config: Configuration = None, logger = None) -> None:
         """
         Init a RedMetrics2DataRetriever object.
@@ -24,9 +24,9 @@ class RedMetrics2DataRetriever(DataRetriever):
         :param output_filename: filename for output.
         :param config: a Configuration file.
         """
-        super().__init__(game_name=game_name, game_id=game_id, output_filename=output_filename, 
+        super().__init__(game_id=game_id, output_filename=output_filename,
                          config=config if config is not None else Configuration.default(), logger=logger)
-        self._validate_input(input=[game_id, game_name, self._config.GAME_ID, self._config.GAME_NAME])
+        self._validate_input(input=[game_id, self._config.GAME_ID])
         self._retrieved_events_json = []
         self._session = None
     
@@ -74,9 +74,7 @@ class RedMetrics2DataRetriever(DataRetriever):
 
     def _download_data_from_rm2(self, verbose: Optional[bool] = False) -> dict:
         self.log_info("Downloading data from RedMetrics2...")
-        
-        if self._game_name:
-            self._game_id = self._get_rm2_game_id(session=self.session, verbose=verbose)
+
             
         download_url: str = f"https://api.creativeforagingtask.com/v2/game/{self._game_id}/data.json"
         response = self.session.get(url=download_url)
@@ -88,24 +86,7 @@ class RedMetrics2DataRetriever(DataRetriever):
         self.log_info("Data downloaded successfully from RedMetrics2.")
 
         return response.json()
-    
-    def _get_rm2_game_id(self, session: requests.Session, verbose: Optional[bool] = False) -> str:
-        self.log_info(f"Retrieving game id for {self._game_name}...")
-        
-        download_url: str = f"https://api.creativeforagingtask.com/v2/game"
-        response = session.get(url=download_url)
 
-        if not response.status_code == 200:
-            msg = f"Error: {response.status_code} - failed to download all games data."
-            self.log_error(msg)
-            raise(ValueError(msg))
-        self.log_info("Data downloaded successfully from RedMetrics2.")
-
-        for game in response.json():
-            if game.get('name') == self._game_name:
-                return game.get('id')
-            
-        return None
     
     def _create_rm2_output(self, verbose: Optional[bool] = False) -> pd.DataFrame:
        

@@ -8,9 +8,8 @@ from CFGpy.behavioral._logging import HasLogger
 
 
 class DataRetriever(HasLogger,ABC):
-    def __init__(self, *, game_name: str | None = None, game_id: str | None = None, output_filename: str = DATA_RETRIEVER_OUTPUT_FILENAME, config: Configuration = None, logger=None) -> None:
+    def __init__(self, *, game_id: str | None = None, output_filename: str = DATA_RETRIEVER_OUTPUT_FILENAME, config: Configuration = None, logger=None) -> None:
         super().__init__(logger)
-        self._game_name = game_name or config.GAME_NAME
         self._game_id: str = game_id or config.GAME_ID
         self._output_filename = output_filename
         self.output_path = f"{self._output_filename}_events.csv"
