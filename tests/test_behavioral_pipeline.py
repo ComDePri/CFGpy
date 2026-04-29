@@ -33,6 +33,7 @@ TEST_FEATURES_FILENAME = "test_features.csv"
 
 pipeline_test_dirs = [entry.path for entry in os.scandir(PIPELINE_TEST_FILES_DIR) if entry.is_dir()]
 rm1_dump_test_dirs = [entry.path for entry in os.scandir(DUMP_TEST_FILES_DIR) if entry.is_dir()]
+pipeline_iocane_test_dirs = [path for path in pipeline_test_dirs if "iocane" in path]
 
 
 class ConfigurableParam:
@@ -259,14 +260,14 @@ def test_downloader(test_dir):
     _compare_raws(test_raw, raw)
 
 
-@pytest.mark.parametrize("test_dir", pipeline_test_dirs)
+@pytest.mark.parametrize("test_dir", pipeline_iocane_test_dirs)
 def test_local_downloader(test_dir):
     """
     Test that the downloader can read from a local file and produce the same output as the original file downloaded using rm1.
     """
     raw_data_filename = "raw"
     config = Configuration.from_yaml(os.path.join(test_dir, CONFIG_FILENAME))
-    downloader = RedMetrics1Downloader(output_filename=raw_data_filename, config=config)
+    downloader = IOCANEDataRetriever(output_filename=raw_data_filename, config=config)
     df = downloader.retrieve_data(verbose=True)
     downloader.dump()
 
@@ -404,7 +405,7 @@ def test_postparser(test_dir):
     config = Configuration.from_yaml(os.path.join(test_dir, CONFIG_FILENAME))
     postparser = PostParser.from_json(os.path.join(test_dir, TEST_PARSED_FILENAME), config=config)
     postparser.postparse()
-    postparser.dump(name=postparsed_data_filename)
+    postparser.dump(name=postparsed_data_filename, pretty=config.DATA_SOURCE == IOCANE)
 
     with open(os.path.join(test_dir, TEST_POSTPARSED_FILENAME), "r") as test_postparsed_fp:
         test_postparsed = test_postparsed_fp.read()
