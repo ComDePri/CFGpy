@@ -95,7 +95,7 @@ class FeatureExtractor(HasLogger):
             exclusions_path = f"{name}_exclusions.csv" if name else path.replace(".csv", "") + "_exclusions.csv"
             self.exclusions.to_csv(exclusions_path, index=False)
         if with_config:
-            self.config.to_yaml(path.replace(".csv", ""))
+            self.config.to_yaml(measures_path.replace(".csv", ""))
         return measures_path
 
         # TODO: document all filtered ids and filtering criteria
