@@ -53,7 +53,12 @@ class DataRetriever(HasLogger,ABC):
 
         # Coerce to datetime; keep original column untouched.
         series = pd.to_datetime(df[time_col], errors="coerce", utc=True)
-        mask = series.notna()
+        invalid_time = series.notna()
+        mask = invalid_time.copy()
+        # check if any datetime is invalid
+        if mask.any():
+            invalid_count = (~mask).sum()
+            self.log_warning(f"Found {invalid_count} invalid datetime entries in column '{time_col}' that will be ignored in filtering.")
 
         if after is not None:
             mask &= series >= after
@@ -61,6 +66,8 @@ class DataRetriever(HasLogger,ABC):
         if before is not None:
             mask &= series <= before
             self.log_info(f"Filtering until {before}...")
+        # finally we can add back the rows without timestamps:
+        mask = mask | ~invalid_time
         self.log_info(f"Filtered from {len(df)} rows to {mask.sum()} rows by date.")
         return df.loc[mask].reset_index(drop=True).copy()
 
