@@ -1,7 +1,7 @@
 import os
 
 import tqdm
-
+import pandas as pd
 from datetime import datetime, timezone
 from CFGpy.behavioral import DataRetriever, RM1DumpDataRetriever, RedMetrics2DataRetriever, Parser, PostParser, \
     FeatureExtractor, Configuration, RedMetrics1Downloader, IOCANEDataRetriever, LocalDataRetriever, MultiGameDataRetriever
@@ -36,23 +36,6 @@ class Pipeline(HasLogger):
         self.features_df = None
         self.verbose = verbose
 
-
-    def _get_now_str(self) -> str:
-        """
-        Returns a string representation of the current time, formatted like server's time (given in self.config).
-
-        Python's datetime only allows specifying sub-second precision in microseconds (6 decimal places), but RedMetrics
-        URL only accept milliseconds (3 decimal places). Therefore, if the server's time format contains microseconds,
-        we manually replace that with milliseconds, to accommodate RedMetrics.
-        """
-        now = datetime.now(timezone.utc)
-        now_str = (
-            now.strftime(
-                self.config.SERVER_DATE_FORMAT
-                .replace("%f", "{}"))  # plants a placeholder instead of microseconds
-            .format(f"{now.microsecond // 1000:0>3}")  # fills in millisecond info, 0-padded to three digits
-        )
-        return now_str
 
     def _add_input_params_to_config(self):
         def override_with_warning(config_key, input_value):
@@ -181,8 +164,26 @@ class Pipeline(HasLogger):
                 visualization.animate_game(game=game, speed=self.config.VISUALIZATION_ANIMATION_SPEED, output_dir_path=os.path.join(viz_dir, "animations"))
             if self.config.VISUALIZATION_MAKE_PLOTS:
                 visualization.plot_game(game=game, output_dir_path=os.path.join(viz_dir, "plots"))
+    def _clip_config_before_to_now(self):
+        # freeze the maximal time in the config to now, to avoid inconsistencies when running again with dumped configs
+        now_dt = pd.Timestamp.now(tz=timezone.utc)
+        now_str = now_dt.isoformat()
+        if self.config.BEFORE_DATE is None:
+            self.config.BEFORE_DATE = now_str
+            return
+        config_before_dt = pd.to_datetime(self.config.BEFORE_DATE, errors="coerce")
+        if config_before_dt is None:
+            self.log_warning(f"Could not parse BEFORE_DATE '{self.config.BEFORE_DATE}' in config; overriding it with current time '{now_str}' to avoid inconsistencies.")
+            self.config.BEFORE_DATE = now_str
+            return
+        if config_before_dt > now_dt:
+            self.log_warning(f"BEFORE_DATE '{self.config.BEFORE_DATE}' in config is in the future; overriding it with current time '{now_str}' to avoid inconsistencies.")
+            self.config.BEFORE_DATE = now_str
+        return
+
 
     def run_pipeline(self):
+        self._clip_config_before_to_now()
         self.retrieve_data(verbose=self.verbose)
         self.parse(verbose=self.verbose)
         self.postparse(verbose=self.verbose)
