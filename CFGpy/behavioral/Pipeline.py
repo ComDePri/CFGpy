@@ -172,7 +172,7 @@ class Pipeline(HasLogger):
             self.config.BEFORE_DATE = now_str
             return
         config_before_dt = pd.to_datetime(self.config.BEFORE_DATE, errors="coerce")
-        if config_before_dt is None:
+        if pd.isna(config_before_dt):
             self.log_warning(f"Could not parse BEFORE_DATE '{self.config.BEFORE_DATE}' in config; overriding it with current time '{now_str}' to avoid inconsistencies.")
             self.config.BEFORE_DATE = now_str
             return
