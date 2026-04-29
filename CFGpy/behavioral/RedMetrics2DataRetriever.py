@@ -25,7 +25,7 @@ class RedMetrics2DataRetriever(DataRetriever):
         :param config: a Configuration file.
         """
         super().__init__(game_id=game_id, output_filename=output_filename,
-                         config=config if config is not None else Configuration.default(), logger=logger)
+                         config=config, logger=logger)
         self._validate_input(input=[game_id, self._config.GAME_ID])
         self._retrieved_events_json = []
         self._session = None

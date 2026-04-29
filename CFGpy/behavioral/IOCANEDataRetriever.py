@@ -40,7 +40,7 @@ class IOCANEDataRetriever(DataRetriever):
         super().__init__(
             game_id=game_id,
             output_filename=output_filename,
-            config=config if config is not None else Configuration.default(),
+            config=config,
             logger=logger
         )
         # warn that this is an experimental backend for now:

@@ -20,7 +20,7 @@ class RM1DumpDataRetriever(DataRetriever):
         :param csv_directory: Directory containing the CSV files (events.csv, players.csv, games.csv, game_versions.csv)
         """
         super().__init__(game_id=game_id, output_filename=output_filename,
-                         config=config if config is not None else Configuration.default(), logger=logger)
+                         config=config, logger=logger)
 
         self._validate_input(input=[game_id, game_version_ids, self._config.GAME_ID, self._config.GAME_VERSION_IDS])
         self._validate_config()

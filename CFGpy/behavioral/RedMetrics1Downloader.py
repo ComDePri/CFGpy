@@ -40,7 +40,7 @@ class RedMetrics1Downloader(DataRetriever):
         :param config: a Configuration file. If this defines a RedMetrics URL, `csv_url` shouldn't.
         """
 
-        super().__init__(output_filename=output_filename, game_id=game_id, config=config if config is not None else Configuration.default(), logger=logger)
+        super().__init__(output_filename=output_filename, game_id=game_id, config=config, logger=logger)
         # print a deprecation warning as RM1 downloading will not be supported in the future and users should transition to using the new platform or dumped data.
         self.log_warning("The RM1 downloading functionality will not be supported in the future. Please transition to using the new platform or dumped data.")
         warnings.warn(
