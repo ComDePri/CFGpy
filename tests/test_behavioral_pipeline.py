@@ -36,6 +36,7 @@ rm1_dump_test_dirs = [entry.path for entry in os.scandir(DUMP_TEST_FILES_DIR) if
 pipeline_iocane_test_dirs = [path for path in pipeline_test_dirs if "iocane" in path]
 
 
+
 class ConfigurableParam:
     def __init__(self, name: str, possible_values, affected_process: Process):
         self.name = name
@@ -226,11 +227,22 @@ def test_time_filtering():
         df_before2024_after2023_3) == N_ROWS_BEFORE2024_AFTER2023_3, f"{len(df_before2024_after2023_3)} events instead of {N_ROWS_BEFORE2024_AFTER2023_3}"
 
 
-def _compare_raws(test_raw, raw):
+def _compare_raws(test_raw, raw, json_dict_cols=tuple(), shared_cols=False):
     assert len(test_raw) == len(raw), f"{len(raw)} events instead of {len(test_raw)}"
-    for col_name in test_raw:
+    if shared_cols:
+        cols = set(test_raw.columns).intersection(set(raw.columns))
+    else:
+        cols = test_raw.columns
+    for col_name in cols:
         assert col_name in raw, f"missing column {col_name}"
-        if test_raw[col_name].dtype == "float64":
+        if col_name in json_dict_cols:
+                # compare json columns by loading them as json and comparing the resulting objects (to avoid issues with formatting differences in the json strings)
+                test_json = test_raw[col_name].apply(json.loads)
+                raw_json = raw[col_name].apply(json.loads)
+                # compare the dictionaries for having similar content:
+                for i, (test_dict, raw_dict) in enumerate(zip(test_json, raw_json)):
+                    assert test_dict == raw_dict, f"Difference in column {col_name} at row {i}: {test_dict} vs {raw_dict}"
+        elif test_raw[col_name].dtype == "float64":
             assert np.allclose(test_raw[col_name], raw[col_name], equal_nan=True), f"{col_name} comparison failed"
         else:
             # drop spaces after commas, added by python but not in RedMetrics' output
@@ -317,11 +329,7 @@ def _assert_col_allclose(df, test_comp_df, col_name, print_cols=None):
         _print_diff(df, test_comp_df, col_name, allow_deviations=True, print_cols=print_cols)
         assert False, f"{col_name} comparison failed"
 
-
-def _compare_parsed(parsed, test_dir):
-    with open(os.path.join(test_dir, TEST_PARSED_FILENAME), "r") as test_parsed_fp:
-        test_parsed = json.load(test_parsed_fp)
-
+def _compare_parsed(parsed, test_parsed):
     # convert to df and compare by key, for proper float comparison in the start time column:
     test_parsed_df = pd.DataFrame(test_parsed)
     parsed_df = pd.DataFrame(parsed)
@@ -333,6 +341,12 @@ def _compare_parsed(parsed, test_dir):
                          print_cols=[PARSED_PLAYER_ID_KEY, PARSED_ALL_SHAPES_KEY])
     # TODO: after parser handles chosen shapes, compare those too
 
+def _compare_parsed_to_test_dir(parsed, test_dir):
+    with open(os.path.join(test_dir, TEST_PARSED_FILENAME), "r") as test_parsed_fp:
+        test_parsed = json.load(test_parsed_fp)
+    _compare_parsed(parsed, test_parsed)
+
+
 
 @pytest.mark.parametrize("test_dir", pipeline_test_dirs)
 def test_parser(test_dir):
@@ -343,7 +357,7 @@ def test_parser(test_dir):
     parsed = parser.parse()
     parser.dump(name=parsed_data_filename)
 
-    _compare_parsed(parsed, test_dir)
+    _compare_parsed_to_test_dir(parsed, test_dir)
 
 
 @pytest.mark.parametrize("test_dir", pipeline_test_dirs)
@@ -370,7 +384,7 @@ def test_parser_conversion_to_new_format(test_dir):
     with open(r"parsed_converted_to_new_format.json", "w") as converted_to_new_format_fp:
         json.dump(converted_to_new_format, converted_to_new_format_fp)
 
-    _compare_parsed(converted_to_new_format, test_dir)
+    _compare_parsed_to_test_dir(converted_to_new_format, test_dir)
 
 
 def _print_json_diff(json_ref, json_comp):
