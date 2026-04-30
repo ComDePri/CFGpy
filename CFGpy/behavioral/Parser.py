@@ -94,16 +94,25 @@ class Parser(HasLogger):
                 data[key] = data[self.config.PARSER_JSON_COLUMN].apply(lambda json_dict: json_dict.get(key))
         else:
             self.log_info(f"No JSON column '{self.config.PARSER_JSON_COLUMN}' found in the data. Skipping JSON parsing and column extraction.")
-        data[self.config.SHAPE_MOVE_COLUMN] = data[self.config.SHAPE_MOVE_COLUMN].apply(
-            lambda val: val if isinstance(val, list) 
-            else json.loads(val) if isinstance(val, str) 
-            else np.nan
-            )
-        data[self.config.SHAPE_SAVE_COLUMN] = data[self.config.SHAPE_SAVE_COLUMN].apply(
-            lambda val: val if isinstance(val, list) 
-            else json.loads(val) if isinstance(val, str) 
-            else np.nan
-            )
+
+        if self.config.SHAPE_MOVE_COLUMN in data.columns:
+            data[self.config.SHAPE_MOVE_COLUMN] = data[self.config.SHAPE_MOVE_COLUMN].apply(
+                lambda val: val if isinstance(val, list)
+                else json.loads(val) if isinstance(val, str)
+                else np.nan
+                )
+        else:
+            self.log_warning(f"No shape move column '{self.config.SHAPE_MOVE_COLUMN}' found in the data. This column is essential for parsing shape moves, so all values will be set to NaN.")
+            data[self.config.SHAPE_MOVE_COLUMN] = np.nan
+        if self.config.SHAPE_SAVE_COLUMN in data.columns:
+            data[self.config.SHAPE_SAVE_COLUMN] = data[self.config.SHAPE_SAVE_COLUMN].apply(
+                lambda val: val if isinstance(val, list)
+                else json.loads(val) if isinstance(val, str)
+                else np.nan
+                )
+        else:
+            self.log_warning(f"No shape save column '{self.config.SHAPE_SAVE_COLUMN}' found in the data. This column is essential for parsing shape saves, so all values will be set to NaN.")
+            data[self.config.SHAPE_SAVE_COLUMN] = np.nan
 
         data = self.merge_id_columns(data)
         data = self.fix_invalid_ids(data)
@@ -126,29 +135,30 @@ class Parser(HasLogger):
             if bad_ext_id_mask.any():
                 data.loc[bad_ext_id_mask, 'playerExternalId'] = None
                 self.log_info("Applied patchfix for playerExternalId column to replace '${rand://int/100000:10000000}' with None.")
+        if 'customData.endPosition' in data.columns:
+            # Bug no.2 sometimes the endPosition and shape columns switch places
+            switched_column_indices = np.flatnonzero(
+                data['customData.endPosition'].apply(lambda x: len(json.loads(x)) == 10 if type(x) is str else False))
+            if len(switched_column_indices) > 0:
+                self.log_info(f"Applied patchfix for switched columns for {len(switched_column_indices)} rows where 'customData.endPosition' contains shape data.")
+                self.log_info(f"Switched rows indices: {switched_column_indices}")
+                data.loc[switched_column_indices, 'customData.shape'] = data.loc[
+                    switched_column_indices, 'customData.endPosition']
+        if 'customData.shape' in data.columns:
+            before_customdata_shape = data['customData.shape'].copy()
 
-        # Bug no.2 sometimes the endPosition and shape columns switch places
-        switched_column_indices = np.flatnonzero(
-            data['customData.endPosition'].apply(lambda x: len(json.loads(x)) == 10 if type(x) is str else False))
-        if len(switched_column_indices) > 0:
-            self.log_info(f"Applied patchfix for switched columns for {len(switched_column_indices)} rows where 'customData.endPosition' contains shape data.")
-            self.log_info(f"Switched rows indices: {switched_column_indices}")
-            data.loc[switched_column_indices, 'customData.shape'] = data.loc[
-                switched_column_indices, 'customData.endPosition']
-        before_customdata_shape = data['customData.shape'].copy()
-
-        data['customData.shape'] = data['customData.shape'].apply(
-            lambda x: x if isinstance(x, list) 
-            else json.loads(x) if isinstance(x, str) 
-            else []).apply(lambda x: str(x) if len(x) == 10 else np.nan
-        )
-        self.log_info("Applied patchfix for 'customData.shape' column to ensure it contains valid shape data or NaN.")
-        if (before_customdata_shape.notna() & data['customData.shape'].isna()).any():
-            invalid_indices = data.index[before_customdata_shape.notna() & data['customData.shape'].isna()]
-            shape_unique_values = before_customdata_shape[invalid_indices].unique()
-            unique_events = data.loc[invalid_indices, self.config.EVENT_TYPE].unique()
-            elaborate_msg = f"Changed rows had the following unique values in 'customData.shape' before the patchfix: {shape_unique_values}, and the following unique event types: {unique_events}."
-            self.log_warning(f"After applying the patchfix for 'customData.shape', the following rows were found to have invalid shape data that could not be parsed and were set to NaN:\n{before_customdata_shape[invalid_indices]}.\n{elaborate_msg}")
+            data['customData.shape'] = data['customData.shape'].apply(
+                lambda x: x if isinstance(x, list)
+                else json.loads(x) if isinstance(x, str)
+                else []).apply(lambda x: str(x) if len(x) == 10 else np.nan
+            )
+            self.log_info("Applied patchfix for 'customData.shape' column to ensure it contains valid shape data or NaN.")
+            if (before_customdata_shape.notna() & data['customData.shape'].isna()).any():
+                invalid_indices = data.index[before_customdata_shape.notna() & data['customData.shape'].isna()]
+                shape_unique_values = before_customdata_shape[invalid_indices].unique()
+                unique_events = data.loc[invalid_indices, self.config.EVENT_TYPE].unique()
+                elaborate_msg = f"Changed rows had the following unique values in 'customData.shape' before the patchfix: {shape_unique_values}, and the following unique event types: {unique_events}."
+                self.log_warning(f"After applying the patchfix for 'customData.shape', the following rows were found to have invalid shape data that could not be parsed and were set to NaN:\n{before_customdata_shape[invalid_indices]}.\n{elaborate_msg}")
 
         return data
 

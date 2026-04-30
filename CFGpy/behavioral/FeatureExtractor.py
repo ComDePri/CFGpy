@@ -242,8 +242,11 @@ class FeatureExtractor(HasLogger):
                 LONGEST_PAUSE_KEY: player_data.get_max_pause_duration()
             })
 
+        ABS_FEATURES_COLS = [FEATURES_ID_KEY, FEATURES_START_TIME_KEY, GAME_DURATION_KEY, N_MOVES_KEY, N_GALLERIES_KEY,
+                             SELF_AVOIDANCE_KEY, N_CLUSTERS_KEY, EXPLORE_EFFICIENCY_KEY, EXPLOIT_EFFICIENCY_KEY,
+                             MEDIAN_EXPLORE_LENGTH_KEY, MEDIAN_EXPLOIT_LENGTH_KEY, LONGEST_PAUSE_KEY]
         # vectorized operations
-        features_df = pd.DataFrame(absolute_features)
+        features_df = pd.DataFrame(absolute_features, columns=ABS_FEATURES_COLS)
         if len(features_df) > 0:
             features_df[AVERAGE_SPEED_KEY] = features_df[N_MOVES_KEY] / features_df[GAME_DURATION_KEY]
             features_df[FRACTION_GALLERY_IN_EXPLORE_KEY] = pd.Series(n_galleries_in_explore) / features_df[

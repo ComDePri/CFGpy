@@ -188,6 +188,8 @@ class ParsedDataset:
         return len(self.players_data)
 
     def drop_non_first_games(self):
+        if len(self.input_data) == 0:
+            return
         input_data = (pd.DataFrame(self.input_data).
                       sort_values(by=[PARSED_TIME_KEY], ascending=True).
                       drop_duplicates(subset=[PARSED_PLAYER_ID_KEY], keep="first").
