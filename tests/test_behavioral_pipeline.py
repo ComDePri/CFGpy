@@ -330,6 +330,9 @@ def _assert_col_allclose(df, test_comp_df, col_name, print_cols=None):
         assert False, f"{col_name} comparison failed"
 
 def _compare_parsed(parsed, test_parsed):
+    if len(parsed) == 0 and len(test_parsed) == 0:
+        print("Both parsed and test_parsed are empty, skipping comparison")
+        return
     # convert to df and compare by key, for proper float comparison in the start time column:
     test_parsed_df = pd.DataFrame(test_parsed)
     parsed_df = pd.DataFrame(parsed)
