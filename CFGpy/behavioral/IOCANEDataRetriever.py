@@ -559,6 +559,7 @@ class IOCANEDataRetriever(DataRetriever):
             row = {
                 self._config.RAW_GAME_VERSION: sess.get("gameVersionId", "") or "",
                 self._config.RAW_PLAYER_ID: sess.get("playerId", "") or "",
+                # self._config.RAW_PLAYER_EXTERNAL_ID: json.loads(player.get("metadata","{}")).get("externalId", "") or "",
                 "playerMetadata": player.get("metadata") if player.get("metadata") is not None else {},
                 "sessionMetadata": json.loads(sess.get("metadata")) if sess.get("metadata") is not None else {},
                 self._config.EVENT_ID_KEY: ev.get("id", ""),
@@ -569,15 +570,21 @@ class IOCANEDataRetriever(DataRetriever):
             # ensure user time includes decimal points for seconds, for consistency with other backends:
             if row[self._config.RAW_USER_TIME] and ('.' not in row[self._config.RAW_USER_TIME]):
                 row[self._config.RAW_USER_TIME] = row[self._config.RAW_USER_TIME].replace("Z",".000Z")
+            # check if there are missing zeros between the '.' and 'Z' and add them if needed (e.g. .1Z -> .100Z)
+            if row[self._config.RAW_USER_TIME] and ('.' in row[self._config.RAW_USER_TIME]):
+                time_part = row[self._config.RAW_USER_TIME].split("T")[1]
+                if time_part.endswith("Z") and len(time_part.split(".")[1].rstrip("Z")) < 3:
+                    missing_zeros = 3 - len(time_part.split(".")[1].rstrip("Z"))
+                    row[self._config.RAW_USER_TIME] = row[self._config.RAW_USER_TIME].replace("Z", "0" * missing_zeros + "Z")
             if row["sessionMetadata"]:
                 row[self._config.RAW_PLAYER_CUSTOM_DATA] = json.dumps(row["sessionMetadata"].get("customData")) if (
                         row["sessionMetadata"].get("customData") is not None) else "{}"
-            player_metadata = row.get("playerMetadata", {})
+
             row[self._config.RAW_PLAYER_BIRTHDATE] = player.get("birthDate", None)
             row[self._config.RAW_PLAYER_REGION] = player.get("region", None)
             row[self._config.RAW_PLAYER_COUNTRY] = player.get("country", None)
             row[self._config.RAW_PLAYER_GENDER] = player.get("gender", None)
-            row[self._config.RAW_PLAYER_EXTERNAL_ID] = player.get("externalId", None)
+            row[self._config.RAW_PLAYER_EXTERNAL_ID] = json.loads(player.get("metadata","{}")).get("externalId", "") or None
             # remove the general metadata fields
             row.pop("playerMetadata", None)
             row.pop("sessionMetadata", None)
