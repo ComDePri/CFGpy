@@ -185,6 +185,10 @@ class Pipeline(HasLogger):
     def run_pipeline(self):
         self._clip_config_before_to_now()
         self.retrieve_data(verbose=self.verbose)
+        # check if the retrieved data is empty before proceeding to parsing
+        if len(self.raw_data) == 0:
+            self.log_warning("Retrieved data is empty. Skipping parsing, post-parsing, visualization and feature extraction steps.")
+            return None
         self.parse(verbose=self.verbose)
         self.postparse(verbose=self.verbose)
         self.visualize(verbose=self.verbose)

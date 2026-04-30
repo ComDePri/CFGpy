@@ -315,6 +315,9 @@ def parse_json_column(*, df: pd.DataFrame, column_name: str, prefix: str):
             return json.loads(val)
         except json.JSONDecodeError:
             return {}
+    dict_series = df[column_name].apply(try_parse).tolist()
+    if len(dict_series) == 0:
+        return df.drop(columns=[column_name])
 
     parsed_df = df[column_name].apply(try_parse).apply(pd.Series)
     parsed_df.columns = [f"{prefix}.{col}" for col in parsed_df.columns]
