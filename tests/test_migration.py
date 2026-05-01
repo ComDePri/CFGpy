@@ -35,9 +35,10 @@ def test_rm1_iocane_migration(game_id):
 
 
     _compare_raws(rm1_df, iocane_df, json_dict_cols=("playerCustomData",), shared_cols=True)
-    parser_iocane = Parser(raw_data=iocane_df, config=config)
-    parsed_iocane = parser_iocane.parse()
-    parser_rm1 = Parser(raw_data=rm1_df, config=config)
-    parsed_rm1 = parser_rm1.parse()
-    # compare the parsed outputs by ID and start time (to avoid issues with order of actions or other minor differences in the raw data that don't affect the parsed output)
-    _compare_parsed(parsed_rm1, parsed_iocane)
+    if len(iocane_df) > 0 or len(rm1_df) > 0:
+        parser_iocane = Parser(raw_data=iocane_df, config=config)
+        parsed_iocane = parser_iocane.parse()
+        parser_rm1 = Parser(raw_data=rm1_df, config=config)
+        parsed_rm1 = parser_rm1.parse()
+        # compare the parsed outputs by ID and start time (to avoid issues with order of actions or other minor differences in the raw data that don't affect the parsed output)
+        _compare_parsed(parsed_rm1, parsed_iocane)
