@@ -601,6 +601,32 @@ class IOCANEDataRetriever(DataRetriever):
             return df
 
     def _create_df(self, rows: list[dict[str, str]]) -> pd.DataFrame:
-        df = pd.DataFrame(rows)
+        raw_cols = [
+            self._config.RAW_GAME_VERSION,
+            self._config.RAW_PLAYER_ID,
+            self._config.EVENT_ID_KEY,
+            self._config.EVENT_TYPE,
+            self._config.RAW_USER_TIME,
+            self._config.EVENT_CUSTOM_DATA_KEY,
+            self._config.RAW_PLAYER_CUSTOM_DATA,
+            self._config.RAW_PLAYER_BIRTHDATE,
+            self._config.RAW_PLAYER_REGION,
+            self._config.RAW_PLAYER_COUNTRY,
+            self._config.RAW_PLAYER_GENDER,
+            self._config.RAW_PLAYER_EXTERNAL_ID]
+        if len(rows) == 0:
+            self.log_warning("No events found for the specified game and filters. Returning an empty DataFrame.")
+        df = pd.DataFrame(rows, columns=raw_cols)
+        raw_cols = set(raw_cols)  # all columns in the df are considered "raw" at this stage, since we haven't done any parsing yet
+        # check if rows include keys that were removed and warn
+        ignored_keys = set()
+        for row in rows:
+            for key in row.keys():
+                if key not in raw_cols:
+                    ignored_keys.add(key)
+        if ignored_keys:
+            self.log_warning(f"Some keys in the retrieved data were not included in the output DataFrame: {ignored_keys}. "
+                             f"These keys were ignored and will not be included in the output. "
+                             f"Consider adding them to the config.DOWNLOADER_FIELD_ORDER if you want them included in the output.")
 
         return df
