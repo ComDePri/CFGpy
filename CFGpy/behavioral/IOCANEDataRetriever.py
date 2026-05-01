@@ -185,6 +185,7 @@ class IOCANEDataRetriever(DataRetriever):
         )
 
         self._retrieved_df = self._create_df(rows)
+
         self._retrieved_df = parse_json_column(df=self._retrieved_df, column_name=self._config.EVENT_CUSTOM_DATA_KEY,
                                                prefix=self._config.EVENT_CUSTOM_DATA_KEY)
         self._retrieved_df = self._order_df(self._retrieved_df)
@@ -539,6 +540,7 @@ class IOCANEDataRetriever(DataRetriever):
         session_map = {s["id"]: s for s in sessions}
         rows: list[dict[str, str]] = []
 
+
         for ev in events:
             sess = session_map.get(ev["sessionId"], {})
 
@@ -584,13 +586,25 @@ class IOCANEDataRetriever(DataRetriever):
             row[self._config.RAW_PLAYER_REGION] = player.get("region", None)
             row[self._config.RAW_PLAYER_COUNTRY] = player.get("country", None)
             row[self._config.RAW_PLAYER_GENDER] = player.get("gender", None)
-            row[self._config.RAW_PLAYER_EXTERNAL_ID] = json.loads(player.get("metadata","{}")).get("externalId", "") or None
+            row[self._config.RAW_PLAYER_EXTERNAL_ID] = self._get_player_external_id(player)
             # remove the general metadata fields
             row.pop("playerMetadata", None)
             row.pop("sessionMetadata", None)
             rows.append(row)
-
         return rows
+
+    def _get_player_external_id(self, player: dict) -> Optional[str]:
+        metadata = player.get("metadata", None)
+        if not metadata:
+            return None
+        if isinstance(metadata, str):
+            try:
+                metadata = json.loads(metadata)
+            except Exception:
+                return None
+        if isinstance(metadata, dict):
+            return metadata.get("externalId", None)
+        return None
 
     def _order_df(self, df: pd.DataFrame) -> pd.DataFrame:
         if self._config.DOWNLOADER_FIELD_ORDER:
