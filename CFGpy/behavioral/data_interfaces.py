@@ -281,8 +281,8 @@ class PostparsedDataset(ParsedDataset):
         edges = [(c1, c2) for c1, c2 in combinations(exploit_clusters, 2)
                  if is_semantic_connection(c1, c2, self.config.MIN_OVERLAP_FOR_SEMANTIC_CONNECTION)]
         semantic_network.add_edges_from(edges)
-        connected_components = nx.connected_components(semantic_network)
-        GC = max(connected_components, key=len)
+        connected_components = list(nx.connected_components(semantic_network))
+        GC = max(connected_components, key=len) if len(connected_components) > 0 else set()
         return GC
 
     def _calc_median_steps_statistics(self):
