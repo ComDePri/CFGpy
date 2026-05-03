@@ -155,7 +155,7 @@ class Parser(HasLogger):
             self.log_info("Applied patchfix for 'customData.shape' column to ensure it contains valid shape data or NaN.")
             if (before_customdata_shape.notna() & data['customData.shape'].isna()).any():
                 invalid_indices = data.index[before_customdata_shape.notna() & data['customData.shape'].isna()]
-                shape_unique_values = before_customdata_shape[invalid_indices].unique()
+                shape_unique_values = before_customdata_shape[invalid_indices].astype(str).unique()
                 unique_events = data.loc[invalid_indices, self.config.EVENT_TYPE].unique()
                 elaborate_msg = f"Changed rows had the following unique values in 'customData.shape' before the patchfix: {shape_unique_values}, and the following unique event types: {unique_events}."
                 self.log_warning(f"After applying the patchfix for 'customData.shape', the following rows were found to have invalid shape data that could not be parsed and were set to NaN:\n{before_customdata_shape[invalid_indices]}.\n{elaborate_msg}")
