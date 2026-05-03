@@ -324,6 +324,13 @@ def parse_json_column(*, df: pd.DataFrame, column_name: str, prefix: str):
 
     return pd.concat([df.drop(columns=[column_name]), parsed_df], axis=1)
 
+def safe_json_loads(val, default_value=None):
+    if pd.isna(val):
+        return default_value
+    try:
+        return json.loads(val)
+    except json.JSONDecodeError:
+        return default_value
 
 def resolve_path(name, path, default_suffix):
     if path:
