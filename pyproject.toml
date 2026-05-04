@@ -5,6 +5,7 @@ description = "A python package for handling Creative Foraging Game behavioral d
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "platformdirs",
     "boto3",
     "pycognito",
     "appdirs",

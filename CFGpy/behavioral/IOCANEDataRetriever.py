@@ -5,10 +5,12 @@ import json
 from typing import Optional, Any
 import pandas as pd
 import tqdm
+from platformdirs import user_cache_dir
 
 from CFGpy.behavioral import Configuration, DataRetriever
 from CFGpy.behavioral._consts import DATA_RETRIEVER_OUTPUT_FILENAME, IOCANE_BOOTSTRAP_URL
 from CFGpy.behavioral._utils import parse_json_column
+from CFGpy._version import __version__ as CFGPY_VERSION
 import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -186,14 +188,13 @@ class IOCANEDataRetriever(DataRetriever):
         player_map = self._fetch_players_for_sessions(sessions, verbose=verbose)
 
         game_map = {g["id"]: g for g in self._list_games(verbose=verbose)}
-        version_map = self._build_version_map_for_game(self._game_id, verbose=verbose)
+
 
         rows = self._build_rows(
             game_map=game_map,
             sessions=sessions,
             events=events,
             player_map=player_map,
-            version_map=version_map,
         )
 
         self._retrieved_df = self._create_df(rows)
@@ -240,38 +241,6 @@ class IOCANEDataRetriever(DataRetriever):
         self._games_cache = items
         return items
 
-    def _list_versions_for_game(self, game_id: str, *, verbose: bool = False) -> list[dict]:
-        if game_id in self._versions_cache:
-            return self._versions_cache[game_id]
-
-        self.log_info(f"Fetching versions for game_id={game_id}...")
-
-        query = """
-        query ListGameVersions($filter: ModelGameVersionFilterInput, $nextToken: String) {
-          listGameVersions(filter: $filter, nextToken: $nextToken) {
-            items {
-              id
-              gameId
-              version
-              description
-              releasedAt
-            }
-            nextToken
-          }
-        }
-        """
-
-        items = self._list_all_graphql(
-            "listGameVersions",
-            query,
-            variables={"filter": {"gameId": {"eq": game_id}}},
-        )
-        self._versions_cache[game_id] = items
-        return items
-
-    def _build_version_map_for_game(self, game_id: str, *, verbose: bool = False) -> dict[str, str]:
-        versions = self._list_versions_for_game(game_id, verbose=verbose)
-        return {v["id"]: v.get("version", "") for v in versions}
 
     def _get_game_id_by_name(self, game_name: str, *, verbose: bool = False) -> str:
         games = self._list_games(verbose=verbose)
@@ -394,12 +363,24 @@ class IOCANEDataRetriever(DataRetriever):
     def _use_event_cache(self) -> bool:
         return bool(getattr(self._config, "IOCANE_USE_EVENT_CACHE", False))
 
+
+
+    def _get_event_cache_dir(self) -> str:
+        # user override
+        cfg_dir = getattr(self._config, "IOCANE_EVENT_CACHE_DIR", None)
+        if cfg_dir:
+            base_dir = cfg_dir
+        else:
+            base_dir = user_cache_dir("CFGpy", "ComDePriLab")  # e.g. ~/.cache/CFGpy/
+        self.log_info(f"Using cache dir: {base_dir}")
+        os.makedirs(base_dir, exist_ok=True)
+        return base_dir
+
     def _get_event_cache_path(self) -> str:
-        return getattr(
-            self._config,
-            "IOCANE_EVENT_CACHE_PATH",
-            f"{self._output_filename}_iocane_event_cache.json",
-        )
+        game_id = self._game_id or "unknown_game"
+        version = CFGPY_VERSION.replace(".", "_")
+        base_dir = self._get_event_cache_dir()
+        return os.path.join(base_dir, f"iocane_event_cache_{game_id}_{version}.json")
 
     def _load_event_cache(self) -> dict[str, list[dict]]:
         if not self._use_event_cache():
@@ -413,13 +394,16 @@ class IOCANEDataRetriever(DataRetriever):
 
         try:
             with open(path, "r", encoding="utf-8") as f:
-                cache = json.load(f)
-            if not isinstance(cache, dict):
-                self.log_warning(f"Event cache at {path} is not a dict. Ignoring it.")
+                sessions = json.load(f)
+
+            if not isinstance(sessions, dict):
                 return {}
-            return cache
+
+
+            return sessions
+
         except Exception as e:
-            self.log_warning(f"Failed to load event cache from {path}: {e}. Ignoring it.")
+            self.log_warning(f"Failed to load event cache: {e}")
             return {}
 
     def _save_event_cache(self, cache: dict[str, list[dict]]) -> None:
@@ -584,7 +568,6 @@ class IOCANEDataRetriever(DataRetriever):
             sessions: list[dict],
             events: list[dict],
             player_map: dict[str, dict],
-            version_map: dict[str, str],
     ) -> list[dict[str, str]]:
         session_map = {s["id"]: s for s in sessions}
         rows: list[dict[str, str]] = []

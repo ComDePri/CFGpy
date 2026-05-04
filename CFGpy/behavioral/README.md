@@ -16,7 +16,7 @@ As of v2.0.0, this package can be used to retrieve data from IOCANE, RedMetrics2
 The Pipeline can be run from the terminal as follows:
 
 ```
-run_cfg_pipeline --data-source <data_source> --game-id <game_id> --config-path <config_file_path> -o <output_filename>
+run_cfg_pipeline --data-source <data_source> --game-id <game_id> --config-path <config_file_path> -o <output_filename> --verbose
 ```
 
 Either `config_file_path` or `game_id` most be provided.
@@ -24,6 +24,7 @@ The default output filename would be "cfg" and this will be used as the prefix f
 `game_id` most be provided, or alternatively, you can provide the GAME_ID or GAME_VERSIONS_ID (for the rm1 dump) in the configuration file.
 `game_id` can consist of multiple comma-separated game ids, e.g., "123,456,789", in such a case - data from all of those games will be analyzed together.
 `data_source` must be one of "Redmetrics1", "Redmetrics2", "IOCANE", "RedMetrics1Dump" or "Local". It is "IOCANE" by default.
+`verbose` is a flag that can be set to enable verbose logging to the terminal. It is False by default.
 
 Specific requirements for each data source:
 - IOCANE: If you are using IOCANE, you can set the following environment variables to avoid being prompted for your email and password to your IOCANE account every time: CFG_USERNAME, CFG_PASSWORD

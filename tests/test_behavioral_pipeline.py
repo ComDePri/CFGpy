@@ -271,6 +271,25 @@ def test_downloader(test_dir):
     raw = pd.read_csv(downloader.output_path).sort_values("id").reset_index(drop=True)
     _compare_raws(test_raw, raw)
 
+@pytest.mark.parametrize("test_dir", pipeline_iocane_test_dirs)
+def test_cached_downloader(test_dir):
+    """
+    Test that if the downloader is run twice, the second time it uses the cached file and produces the same output as the first time.
+    """
+    raw_data_filename = "raw"
+    config = Configuration.from_yaml(os.path.join(test_dir, CONFIG_FILENAME))
+    downloader = IOCANEDataRetriever(output_filename=raw_data_filename, config=config)
+    df = downloader.retrieve_data(verbose=True)
+    downloader.dump()
+    df = pd.read_csv(downloader.output_path).sort_values("id").reset_index(drop=True)
+
+    # run the downloader again and check that it produces the same output
+    downloader2 = IOCANEDataRetriever(output_filename=raw_data_filename, config=config)
+    df2 = downloader2.retrieve_data(verbose=True)
+    downloader2.dump()
+    df2 = pd.read_csv(downloader2.output_path).sort_values("id").reset_index(drop=True)
+
+    _compare_raws(df, df2)
 
 @pytest.mark.parametrize("test_dir", pipeline_iocane_test_dirs)
 def test_local_downloader(test_dir):
