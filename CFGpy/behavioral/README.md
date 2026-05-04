@@ -28,14 +28,15 @@ The default output filename would be "cfg" and this will be used as the prefix f
 Specific requirements for each data source:
 - IOCANE: If you are using IOCANE, you can set the following environment variables to avoid being prompted for your email and password to your IOCANE account every time: CFG_USERNAME, CFG_PASSWORD
 - RedMetrics2: If you are using RedMetrics2, you can set the following environment variables to avoid being prompted for you email and password to your RedMetrics2 account every time: RM2_EMAIL, RM2_PASSWORD
+- RedMetrics1: If you are using RedMetrics1, you need to either provide a game ID (via  the --game-id argument or the GAME_ID field in the configuration file), or set the RED_METRICS_CSV_URL field in the configuration file to the url of the csv file containing the events data for the game you want to analyze (`https://api.creativeforagingtask.com/v1/event.csv?game=...`). 
 - RedMetrics1Dump: If you are using RedMetrics1 dump, then the NAS_PATH environment variable must be set to the path of the mounted NAS drive where the dump is located.
 - Local: If you are using a local events csv file, then the path to the file must be provided either as an argument --events-csv-path <path_to_csv> or as config field EVENT_CSV_PATH.
+
 
 To set an environment variable in a linux terminal, you can use the following command:
 ```
 export MY_VAR='some_value'
-```
-Note: for passwords, it is better to use single inverted commas because the terminal has a hard time with special characters. 
+``` 
 
 ### Python Script
 
