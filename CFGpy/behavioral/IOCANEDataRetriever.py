@@ -359,54 +359,6 @@ class IOCANEDataRetriever(DataRetriever):
 
         return sessions
 
-    def _fetch_sessions_old(
-            self,
-            *,
-            game_id: str,
-            version_id: Optional[str],
-            date_from: Optional[str],
-            date_to: Optional[str],
-            verbose: bool = False,
-    ) -> list[dict]:
-        self.log_info(
-            f"Fetching sessions for game_id={game_id}, version_id={version_id}, date_from={date_from}, date_to={date_to}...")
-
-        query = """
-        query ListSessions($filter: ModelSessionFilterInput, $nextToken: String) {
-          listSessions(filter: $filter, nextToken: $nextToken) {
-            items {
-              id
-              playerId
-              gameId
-              gameVersionId
-              startedAt
-              endedAt
-              metadata
-            }
-            nextToken
-          }
-        }
-        """
-
-        conditions: list[dict[str, Any]] = [{"gameId": {"eq": game_id}}]
-
-        if version_id:
-            conditions.append({"gameVersionId": {"eq": version_id}})
-        if date_from:
-            conditions.append({"startedAt": {"ge": self._date_to_iso_start(date_from)}})
-        if date_to:
-            conditions.append({"startedAt": {"le": self._date_to_iso_end(date_to)}})
-
-        if len(conditions) == 1:
-            filter_obj = conditions[0]
-        else:
-            filter_obj = {"and": conditions}
-
-        return self._list_all_graphql(
-            "listSessions",
-            query,
-            variables={"filter": filter_obj},
-        )
 
     def _fetch_events_for_one_session(self, session_id: str) -> list[dict]:
         query = """
@@ -439,23 +391,108 @@ class IOCANEDataRetriever(DataRetriever):
 
         return session_events
 
+    def _use_event_cache(self) -> bool:
+        return bool(getattr(self._config, "IOCANE_USE_EVENT_CACHE", False))
+
+    def _get_event_cache_path(self) -> str:
+        return getattr(
+            self._config,
+            "IOCANE_EVENT_CACHE_PATH",
+            f"{self._output_filename}_iocane_event_cache.json",
+        )
+
+    def _load_event_cache(self) -> dict[str, list[dict]]:
+        if not self._use_event_cache():
+            return {}
+
+        path = self._get_event_cache_path()
+        if not os.path.exists(path):
+            return {}
+
+        self.log_info(f"Loading IOCANE event cache from {path}")
+
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                cache = json.load(f)
+            if not isinstance(cache, dict):
+                self.log_warning(f"Event cache at {path} is not a dict. Ignoring it.")
+                return {}
+            return cache
+        except Exception as e:
+            self.log_warning(f"Failed to load event cache from {path}: {e}. Ignoring it.")
+            return {}
+
+    def _save_event_cache(self, cache: dict[str, list[dict]]) -> None:
+        if not self._use_event_cache():
+            return
+
+        path = self._get_event_cache_path()
+        parent = os.path.dirname(path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+
+        tmp_path = f"{path}.tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(cache, f)
+
+        os.replace(tmp_path, path)
+        self.log_info(f"Saved IOCANE event cache to {path}")
+
     def _fetch_events_for_sessions(self, sessions: list[dict], *, verbose: bool = False) -> list[dict]:
         if not sessions:
             return []
 
-        session_ids = [s["id"] for s in sessions if s.get("id")]
-        all_events = []
+        session_ids = [str(s["id"]) for s in sessions if s.get("id")]
 
-        max_workers = min(16, max(1, len(session_ids)))
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {executor.submit(self._fetch_events_for_one_session, sid): sid for sid in session_ids}
+        cache = self._load_event_cache()
 
-            iterator = as_completed(futures)
-            if verbose:
-                iterator = tqdm.tqdm(iterator, total=len(futures), desc="sessions", unit="session")
+        cached_events: list[dict] = []
+        missing_session_ids: list[str] = []
 
-            for fut in iterator:
-                all_events.extend(fut.result())
+        for sid in session_ids:
+            if self._use_event_cache() and sid in cache:
+                cached_events.extend(cache[sid])
+            else:
+                missing_session_ids.append(sid)
+
+        self.log_info(
+            f"Event cache hit for {len(session_ids) - len(missing_session_ids)} / "
+            f"{len(session_ids)} sessions."
+        )
+
+        fetched_by_session: dict[str, list[dict]] = {}
+
+        if missing_session_ids:
+            self.log_info(f"Fetching events for {len(missing_session_ids)} uncached sessions.")
+
+            max_workers = min(16, max(1, len(missing_session_ids)))
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = {
+                    executor.submit(self._fetch_events_for_one_session, sid): sid
+                    for sid in missing_session_ids
+                }
+
+                iterator = as_completed(futures)
+                if verbose:
+                    iterator = tqdm.tqdm(
+                        iterator,
+                        total=len(futures),
+                        desc="sessions",
+                        unit="session",
+                    )
+
+                for fut in iterator:
+                    sid = futures[fut]
+                    events = fut.result()
+                    fetched_by_session[sid] = events
+
+            if self._use_event_cache():
+                cache.update(fetched_by_session)
+                self._save_event_cache(cache)
+
+        all_events = cached_events
+        for events in fetched_by_session.values():
+            all_events.extend(events)
 
         all_events.sort(key=lambda x: x.get("occurredAt", ""))
         return all_events

@@ -162,3 +162,5 @@ class Configuration:
     VISUALIZATION_MAKE_PLOTS: bool = True
 
     SAVE_INTERMEDIATE_FILES: bool = False
+    IOCANE_USE_EVENT_CACHE: bool = True
+    IOCANE_EVENT_CACHE_PATH: str = "./iocane_event_cache.json"
