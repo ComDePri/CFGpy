@@ -5,6 +5,9 @@ external scripts may rely on them.
 Please do not change this file unless you're absolutely sure you know what you're doing.
 """
 
+# IOCANE
+IOCANE_BOOTSTRAP_URL = "https://fw7jbnp5ffqwrtt5wmkhgdf4oa0ohajt.lambda-url.us-east-1.on.aws/"
+
 # script
 DATA_SOURCE_ARG = "data-source"
 GAME_ID_ARG = "game-id"
