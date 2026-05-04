@@ -394,12 +394,15 @@ class Parser(HasLogger):
         return data
 
     def _remove_unparsable_games(self, data):
+        def valid_shape(shape_list):
+            return len(shape_list) == 10 and all((isinstance(coord[0], int) and isinstance(coord[1], int)) for coord in shape_list)
         # find invalid shape moves
         invalid_mask = data[self.config.SHAPE_MOVE_COLUMN].apply(
-            lambda val: False if isinstance(val, list)
-            else len(safe_json_loads(val, default_value=[])) != 10 if isinstance(val, str)
+            lambda val: not valid_shape(val) if isinstance(val, list)
+            else not valid_shape(safe_json_loads(val, default_value=[])) if isinstance(val, str)
             else False
         )
+
         if invalid_mask.any():
             self.log_warning(
                 f"Found {invalid_mask.sum()} rows with unparsable shape move data in column '{self.config.SHAPE_MOVE_COLUMN}'. These games will be removed from the data.")
