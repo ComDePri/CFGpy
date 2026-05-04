@@ -282,10 +282,16 @@ def test_local_downloader(test_dir):
     downloader = IOCANEDataRetriever(output_filename=raw_data_filename, config=config)
     df = downloader.retrieve_data(verbose=True)
     downloader.dump()
+    df = pd.read_csv(downloader.output_path).sort_values("id").reset_index(drop=True)
+
 
     # now do the same with local retriever and compare the outputs
     local_retriever = LocalDataRetriever(events_csv_path=downloader.output_path, config=config)
     local_df = local_retriever.retrieve_data(verbose=True)
+    os.remove(downloader.output_path)
+    local_retriever.dump()
+    local_df = pd.read_csv(local_retriever.output_path).sort_values("id").reset_index(drop=True)
+    os.remove(local_retriever.output_path)
     # compare the two
     _compare_raws(df, local_df)
 
