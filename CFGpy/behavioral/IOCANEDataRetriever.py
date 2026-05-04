@@ -7,7 +7,7 @@ import pandas as pd
 import tqdm
 
 from CFGpy.behavioral import Configuration, DataRetriever
-from CFGpy.behavioral._consts import DATA_RETRIEVER_OUTPUT_FILENAME
+from CFGpy.behavioral._consts import DATA_RETRIEVER_OUTPUT_FILENAME, IOCANE_BOOTSTRAP_URL
 from CFGpy.behavioral._utils import parse_json_column
 import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -20,10 +20,6 @@ class IOCANEDataRetriever(DataRetriever):
     Expected config fields:
         GAME_NAME
         GAME_ID
-        CFG_GRAPHQL_URL
-        CFG_COGNITO_CLIENT_ID
-        CFG_COGNITO_REGION
-        CFG_COGNITO_USER_POOL_ID
 
     Optional config fields:
         DOWNLOADER_FIELD_ORDER
@@ -52,6 +48,7 @@ class IOCANEDataRetriever(DataRetriever):
         self._session: Optional[requests.Session] = None
         self._games_cache: Optional[list[dict[str, Any]]] = None
         self._versions_cache: dict[str, list[dict[str, Any]]] = {}
+        self._graphql_url = None
 
     @property
     def session(self) -> requests.Session:
@@ -97,31 +94,45 @@ class IOCANEDataRetriever(DataRetriever):
         return boto3, AWSSRP
 
     def _login_userpool(self, verbose: bool = False) -> None:
-        """
-        Log in via a userPool-backed endpoint and store the returned JWT token
-        in the session Authorization header.
-
-        Credentials are taken from environment variables first:
-            CFG_USERNAME
-            CFG_PASSWORD
-
-        If missing, they are requested interactively.
-        """
         boto3, AWSSRP = self._import_auth_dependencies()
-        username = os.getenv("CFG_USERNAME") or input("Please enter your CFG username/email (or set CFG_USERNAME & CFG_PASSWORD environment variables and rerun): ")
-        password = os.getenv("CFG_PASSWORD") or getpass.getpass("Please enter your CFG password: ")
 
-        region = self._config.CFG_COGNITO_REGION
-        client_id = self._config.CFG_COGNITO_CLIENT_ID
-        user_pool_id = self._config.CFG_COGNITO_USER_POOL_ID
+        username = os.getenv("CFG_USERNAME") or input(
+            "Please enter your CFG username/email: "
+        )
+        password = os.getenv("CFG_PASSWORD") or getpass.getpass(
+            "Please enter your CFG password: "
+        )
 
-        if not region:
-            raise ValueError("CFG_COGNITO_REGION is required")
-        if not client_id:
-            raise ValueError("CFG_COGNITO_CLIENT_ID is required")
-        if not user_pool_id:
-            raise ValueError("CFG_COGNITO_USER_POOL_ID is required")
-        self.log_info("Logging into CFG user pool with SRP...")
+        # ─── Step 1: Fetch runtime config from Lambda ─────────────────────────────
+        bootstrap_url = IOCANE_BOOTSTRAP_URL
+
+        self.log_info("Fetching backend configuration from bootstrap endpoint...")
+
+        resp = requests.post(
+            bootstrap_url,
+            json={"username": username, "password": password},
+            timeout=30,
+        )
+
+        if resp.status_code != 200:
+            raise ValueError(f"Bootstrap login failed: {resp.text}")
+
+        cfg = resp.json()
+
+        # Inject dynamically (DO NOT persist)
+        region = cfg["CFG_COGNITO_REGION"]
+        client_id = cfg["CFG_COGNITO_CLIENT_ID"]
+        user_pool_id = cfg["CFG_COGNITO_USER_POOL_ID"]
+        graphql_url = cfg["CFG_GRAPHQL_URL"]
+
+
+        self._graphql_url = graphql_url
+
+        if verbose:
+            self.log_info("Received backend configuration successfully")
+
+        # ─── Step 2: SRP login (existing logic) ───────────────────────────────────
+        self.log_info("Logging into Cognito via SRP...")
 
         cognito = boto3.client("cognito-idp", region_name=region)
 
@@ -138,13 +149,14 @@ class IOCANEDataRetriever(DataRetriever):
         token = auth_result.get("IdToken")
 
         if not token:
-            raise ValueError("Login succeeded but no IdToken was returned")
+            raise ValueError("Login succeeded but no IdToken returned")
 
         self._session.headers.update({"Authorization": token})
 
         self.log_info(
-            f"Logged in as {username} to user pool {user_pool_id} (region: {region})"
+            f"Logged in as {username} (region={region}, pool={user_pool_id})"
         )
+
 
     def _retrieve_data(
             self,
@@ -193,7 +205,7 @@ class IOCANEDataRetriever(DataRetriever):
 
     def _graphql(self, query: str, variables: Optional[dict] = None) -> dict:
         response = self.session.post(
-            self._config.CFG_GRAPHQL_URL,
+            self._graphql_url,
             json={"query": query, "variables": variables or {}},
             timeout=120,
         )
