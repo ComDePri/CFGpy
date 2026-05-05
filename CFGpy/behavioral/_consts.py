@@ -5,6 +5,26 @@ external scripts may rely on them.
 Please do not change this file unless you're absolutely sure you know what you're doing.
 """
 
+# IOCANE
+IOCANE_BOOTSTRAP_URL = "https://fw7jbnp5ffqwrtt5wmkhgdf4oa0ohajt.lambda-url.us-east-1.on.aws/"
+
+# script
+DATA_SOURCE_ARG = "data-source"
+GAME_ID_ARG = "game-id"
+GAME_VERSION_IDS_ARG = "game-version-ids"
+BEFORE_DATE_ARG = "before"
+AFTER_DATE_ARG = "after"
+EVENTS_CSV_PATH_ARG = "events-csv-path"
+
+
+ARG_TO_CONF_MAP = {
+        DATA_SOURCE_ARG: "DATA_SOURCE",
+        GAME_ID_ARG: "GAME_ID",
+        GAME_VERSION_IDS_ARG: "GAME_VERSION_IDS",
+        BEFORE_DATE_ARG: "BEFORE_DATE",
+        AFTER_DATE_ARG: "AFTER_DATE",
+        EVENTS_CSV_PATH_ARG: "EVENT_CSV_PATH",
+    }
 # configuration
 CONFIG_PACKAGE = "CFGpy.behavioral"
 CONFIG_FILENAME = "default_config.yml"
@@ -12,12 +32,32 @@ RM2_CONFIG_FILENAME = "default_rm2_config.yml"
 CFGPY_VERSION_ERROR = "Configuration file requires CFGpy version {}. Installed version is {}"
 CONFIG_DUMP_EXTENSION = ".yml"
 
-# data retriever
-DATA_RETRIEVER_OUTPUT_FILENAME = "event.csv"
-NO_DATA_RETRIEVER_INPUT_ERROR = "RedMetrics input undefined. Specify RedMetrics1 URL either as a parameter or in config or provide a game id from RedMetrics2."
-MULTIPLE_DATA_RETRIEVER_INPUTS_ERROR = "RedMetrics input was defined in multiple ways. Define RedMetrics1 URL exactly once - either as a parameter or in the config, or provide a game id from RedMetrics2."
+# valid data sources
+RM1 = "RedMetrics1"
+RM2 = "RedMetrics2"
+RM1_NAS_DUMP = "RedMetrics1Dump"
+IOCANE = "IOCANE"
+LOCAL = "Local"
+VALID_DATA_SOURCES =  (RM1, RM2, RM1_NAS_DUMP, IOCANE, LOCAL)
+DATA_SOURCES_ALIASES_LOW = {
+    RM1: [RM1.lower(), "rm1", "red metrics 1", "redmetrics1"],
+    RM2: [RM2.lower(), "rm2", "red metrics 2", "redmetrics2"],
+    RM1_NAS_DUMP: [RM1_NAS_DUMP.lower(), "rm1 dump", "redmetrics1 dump", "redmetrics1dump"],
+    IOCANE: [IOCANE.lower(), "iocane"],
+    LOCAL: [LOCAL.lower(), "local"]
+}
+UNSUPPORTED_DATA_SOURCE_ERROR = "Unsupported data source: {}. Valid options are: {}".format("{}", VALID_DATA_SOURCES)
+
+
+# data retrievers
+DATA_RETRIEVER_OUTPUT_FILENAME = "event"
+NO_DATA_RETRIEVER_INPUT_ERROR = "No input defined for data retriever. Define one of RedMetrics1 URL / game ID / game name exactly once - either as a parameter or in the config."
+MULTIPLE_DATA_RETRIEVER_INPUTS_ERROR = "Input was defined in multiple ways. Define one of RedMetrics1 URL / game ID / game name exactly once - either as a parameter or in the config."
+DOWNLOADER_URL_NO_CSV_ERROR = "URL is incorrect: '{}'\nCopy the address from 'Download all pages as CSV' in RedMetrics"
 CONFIG_URL_MISMATCH_ERROR = "The config and the url or game id must both be either RedMetrics1 or RedMetrics2"
+PAGE_REPETITION_LIMIT_REACHED = "Was not able to get all events from page {} after {} retries."
 PER_PAGE = 10000
+RM1_EVENTS_PER_PAGE = 500
 MAX_PAGES = 1000
 
 # parser
@@ -69,6 +109,8 @@ FRACTION_GALLERIES_UNIQUELY_COVERED_EXPLORE_KEY = "% galleries uniquely covered 
 FRACTION_GALLERIES_UNIQUELY_COVERED_EXPLOIT_KEY = "% galleries uniquely covered scav"
 N_CLUSTERS_IN_GC_KEY = "# clusters in GC"
 FRACTION_CLUSTERS_IN_GC_KEY = "% clusters in GC"
+G_KEY = "explore-exploit switching rate"
+ALPHA_KEY = "tendency to exploit"
 
 EXCLUSION_REASON_KEY = "reason"
 SAMPLE_RELATIVE_FEATURES_LABEL = "sample"
@@ -82,8 +124,15 @@ PAUSE_EXCLUSION_REASON = "Paused for too long"
 
 ABSOLUTE_FEATURES_MESSAGE = "Extracting absolute features..."
 RELATIVE_FEATURES_MESSAGE = "Extracting relative{} features..."
-DEFAULT_FINAL_OUTPUT_FILENAME = "CFG_measures.csv"
+DEFAULT_FINAL_OUTPUT_FILENAME = "measures.csv"
+DEFAULT_POSTPARSED_FILTERED_OUTPUT_FILENAME = "postparsed_clean.json"
 
 # utils
 SERVER_COORDS_TYPE_ERROR = "Received incorrect type as csv_coords, should be str or list, received {}"
 PRETTIFY_WARNING = "Creating a pretty JSON may take a while! Avoid if the file is very big."
+
+# Visualization
+VIS_SHAPE_COLOR = "#32CD32"  # CSS "limegreen", as used in the game
+VIS_EXPLOIT_SHAPE_COLOR = '#1DA7EF'
+VIS_SHAPE_BG_COLOR = "k"
+VIS_GALLERY_BG_COLOR = "r"

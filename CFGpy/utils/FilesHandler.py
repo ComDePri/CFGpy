@@ -10,6 +10,8 @@ import numpy as np
 import pandas as pd
 from appdirs import user_cache_dir
 import requests
+from requests.exceptions import HTTPError
+import warnings
 
 
 class FileNames:
@@ -43,12 +45,12 @@ class FilesHandler:
 
         if not hasattr(self, '_initialized'):
             self._vanilla_data: dict = {}
-            self._vanilla_features: pd.DataFrame = {}
+            self._vanilla_features: pd.DataFrame | None = None
             self._vanilla_gallery_counter: dict = {}
             self._vanilla_giant_component: dict = {}
             self._vanilla_step_counter: dict = {}
-            self._shape_network: nx.Graph = None
-            self._id2coord: np.ndarray = None
+            self._shape_network: nx.Graph | None = None
+            self._id2coord: np.ndarray | None = None
             self._shortest_paths_dict: dict = {}
             self._new_shortest_paths_dict: dict = {}
             self._initialized = True
@@ -84,8 +86,19 @@ class FilesHandler:
             last_commit_date: str = commits[0]["commit"]["committer"]["date"]
             return datetime.datetime.strptime(last_commit_date, "%Y-%m-%dT%H:%M:%SZ")
         
-        except Exception as e:
+        except HTTPError as e:
+            print(f"Error fetching GitHub last updated date: {e}")
+            error_response = e.response
+            for header, value in error_response.headers.items():
+                print(f"  {header}: {value}")
+
+                # Access the response body text
+            print("Response Body:")
+            print(error_response.text)
             raise type(e)(f"Error fetching GitHub last updated date: {e}")
+        # other exceptions
+        except Exception as e:
+            raise type(e)(f"An error occurred while trying to fetch the GitHub last updated date: {e}").with_traceback(e.__traceback__)
     
     @staticmethod
     def get_file_downloaded_date(*, file_path: str) -> float:
@@ -102,8 +115,18 @@ class FilesHandler:
             raise type(e)(f"An error occurred while trying to retrieve the file downloaded date: {e}").with_traceback(e.__traceback__)
     
     @staticmethod
-    def re_download_file(*, local_file_path: str, repo_owner: str, repo_name: str, git_file_path: str, branch: Optional[str] = "main") -> bool:
-        git_date = FilesHandler().get_github_file_last_updated_date(repo_owner=repo_owner, repo_name=repo_name, file_path=git_file_path, branch=branch)
+    def re_download_file(*, local_file_path: str, repo_owner: str, repo_name: str, git_file_path: str, branch: Optional[str] = "main", allow_errors=True) -> bool:
+        try:
+            git_date = FilesHandler().get_github_file_last_updated_date(repo_owner=repo_owner, repo_name=repo_name, file_path=git_file_path, branch=branch)
+        except Exception as e:
+            if allow_errors:
+                # If we can't get the GitHub file last updated date, we will skip this check but warn the user that files may be outdated.
+                warnings.warn(f"An error occurred while trying to retrieve the file downloaded date: {e}"
+                              f"\nSkipping the check for whether to re-download the file. The file at {local_file_path} may be outdated.")
+                return False
+            else:
+                # raise the exception to the user
+                raise type(e)(f"An error occurred while trying to retrieve the file downloaded date: {e}").with_traceback(e.__traceback__)
         downloaded_date = FilesHandler().get_file_downloaded_date(file_path=local_file_path)
         return downloaded_date < git_date
     
@@ -162,7 +185,7 @@ class FilesHandler:
     
     @property
     def vanilla_features(self) -> pd.DataFrame:
-        if not self._vanilla_features:
+        if self._vanilla_features is None:
             self.get_file(file_name=FileNames.VANILLA_FEATURES)
             self._vanilla_features = pd.read_csv(os.path.join(FileNames.CACHE_DIR, FileNames.VANILLA_FEATURES))
         return self._vanilla_features

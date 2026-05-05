@@ -9,50 +9,46 @@ of the standard [Creative Foraging Game measures](https://comdepri.slab.com/post
 As of v1.0.0, this package can only retrieve raw data from RedMetrics1, and see
 issue https://github.com/ComDePri/CFGpy/issues/26.
 
-As of v2.0.0, this package can be used to retrieve data from RedMetrics2. 
+As of v2.0.0, this package can be used to retrieve data from IOCANE, RedMetrics2, the RedMetrics1 dump on our NAS or local events csv file. 
 
 ### Command line
 
 The Pipeline can be run from the terminal as follows:
 
 ```
-run_pipeline --game-name <game-name> --game-id <game_id> --game-version-ids <game_version_id_1> <game_version_id_2> <...> --config-path <config_file_path> -o <output_filename> --rm1
+run_cfg_pipeline --data-source <data_source> --game-id <game_id> --config-path <config_file_path> -o <output_filename> --verbose
 ```
 
-`output_filename` and `config_file_path` are optional. 
-Either `game_name`, `game_id` or as many `game_version_ids` (if you are using RedMetrics1) as you want must be provided - but only one of them. Alternatively, if one of them is present in the configuration file, then none of them may be provided.
-The flag `--rm1` must be present if you are using RedMetrics1 and not if you are using RedMetrics2.
+Either `config_file_path` or `game_id` most be provided.
+The default output filename would be "cfg" and this will be used as the prefix for all outputted files, e.g., "cfg_features.csv", "cfg_config.yaml". The default configuration file is the default configuration provided with this package, which can be found in `CFGpy/behavioral/default_config.yaml`.
+`game_id` most be provided, or alternatively, you can provide the GAME_ID or GAME_VERSIONS_ID (for the rm1 dump) in the configuration file.
+`game_id` can consist of multiple comma-separated game ids, e.g., "123,456,789", in such a case - data from all of those games will be analyzed together.
+`data_source` must be one of "Redmetrics1", "Redmetrics2", "IOCANE", "RedMetrics1Dump" or "Local". It is "IOCANE" by default.
+`verbose` is a flag that can be set to enable verbose logging to the terminal. It is False by default.
 
-If you are using RedMetrics2, you can set the following environment variables to avoid being prompted for you email and password to your RedMetrics2 account every time:
-RM2_EMAIL
-RM2_PASSWORD
+Specific requirements for each data source:
+- IOCANE: If you are using IOCANE, you can set the following environment variables to avoid being prompted for your email and password to your IOCANE account every time: CFG_USERNAME, CFG_PASSWORD
+- RedMetrics2: If you are using RedMetrics2, you can set the following environment variables to avoid being prompted for you email and password to your RedMetrics2 account every time: RM2_EMAIL, RM2_PASSWORD
+- RedMetrics1: If you are using RedMetrics1, you need to either provide a game ID (via  the --game-id argument or the GAME_ID field in the configuration file), or set the RED_METRICS_CSV_URL field in the configuration file to the url of the csv file containing the events data for the game you want to analyze (`https://api.creativeforagingtask.com/v1/event.csv?game=...`). 
+- RedMetrics1Dump: If you are using RedMetrics1 dump, then the NAS_PATH environment variable must be set to the path of the mounted NAS drive where the dump is located.
+- Local: If you are using a local events csv file, then the path to the file must be provided either as an argument --events-csv-path <path_to_csv> or as config field EVENT_CSV_PATH.
+
 
 To set an environment variable in a linux terminal, you can use the following command:
 ```
 export MY_VAR='some_value'
-```
-Note: for passwords, it is better to use single inverted commas because the terminal has a hard time with special characters. 
+``` 
 
 ### Python Script
 
 ```python
 from CFGpy.behavioral import Pipeline
 
-Pipeline(game_name=game_name, game_id=game_id, output_filename=output_filename, game_version_ids=game_version_ids is_rm1=is_rm1, config=config).run_pipeline()
+Pipeline(game_id=game_id, output_filename=output_filename, game_version_ids=game_version_ids, config=config).run_pipeline()
 ```
-`output_filename` and `config` are optional parameters.
-Either `game_name`, `game_id` or as many `game_version_ids` as you want (if you are using RedMetrics1) must be provided - but only one of them. Alternatively, if one of them is present in the configuration file, then none of them may be provided.
+One of `game_id` or `game_version_ids` (only for RM1 dump) or `config`, with a specified GAME_ID or GAME_VERSION_IDS field, must be provided. If both are provided, then the game id(s) or game version ids provided as an argument will be used, and those provided in the configuration file will be ignored. If only one of them is provided, then it will be used. If none of them are provided, then an error will be raised.
 
-The game name or id(s) can also be passed as part of a configuration object:
-
-Game name:
-```python
-from CFGpy.behavioral import Configuration, Pipeline
-
-config = Configuration.default()
-config.GAME_NAME = game_name
-Pipeline(config=config, output_filename=output_filename).run_pipeline()
-```
+The game id(s) or game version ids can also be passed as part of a configuration object:
 
 Game id:
 ```python
@@ -63,7 +59,7 @@ config.GAME_ID = game_id
 Pipeline(config=config, output_filename=output_filename).run_pipeline()
 ```
 
-Game version ids (for RedMetrics1 only):
+Game version ids (for RedMetrics1Dump only):
 
 ```python
 from CFGpy.behavioral import Configuration, Pipeline
@@ -73,19 +69,6 @@ config.GAME_VERSION_IDS = game_version_ids
 Pipeline(config=config, output_filename=output_filename).run_pipeline()
 ```
 
-For RedMetrics1, the parameter `is_rm2` must be set to False for Configuration.default(is_rm2=False) otherwise, the configuration with default to RedMetrics2.
-
-In addition, if you are using RedMetrics1 then the following environment variables must be set:
-DB_USER
-DB_PASSWORD
-DB_HOST
-DB_PORT
-DB_NAME
-where the values for these variables can be accessed on slab.
-
-If you are using RedMetrics2, you can set the following environment variables to avoid being prompted for you email and password to your RedMetrics2 account every time:
-RM2_EMAIL
-RM2_PASSWORD
 
 You can set the environment variables in the terminal or you can use an env file and load it using the python-dotenv library. 
 
@@ -102,7 +85,7 @@ Below is an overview of the different modules composing the pipeline and their f
 
 ### DataRetriever
 
-Retrieves raw data from the RedMetrics1/RedMetrics2 server.
+Retrieves raw data from one of the valid data sources.
 
 ### Parser
 
@@ -210,9 +193,9 @@ feature_extractor = FeactureExtractor(postparsed)
 features = feature_extractor.extract()
 ```
 
-> ⚠️ When using the modules individually, without the assitance of the `Pipeline` class, it is the user's responsibility to
+> ⚠️ When using the modules individually, without the assistance of the `Pipeline` class, it is the user's responsibility to
 > ensure all modules use appropriate configurations.
 
-> ⚠️ When using the modules individually, without the assitance of the `Pipeline` class, the outputted configuration file will
+> ⚠️ When using the modules individually, without the assistance of the `Pipeline` class, the outputted configuration file will
 > not have the raw data URL injected, which may compromise reproducibility. It is the user's responsibility to enable reproducing
 > their results.
