@@ -3,13 +3,15 @@ import pandas as pd
 import json
 import re
 from datetime import datetime, timezone
-from CFGpy.behavioral._utils import server_coords_to_binary_shape, prettify_games_json, CFGPipelineException
+from CFGpy.behavioral._utils import server_coords_to_binary_shape, prettify_games_json, CFGPipelineException, \
+    resolve_path, missing_str_field, safe_json_loads
 from CFGpy.behavioral._consts import (PARSED_PLAYER_ID_KEY, PARSED_TIME_KEY, PARSED_ALL_SHAPES_KEY,
                                       PARSED_CHOSEN_SHAPES_KEY, MERGED_ID_KEY, DEFAULT_ID, PARSER_OUTPUT_FILENAME)
 from CFGpy.behavioral import Configuration
+from CFGpy.behavioral._logging import HasLogger
 
 
-class Parser:
+class Parser(HasLogger):
     old_date_format_with_placeholder = 'DateObject<{%Y, %m, %d, %H, %M, %S.%f}, "Instant", "Gregorian", 2.>'  # The actual format has '[' instead of '<' but it makes everything easier this way
     datetime_re = '"(DateObject\[\{\d+, \d+, \d+, \d+, \d+, \d+(?:\.\d+)?}, "Instant", "Gregorian", \d+\.\])"'  # Used to remove quotes from game strings
     parse_datetime_re_day = 'DateObject\[\{(\d+), (\d+), (\d+)}, "Day", "Gregorian", \d+\.\]'
@@ -21,9 +23,10 @@ class Parser:
         parse_datetime_re_millisecond,
     ]
 
-    def __init__(self, raw_data, config: Configuration = None):
+    def __init__(self, *, raw_data: pd.DataFrame, config: Configuration = None, logger=None):
+        super().__init__(logger)
         self.raw_data = raw_data
-        self.config = config if config is not None else Configuration.default()
+        self.config = config or Configuration.default()
         self.parsed_data = None
 
         self.include_in_id = list(self.config.INCLUDE_IN_PARSER_ID)
@@ -42,40 +45,89 @@ class Parser:
     @classmethod
     def from_file(cls, raw_data_filename: str, config=None):
         raw_data = pd.read_csv(raw_data_filename)
-        return cls(raw_data, config)
+        return cls(raw_data=raw_data, config=config)
 
     def parse(self):
         prepared_data = self._prepare_data()
         games_grouped_by_unique_id = prepared_data.groupby(self.config.UNIQUE_INTERNAL_ID_COLUMN)
         hard_filtered_games = games_grouped_by_unique_id.filter(self._apply_hard_filters)
+        self.log_info(
+            f"Filtered from {len(games_grouped_by_unique_id)} games to {len(hard_filtered_games.groupby(self.config.UNIQUE_INTERNAL_ID_COLUMN))} games by applying hard filters.")
         self.parsed_data = self._parse_all_player_games(hard_filtered_games)
         return self.parsed_data
 
-    def dump(self, path=PARSER_OUTPUT_FILENAME, pretty=False):
+    def dump(self, *, name: str = None, path: str = None, pretty=False, with_config=True):
         # dump parsed
         json_str = prettify_games_json(self.parsed_data) if pretty else json.dumps(self.parsed_data)
+        path = resolve_path(name=name, path=path, default_suffix=PARSER_OUTPUT_FILENAME)
         with open(path, "w") as out_file:
             out_file.write(json_str)
-
-        # dump config
-        self.config.to_yaml(path)
+        if with_config:
+            # dump config
+            self.config.to_yaml(path.replace('.json', ''))
 
     def _prepare_data(self):
-        data = self.patchfix_csv_data(self.raw_data)
-        data[self.config.PARSER_JSON_COLUMN] = data[self.config.PARSER_JSON_COLUMN].apply(json.loads)
-        all_json_keys = self.get_all_json_keys_from_csv_data(data)
-        for key in all_json_keys:
-            # Take the json inside the csv file and turn them into columns
-            data[key] = data[self.config.PARSER_JSON_COLUMN].apply(lambda json_dict: json_dict.get(key))
+        data = self.raw_data
+        data = self._remove_unparsable_games(data)
+        data = self.patchfix_csv_data(data)
 
-        data[self.config.SHAPE_MOVE_COLUMN] = data[self.config.SHAPE_MOVE_COLUMN].apply(
-            lambda val: sorted(json.loads(val)) if type(val) is str else np.nan)
-        data[self.config.SHAPE_SAVE_COLUMN] = data[self.config.SHAPE_SAVE_COLUMN].apply(
-            lambda val: sorted(json.loads(val)) if type(val) is str else np.nan)
+        def normalize_json_dict_val(val):
+            """
+            create a dictionary of key values out of val that can be either a json string of a dict, a dictionary or missing value
+            """
+            if isinstance(val, str):
+                val = safe_json_loads(val, default_value={})
+            if isinstance(val, dict):
+                return val
+            elif pd.isna(val):
+                return {}
+            else:
+                self.log_warning(f"Unexpected value type for JSON column: {type(val)}. Setting value to NaN.")
+                return {}
+
+        if self.config.PARSER_JSON_COLUMN in data.columns:
+            data[self.config.PARSER_JSON_COLUMN] = data[self.config.PARSER_JSON_COLUMN].apply(normalize_json_dict_val)
+
+            all_json_keys = self.get_all_json_keys_from_csv_data(data)
+            self.log_info(f"Found {len(all_json_keys)} unique custom data json keys: {all_json_keys}.")
+            for key in all_json_keys:
+                # Take the json inside the csv file and turn them into columns
+                data[key] = data[self.config.PARSER_JSON_COLUMN].apply(lambda json_dict: json_dict.get(key))
+        else:
+            self.log_info(
+                f"No JSON column '{self.config.PARSER_JSON_COLUMN}' found in the data. Skipping JSON parsing and column extraction.")
+
+        if self.config.SHAPE_MOVE_COLUMN in data.columns:
+            data[self.config.SHAPE_MOVE_COLUMN] = data[self.config.SHAPE_MOVE_COLUMN].apply(
+                lambda val: val if isinstance(val, list)
+                else json.loads(val) if isinstance(val, str)
+                else np.nan
+            )
+        else:
+            self.log_warning(
+                f"No shape move column '{self.config.SHAPE_MOVE_COLUMN}' found in the data. This column is essential for parsing shape moves, so all values will be set to NaN.")
+            data[self.config.SHAPE_MOVE_COLUMN] = np.nan
+        if self.config.SHAPE_SAVE_COLUMN in data.columns:
+            data[self.config.SHAPE_SAVE_COLUMN] = data[self.config.SHAPE_SAVE_COLUMN].apply(
+                lambda val: val if isinstance(val, list)
+                else json.loads(val) if isinstance(val, str)
+                else np.nan
+            )
+        else:
+            self.log_warning(
+                f"No shape save column '{self.config.SHAPE_SAVE_COLUMN}' found in the data. This column is essential for parsing shape saves, so all values will be set to NaN.")
+            data[self.config.SHAPE_SAVE_COLUMN] = np.nan
 
         data = self.merge_id_columns(data)
+        data = self.fix_invalid_ids(data)
         data[self.config.PARSER_TIME_COLUMN] = pd.to_datetime(data[self.config.PARSER_TIME_COLUMN],
                                                               format=self.config.SERVER_DATE_FORMAT)
+        # ensure that the time parsing worked correctly by checking that there are no NaT values in the time column
+        if data[self.config.PARSER_TIME_COLUMN].isna().any():
+            # find the rows with NaT values in the time column and log them as a warning
+            self.log_warning(
+                f"Time parsing resulted in NaT values for the following rows:\n{data[data[self.config.PARSER_TIME_COLUMN].isna()]}")
+            raise CFGPipelineException('Time parsing failed, there are NaT values in the time column after parsing.')
         data = data.sort_values(by=self.config.PARSER_TIME_COLUMN).reset_index(drop=True)
 
         return data
@@ -83,15 +135,40 @@ class Parser:
     def patchfix_csv_data(self, data):
         '''Small patchy bugfix for temporary problems'''
         # Bug no.1 sometimes player external id is this instead of a random number
-        data.loc[data['playerExternalId'] == '${rand://int/100000:10000000}', 'playerExternalId'] = None
+        if 'playerExternalId' in data.columns:  # For rm2 this column does not exist
+            bad_ext_id_mask = data['playerExternalId'] == '${rand://int/100000:10000000}'
+            if bad_ext_id_mask.any():
+                data.loc[bad_ext_id_mask, 'playerExternalId'] = None
+                self.log_info(
+                    "Applied patchfix for playerExternalId column to replace '${rand://int/100000:10000000}' with None.")
+        if 'customData.endPosition' in data.columns:
+            # Bug no.2 sometimes the endPosition and shape columns switch places
+            switched_column_indices = np.flatnonzero(
+                data['customData.endPosition'].apply(
+                    lambda x: len(safe_json_loads(x, default_value=[])) == 10 if type(x) is str else False))
+            if len(switched_column_indices) > 0:
+                self.log_info(
+                    f"Applied patchfix for switched columns for {len(switched_column_indices)} rows where 'customData.endPosition' contains shape data.")
+                self.log_info(f"Switched rows indices: {switched_column_indices}")
+                data.loc[switched_column_indices, 'customData.shape'] = data.loc[
+                    switched_column_indices, 'customData.endPosition']
+        if 'customData.shape' in data.columns:
+            before_customdata_shape = data['customData.shape'].copy()
 
-        # Bug no.2 sometimes the endPosition and shape columns switch places
-        switched_column_indices = np.flatnonzero(
-            data['customData.endPosition'].apply(lambda x: len(json.loads(x)) == 10 if type(x) is str else False))
-        data.loc[switched_column_indices, 'customData.shape'] = data.loc[
-            switched_column_indices, 'customData.endPosition']
-        data['customData.shape'] = data['customData.shape'].apply(
-            lambda x: json.loads(x) if type(x) is str else []).apply(lambda x: str(x) if len(x) == 10 else np.nan)
+            data['customData.shape'] = data['customData.shape'].apply(
+                lambda x: x if isinstance(x, list)
+                else json.loads(x) if isinstance(x, str)
+                else []).apply(lambda x: str(x) if len(x) == 10 else np.nan
+                               )
+            self.log_info(
+                "Applied patchfix for 'customData.shape' column to ensure it contains valid shape data or NaN.")
+            if (before_customdata_shape.notna() & data['customData.shape'].isna()).any():
+                invalid_indices = data.index[before_customdata_shape.notna() & data['customData.shape'].isna()]
+                shape_unique_values = before_customdata_shape[invalid_indices].astype(str).unique()
+                unique_events = data.loc[invalid_indices, self.config.EVENT_TYPE].unique()
+                elaborate_msg = f"Changed rows had the following unique values in 'customData.shape' before the patchfix: {shape_unique_values}, and the following unique event types: {unique_events}."
+                self.log_warning(
+                    f"After applying the patchfix for 'customData.shape', the following rows were found to have invalid shape data that could not be parsed and were set to NaN:\n{before_customdata_shape[invalid_indices]}.\n{elaborate_msg}")
 
         return data
 
@@ -105,11 +182,21 @@ class Parser:
 
         for id_column in self.config.PARSER_ID_COLUMNS:
             if id_column in data.columns:
-                missing_indices = data[MERGED_ID_KEY].isna()
-                data.loc[missing_indices, MERGED_ID_KEY] = data[id_column].loc[missing_indices].astype(str)
+                missing_mask = missing_str_field(data[MERGED_ID_KEY])
+                new_col_missing_mask = missing_str_field(data[id_column])
+                data.loc[missing_mask, MERGED_ID_KEY] = data[id_column].loc[missing_mask].astype("string")
+                filled_mask = missing_mask & ~new_col_missing_mask
+                self.log_info(
+                    f"Merged id column '{id_column}' into merged id column for {filled_mask.sum()} rows.\n {missing_mask.sum() - filled_mask.sum()} rows were still missing after attempting to merge this column.")
+            else:
+                self.log_info(
+                    f"Id column '{id_column}' is missing from the data column. Will not be used for merging ids.")
 
-        missing_indices = data[MERGED_ID_KEY].isna()
-        data.loc[missing_indices, MERGED_ID_KEY] = DEFAULT_ID
+        missing_mask = missing_str_field(data[MERGED_ID_KEY])
+        data.loc[missing_mask, MERGED_ID_KEY] = DEFAULT_ID
+        if missing_mask.sum() > 0:
+            self.log_warning(
+                f"{missing_mask.sum()} rows were filled with the default id '{DEFAULT_ID}' after attempting to merge all id columns. This means that for these rows, all id columns specified in the config were missing or empty. These rows will be grouped together under the same id, which may affect parsing results.\n Rows indices: {data.index[missing_mask].tolist()}")
 
         return data
 
@@ -117,7 +204,12 @@ class Parser:
         return self.is_game_started(game)
 
     def is_game_started(self, game):
-        return game[self.config.EVENT_TYPE].str.contains(self.config.TUTORIAL_END_EVENT_TYPE).sum() > 0
+        game_started = game[self.config.EVENT_TYPE].str.contains(self.config.TUTORIAL_END_EVENT_TYPE).sum() > 0
+        game_id = game.name
+        if not game_started:
+            self.log_info(
+                f"Game {game_id} did not pass the hard filter of containing the tutorial end event, and will be excluded from parsing.")
+        return game_started
 
     def _parse_all_player_games(self, games):
         all_parsed_games = []
@@ -150,10 +242,10 @@ class Parser:
 
         game_data[self.config.GALLERY_SAVE_TIME_COLUMN] = None
 
-        gallery_save_indices = game_data[self.config.SHAPE_MOVE_COLUMN].isna()[
-            game_data[self.config.SHAPE_MOVE_COLUMN].isna()].index
+        gallery_save_indices = game_data.index[game_data[self.config.SHAPE_MOVE_COLUMN].isna()]
         game_data.loc[gallery_save_indices - 1, self.config.GALLERY_SAVE_TIME_COLUMN] = game_data.loc[
             gallery_save_indices, self.config.PARSER_TIME_COLUMN].values
+        # TODO: we need to ensure that the saved shape is the same as the one before (for missing shapes cases)
         # Now that we have the save time in all move rows, we can get rid of save rows:
         game_data = game_data[game_data[self.config.EVENT_TYPE].isin([self.config.SHAPE_MOVE_EVENT_TYPE])]
 
@@ -281,3 +373,41 @@ class Parser:
 
         raise CFGPipelineException('Was not able to replace the DateObject with a timestamp in the following game:',
                                    game_string)
+
+    def fix_invalid_ids(self, data):
+        """
+        Check if any player ID (after merging) includes invalid characters (e.g. brackets, commas, quotes) that may cause issues during parsing or later analysis, and if so, log a warning with the affected IDs and how they will be changed, and replace these characters with underscores in the merged ID column.
+        """
+        INVALID_CHARS = ['[', ']', '{', '}', ',', '"', "'", '\\', '$', '/']
+        invalid_id_mask = data[MERGED_ID_KEY].apply(lambda x: any(char in str(x) for char in INVALID_CHARS))
+
+        def replace_chars(str):
+            for char in INVALID_CHARS:
+                str = str.replace(char, '_')
+            return str
+
+        if invalid_id_mask.any():
+            affected_ids = data.loc[invalid_id_mask, MERGED_ID_KEY].unique()
+            elaborate_msg = f"The following unique merged IDs were found to contain invalid characters {INVALID_CHARS} that may cause issues during parsing or later analysis: {affected_ids}. These characters will be replaced with underscores in the merged ID column to ensure proper parsing and analysis. Affected rows indices: {data.index[invalid_id_mask].tolist()}"
+            self.log_warning(elaborate_msg)
+            data.loc[invalid_id_mask, MERGED_ID_KEY] = data.loc[invalid_id_mask, MERGED_ID_KEY].apply(replace_chars)
+        return data
+
+    def _remove_unparsable_games(self, data):
+        def valid_shape(shape_list):
+            return len(shape_list) == 10 and all((isinstance(coord[0], int) and isinstance(coord[1], int)) for coord in shape_list)
+        # find invalid shape moves
+        invalid_mask = data[self.config.SHAPE_MOVE_COLUMN].apply(
+            lambda val: not valid_shape(val) if isinstance(val, list)
+            else not valid_shape(safe_json_loads(val, default_value=[])) if isinstance(val, str)
+            else False
+        )
+
+        if invalid_mask.any():
+            self.log_warning(
+                f"Found {invalid_mask.sum()} rows with unparsable shape move data in column '{self.config.SHAPE_MOVE_COLUMN}'. These games will be removed from the data.")
+            # get the unique game ids of the invalid rows
+            invalid_game_ids = data.loc[invalid_mask, self.config.UNIQUE_INTERNAL_ID_COLUMN].unique()
+            self.log_warning(f"Unique game ids of the removed games: {invalid_game_ids}.")
+            data = data[~data[self.config.UNIQUE_INTERNAL_ID_COLUMN].isin(invalid_game_ids)].reset_index(drop=True)
+        return data

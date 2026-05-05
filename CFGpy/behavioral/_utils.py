@@ -1,12 +1,15 @@
+import copy
+
 import numpy as np
 import pandas as pd
+from pandas.api.types import is_string_dtype
 import json
 import re
 import warnings
 import matplotlib.pyplot as plt
 import seaborn as sns
 from CFGpy.behavioral._consts import (SERVER_COORDS_TYPE_ERROR, EXPLORE_KEY, PRETTIFY_WARNING, PARSED_ALL_SHAPES_KEY,
-                                      PARSED_CHOSEN_SHAPES_KEY, EXPLOIT_KEY)
+                                      PARSED_CHOSEN_SHAPES_KEY, EXPLOIT_KEY, DATA_SOURCES_ALIASES_LOW, RM1, IOCANE)
 from _ctypes import PyObj_FromPtr
 
 
@@ -19,6 +22,11 @@ def load_json(json_path):
         j = json.load(json_fp)
     return j
 
+def normalize_data_source_name(data_source_name: str):
+    for canonical_name, aliases in DATA_SOURCES_ALIASES_LOW.items():
+        if data_source_name.lower().strip() in aliases:
+            return canonical_name
+    raise ValueError(f"Unsupported data source: {data_source_name}. Valid options are: {list(DATA_SOURCES_ALIASES_LOW.keys())}")
 
 def server_coords_to_binary_shape(coords):
     """
@@ -186,8 +194,38 @@ def plot_gallery_dt(postparsed_player_data, shape_move_time_idx):
 #########################
 # json formatting utils #
 #########################
+
 def prettify_games_json(parsed_games):
+    prettified_games = []
+    prettified_games = '[\n    '
+    for game in parsed_games:
+        game = copy.deepcopy(game)
+        game['actions'] = [NoIndent(action) for action in game['actions']]
+        chosen_shapes = game.get(PARSED_CHOSEN_SHAPES_KEY, None)
+        if chosen_shapes is not None:
+            game[PARSED_CHOSEN_SHAPES_KEY] = [NoIndent(chosen_shape) for chosen_shape in chosen_shapes]
+
+        explore = game.get(EXPLORE_KEY, None)
+        if explore:
+            game[EXPLORE_KEY] = NoIndent(explore)
+
+        exploit = game.get(EXPLOIT_KEY, None)
+        if exploit:
+            game[EXPLOIT_KEY] = NoIndent(exploit)
+
+        prettified_game = json.dumps(game, cls=CustomIndentEncoder, sort_keys=True, indent=4)
+        indented_prettified_game = prettified_game.replace('\n', '\n    ')
+        prettified_games += indented_prettified_game
+        prettified_games += ',\n    '
+
+    prettified_games = prettified_games[:-6] + '\n]'
+
+    return prettified_games
+
+
+def _old_prettify_games_json(parsed_games):
     warnings.warn(PRETTIFY_WARNING)
+    parsed_games = copy.deepcopy(parsed_games)
     prettified_games = []
     for game in parsed_games:
         game[PARSED_ALL_SHAPES_KEY] = [NoIndent(action) for action in game[PARSED_ALL_SHAPES_KEY]]
@@ -248,3 +286,82 @@ class CustomIndentEncoder(json.JSONEncoder):
                 '"{}"'.format(format_spec.format(id)), json_obj_repr)
 
         return json_repr
+
+
+def version_to_tuple(version_string):
+    return tuple(map(int, version_string.split('.')))
+
+
+def get_default_data_source(cfgpy_version: str | None = None) -> str:
+    # retrieve the correct data source based on the given cfgpy version
+    if cfgpy_version is None:
+        from CFGpy._version import __version__ as cfgpy_version
+    cfgpy_version_tuple = version_to_tuple(cfgpy_version)
+    if cfgpy_version_tuple <= version_to_tuple("1.0.0"):
+        return RM1
+    elif cfgpy_version_tuple > version_to_tuple("1.0.0"):
+        return IOCANE
+    else:  # should be updated once we migrate to a stable platform for data storage
+        raise ValueError(f"Unsupported CFGpy version: {cfgpy_version}. No default data source available.")
+
+
+def parse_json_column(*, df: pd.DataFrame, column_name: str, prefix: str):
+    """Parse JSON columns in the DataFrame"""
+
+    def try_parse(val):
+        if pd.isna(val):
+            return {}
+        try:
+            return json.loads(val)
+        except json.JSONDecodeError:
+            return {}
+    dict_series = df[column_name].apply(try_parse).tolist()
+    if len(dict_series) == 0:
+        return df.drop(columns=[column_name])
+
+    parsed_df = df[column_name].apply(try_parse).apply(pd.Series)
+    parsed_df.columns = [f"{prefix}.{col}" for col in parsed_df.columns]
+
+    return pd.concat([df.drop(columns=[column_name]), parsed_df], axis=1)
+
+def safe_json_loads(val, default_value=None):
+    if pd.isna(val):
+        return default_value
+    try:
+        return json.loads(val)
+    except json.JSONDecodeError:
+        return default_value
+
+def resolve_path(name, path, default_suffix):
+    if path:
+        return path
+    elif name:
+        return f"{name}_{default_suffix}"
+    else:
+        return default_suffix
+
+
+def missing_str_field(series: pd.Series, possible_missing_strs=("null", "nan", "none")):
+    if not is_string_dtype(series):
+        series = series.astype("string")
+    # start with actual NaNs:
+    missing_mask = series.isna()
+    # add empty strings:
+    missing_mask |= (series == "")
+    # add "null", "nan" and "none" (case-insensitive):
+    missing_mask |= series.str.lower().isin(possible_missing_strs)
+    return missing_mask
+
+
+def median_handle_empty(arr):
+    arr = np.array(arr)
+    if arr.size == 0:
+        return np.nan
+    return np.median(arr)
+
+
+def mean_handle_empty(arr):
+    arr = np.array(arr)
+    if arr.size == 0:
+        return np.nan
+    return np.mean(arr)

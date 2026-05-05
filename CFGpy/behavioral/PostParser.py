@@ -1,9 +1,10 @@
 import json
-from CFGpy.behavioral._utils import load_json, CFGPipelineException, segment_explore_exploit, prettify_games_json
+from CFGpy.behavioral._utils import load_json, CFGPipelineException, segment_explore_exploit, prettify_games_json, resolve_path
 from CFGpy.behavioral._consts import (PARSED_ALL_SHAPES_KEY, PARSED_PLAYER_ID_KEY, EXPLORE_KEY, EXPLOIT_KEY,
                                       INVALID_SHAPE_ERROR, NOT_A_NEIGHBOR_ERROR, POSTPARSER_OUTPUT_FILENAME)
 from CFGpy.behavioral import Configuration
 from CFGpy.utils import FilesHandler
+from CFGpy.behavioral._logging import HasLogger
 
 
 def is_valid_transition(shape1: int, shape2: int) -> bool:
@@ -18,14 +19,15 @@ def is_valid_transition(shape1: int, shape2: int) -> bool:
     return shape1 == shape2 or FilesHandler().shape_network.has_edge(shape1, shape2)
 
 
-class PostParser:
-    def __init__(self, parsed_data, config: Configuration = None):
+class PostParser(HasLogger):
+    def __init__(self, *, parsed_data, config: Configuration = None, logger=None):
+        super().__init__(logger)
         self.all_players_data = parsed_data
-        self.config = config if config is not None else Configuration.default()
+        self.config = config or Configuration.default()
 
     @classmethod
     def from_json(cls, path: str, config=None):
-        return cls(load_json(path), config)
+        return cls(parsed_data=load_json(path), config=config)
 
     def postparse(self):
         self.convert_shape_ids()
@@ -52,7 +54,7 @@ class PostParser:
                     raise CFGPipelineException(INVALID_SHAPE_ERROR.format(shape_binary_repr, player_id))
 
                 if i > 0 and not is_valid_transition(shapes[i - 1][self.config.SHAPE_ID_IDX], shape_id):
-                    print(CFGPipelineException(NOT_A_NEIGHBOR_ERROR.format(i - 1, i, player_id)))
+                    self.log_warning(str(CFGPipelineException(NOT_A_NEIGHBOR_ERROR.format(i - 1, i, player_id))))
                     # the exception is printed and not raised because many gaps are actually in the source data
 
     def handle_empty_moves(self):
@@ -67,11 +69,14 @@ class PostParser:
             player_data[EXPLORE_KEY] = explore
             player_data[EXPLOIT_KEY] = exploit
 
-    def dump(self, path=POSTPARSER_OUTPUT_FILENAME, pretty=False):
+    def dump(self, *, name: str = None, path: str = None, pretty=False, with_config=True):
+        path = resolve_path(name=name,path=path, default_suffix=POSTPARSER_OUTPUT_FILENAME)
         # dump post-parsed
         json_str = prettify_games_json(self.all_players_data) if pretty else json.dumps(self.all_players_data)
         with open(path, "w") as out_file:
             out_file.write(json_str)
 
         # dump config
-        self.config.to_yaml(path)
+        if with_config:
+            # dump config
+            self.config.to_yaml(path.replace('.json', ''))

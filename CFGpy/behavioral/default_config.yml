@@ -29,8 +29,8 @@
   RAW_SHAPE: &RAW_SHAPE "customData.shape",
 
   ## Downloading
-  RED_METRICS_CSV_URL: null,  # Web address of the "Download all pages as CSV"
-  DOWNLOAD_PLAYER_REQUEST: "https://api.creativeforagingtask.com/v1/player/{}",
+  GAME_ID: null, # ID of the game
+  GAME_VERSION_IDS: null, # A list of the game versions
   DOWNLOADER_COMMON_FIELDS: [
     *EVENT_ID_KEY, *RAW_SERVER_TIME, *RAW_USER_TIME, *RAW_GAME_VERSION, *EVENT_TYPE, *RAW_COORDINATES, *RAW_SECTION ],
   DOWNLOADER_FIELD_ORDER: [
@@ -66,7 +66,7 @@
   ## Parsing
   FIRST_SHAPE_SERVER_COORDS: "[[0,0],[1,0],[2,0],[4,0],[5,0],[6,0],[3,0],[7,0],[8,0],[9,0]]",
   UNIQUE_INTERNAL_ID_COLUMN: *RAW_PLAYER_ID,
-  PARSER_ID_COLUMNS: [ *RAW_PLAYER_EXTERNAL_ID, "userProvidedId", "userId", "prolificId" ],
+  PARSER_ID_COLUMNS: [ *RAW_PLAYER_EXTERNAL_ID, "userProvidedId", "userId", "prolificId" ], # those are organized in order of preference, i.e., if playerExternalId is present, it will be used as the internal ID, otherwise the parser will look for userProvidedId, and so on. Note that the internal ID is not necessarily unique across games, but should be unique within a game.
   INCLUDE_IN_PARSER_ID: [ ],
   SERVER_DATE_FORMAT: "%Y-%m-%dT%H:%M:%S.%fZ",
   PARSER_TIME_COLUMN: &PARSER_TIME_COLUMN "userTime", # RAW_USER_TIME
@@ -87,12 +87,16 @@
   GALLERY_ORIG_PSEUDOCOUNT: 1,  # alpha parameter for additive smoothing
   STEP_ORIG_N_CATEGORIES: 36445,  # d parameter for additive smoothing; all possible steps
   GALLERY_ORIG_N_CATEGORIES: 36446,  # d parameter for additive smoothing; all possible shapes
+  WRITE_G_ALPHA: true, # save the empirical g and alpha (switching rate and tendency to exploit) in the final features output
 
   ## Soft Filtering
   MANUALLY_EXCLUDED_IDS: [ ],  # IDs to exclude, e.g., those used for testing the experiment
   MIN_N_MOVES: 80,  # exclude participants who made fewer moves than this
   MIN_N_CLUSTERS: 1,  # exclude participants who made fewer clusters than this
   MIN_GAME_DURATION_SEC: 600,  # exclude participants who played for less than this duration
+  MAX_IGNORED_GAME_DURATION_SEC: 0, # ignore games up to this duration, before removing duplicate games. This is to allow including games of participants that stopped after a very short period and then played a full game.
   MAX_PAUSE_DURATION_SEC: 90,  # excluded participants who paused for longer than this duration
-  MAX_ZSCORE_FOR_OUTLIERS: 3  # exclude participants with absolute zscore greater than this in median explore/exploit lengths
+  MAX_ZSCORE_FOR_OUTLIERS: 3,  # exclude participants with absolute zscore greater than this in median explore/exploit lengths
+  DOWNLOAD_PLAYER_REQUEST: "https://api.creativeforagingtask.com/v1/player/{}",
+  VISUALIZATION_MAKE_PLOTS: true, # whether to make the visualizations of the pipeline. Setting this to false will speed up the pipeline, but will not produce the visualizations.
 }

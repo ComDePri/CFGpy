@@ -22,7 +22,7 @@ setup(
                       "seaborn", "scipy", "dacite", "PyYAML"],
     entry_points={
         "console_scripts": [
-            "run_pipeline=CFGpy.behavioral.Pipeline:main",
+            "run_cfg_pipeline=CFGpy.behavioral.Pipeline:main",
         ],
     },
 )

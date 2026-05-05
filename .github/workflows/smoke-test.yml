@@ -1,0 +1,41 @@
+name: CFGpy smoke test
+
+on:
+  push:
+    branches: [ "feature-combine-retrievers" ]
+  pull_request:
+    branches: [ "feature-combine-retrievers" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Testing on 3.11 and 3.12 covers your current and previous bases
+        python-version: ["3.12"]
+    env:
+        CFG_USERNAME: ${{ secrets.MY_USER }}
+        CFG_PASSWORD: ${{ secrets.MY_PASS }}
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
+
+    - name: Install dependencies and package
+      # This handles your in-house package and the setuptools/pkg_resources requirement
+      run: uv sync
+
+    - name: Smoke Test (Run command)
+      # Replace 'your_script.py' or 'your-cli-command' with the actual entry point.
+      # If this raises any Exception, the 'uv run' exit code will be non-zero 
+      # and the GitHub Action will mark this step as "Failed".
+      run: |
+        source .venv/bin/activate
+        run_cfg_pipeline --data-source=IOCANE -v -o smoke_test.test --game-id=4cc80fb7-8aac-4a5b-b71e-c71287d6f587
