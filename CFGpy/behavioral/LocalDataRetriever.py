@@ -9,8 +9,8 @@ import warnings
 
 class LocalDataRetriever(DataRetriever):
     def __init__(self, events_csv_path: str | None = None, output_filename: str = DATA_RETRIEVER_OUTPUT_FILENAME,
-                 config: Configuration = None) -> None:
-        super().__init__(output_filename=output_filename, config=config)
+                 config: Configuration = None, logger = None) -> None:
+        super().__init__(output_filename=output_filename, config=config, logger=logger)
         self._events_csv_path = events_csv_path
         self._determine_path()
 
@@ -32,6 +32,8 @@ class LocalDataRetriever(DataRetriever):
             raise FileNotFoundError(f"CSV file not found at {self._events_csv_path}")
 
         # warn the user that we use the provided config but the original config generating the events data might be different, and that they should ensure consistency between the two configs if they want to use the original config for anything else in the pipeline
-        warnings.warn(f"Loading events from {self._events_csv_path}. Make sure that the config used for this run is consistent with the config used to generate the events data. The config used to generate the events data should be saved at {self._events_csv_path.replace(".csv","")}_config.yaml if it was dumped using CFGpy.")
+        msg = f"Loading events from {self._events_csv_path}. Make sure that the config used for this run is consistent with the config used to generate the events data. The config used to generate the events data should be saved at {self._events_csv_path.replace('.csv','')}_config.yaml if it was dumped using CFGpy."
+        self.log_warning(msg)
+        warnings.warn(msg, UserWarning)
         df = pd.read_csv(self._events_csv_path)
         return df

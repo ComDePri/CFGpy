@@ -9,39 +9,42 @@ from CFGpy.behavioral._utils import parse_json_column
 from CFGpy.utils._nas_path import get_nas_path
 
 class RM1DumpDataRetriever(DataRetriever):
-    def __init__(self, *, game_name: str | None = None, game_id: str | None = None, game_version_ids: list[str] | None = None, 
+    def __init__(self, *, game_id: str | None = None, game_version_ids: list[str] | None = None,
                  output_filename: str = DATA_RETRIEVER_OUTPUT_FILENAME, config: Configuration = None,
-                 csv_directory: str = None) -> None:
+                 csv_directory: str = None, logger = None) -> None:
         """
-        :param game_name: The game name of the game whose data you want to retrieve from local CSV files.
         :param game_id: The game id of the game whose data you want to retrieve from local CSV files.
         :param game_version_ids: List of game version IDs to filter by.
         :param output_filename: filename for output.
         :param config: a Configuration file.
         :param csv_directory: Directory containing the CSV files (events.csv, players.csv, games.csv, game_versions.csv)
         """
-        super().__init__(game_name=game_name, game_id=game_id, output_filename=output_filename, 
-                         config=config if config is not None else Configuration.default())
+        super().__init__(game_id=game_id, output_filename=output_filename,
+                         config=config, logger=logger)
 
-        self._validate_input(input=[game_id, game_name, game_version_ids, self._config.GAME_ID, self._config.GAME_NAME, self._config.GAME_VERSION_IDS])
+        self._validate_input(input=[game_id, game_version_ids, self._config.GAME_ID, self._config.GAME_VERSION_IDS])
         self._validate_config()
         self._game_version_ids = self._config.GAME_VERSION_IDS or game_version_ids
         self.nas_path = get_nas_path()
         self.csv_path = os.path.join(self.nas_path, "Projects", "CFG", "all_data_from_aws", "redmetrics")
         self._csv_directory = Path(csv_directory if csv_directory else self.csv_path)
         self._load_csv_files()
+    def _safe_load_csv(self, file_name: str):
+        try:
+            df = pd.read_csv(self._csv_directory / file_name, delimiter='|')
+            return df
+        except FileNotFoundError:
+            raise FileNotFoundError(f"CSV file '{file_name}' not found in directory: {self._csv_directory}")
+        except Exception as e:
+            raise Exception(f"Error loading CSV file '{file_name}' from {self._csv_directory}: {e}")
 
     def _load_csv_files(self):
         """Load all CSV files from the local directory"""
-        try:
-            self._events_df = pd.read_csv(self._csv_directory / "events.csv")
-            self._players_df = pd.read_csv(self._csv_directory / "players.csv")
-            self._games_df = pd.read_csv(self._csv_directory / "games.csv")
-            self._game_versions_df = pd.read_csv(self._csv_directory / "game_versions.csv")
-        except FileNotFoundError as e:
-            raise FileNotFoundError(f"Missing CSV file in {self._csv_directory}: {e}")
-        except Exception as e:
-            raise Exception(f"Error loading CSV files from {self._csv_directory}: {e}")
+        self._events_df = self._safe_load_csv("redmetrics-events.csv")
+        self._players_df = self._safe_load_csv("redmetrics-players.csv")
+        self._games_df = self._safe_load_csv("redmetrics-games.csv")
+        self._game_versions_df = self._safe_load_csv("redmetrics-game_versions.csv")
+
 
     def _retrieve_data(self, *, verbose: bool = False, after: str = None, before: str = None, event_type: str = None,
                        section: str = None) -> pd.DataFrame:
@@ -49,9 +52,7 @@ class RM1DumpDataRetriever(DataRetriever):
         return self._format_df(verbose=verbose)
         
     def _validate_config(self) -> None:
-        if not self._config.is_rm1:
-            raise ValueError(CONFIG_URL_MISMATCH_ERROR)
-        return None
+        return
     
     def get_game_version_ids(self):
         if self._game_version_ids:
@@ -65,17 +66,7 @@ class RM1DumpDataRetriever(DataRetriever):
                 raise ValueError(f"No game_versions found for game_id: {self._game_id}")
 
         else:
-            merged_df = self._game_versions_df.merge(
-                self._games_df, 
-                left_on='game_id', 
-                right_on='id', 
-                suffixes=('', '_game')
-            )
-            matching_versions = merged_df[merged_df['name_game'] == self._game_name]
-            if not matching_versions.empty:
-                return matching_versions['id'].tolist()
-            else:
-                raise ValueError(f"No game_versions found for game name: {self._game_name}")
+            raise ValueError("No game_version_ids or game_id provided in config to determine which game versions to fetch.")
 
     def _create_df(self, *, game_version_id: str, after: str = None, before: str = None, event_type: str = None, 
                           section: str = None) -> pd.DataFrame:
@@ -117,8 +108,7 @@ class RM1DumpDataRetriever(DataRetriever):
         game_version_ids = self.get_game_version_ids()
 
         for game_version_id in game_version_ids:
-            if verbose:
-                print(f"Fetching game_version_id={game_version_id}...")
+            self.log_info(f"Fetching game version {game_version_id}")
             
             df = self._create_df(
                 game_version_id=game_version_id,
@@ -132,9 +122,7 @@ class RM1DumpDataRetriever(DataRetriever):
                 all_dfs.append(df)
 
         result_df = pd.concat(all_dfs, ignore_index=True) if all_dfs else pd.DataFrame()
-
-        if verbose:
-            print(f"Fetched {len(result_df)} rows total from {len(game_version_ids)} game version(s).")
+        self.log_info(f"Fetched {len(result_df)} rows total from {len(game_version_ids)} game version(s).")
 
         return result_df
 
@@ -152,7 +140,7 @@ class RM1DumpDataRetriever(DataRetriever):
         """
         for col in columns:
             if col in df.columns:
-                df[col] = pd.to_datetime(df[col], errors="coerce") \
+                df[col] = pd.to_datetime(df[col], format="mixed") \
                             .dt.strftime('%Y-%m-%dT%H:%M:%S.%fZ') \
                             .str.slice(stop=-4) + 'Z'
         return df
@@ -160,9 +148,7 @@ class RM1DumpDataRetriever(DataRetriever):
     def _format_df(self, *, verbose: Optional[bool] = False) -> pd.DataFrame:
         """Format the retrieved DataFrame to match expected output format"""
         if not self._retrieved_df.empty:
-            
-            if verbose:
-                print("Formatting dataframe...")
+            self.log_info(f"Formatting retrieved DataFrame to match expected output format.")
                 
             self._retrieved_df.rename(columns={
                 "gameVersion_id": "gameVersion",

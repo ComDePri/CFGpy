@@ -2,7 +2,7 @@ from dataclasses import dataclass, asdict
 
 from numpy._core.numeric import False_
 from CFGpy._version import __version__ as CFGpy_version
-from CFGpy.behavioral._consts import CONFIG_PACKAGE, CONFIG_FILENAME, RM2_CONFIG_FILENAME, CFGPY_VERSION_ERROR, CONFIG_DUMP_EXTENSION, VALID_DATA_SOURCES, UNSUPPORTED_DATA_SOURCE_ERROR, VALID_SEGMENTATION_ALGORITHMS, SEG_ALG_VANILLA, INVALID_SEGMENTATION_ALGORITHM_ERROR
+from CFGpy.behavioral._consts import CONFIG_PACKAGE, CONFIG_FILENAME, CFGPY_VERSION_ERROR, CONFIG_DUMP_EXTENSION, VALID_DATA_SOURCES, UNSUPPORTED_DATA_SOURCE_ERROR,  VALID_SEGMENTATION_ALGORITHMS, SEG_ALG_VANILLA, INVALID_SEGMENTATION_ALGORITHM_ERROR
 from CFGpy.behavioral._utils import server_coords_to_binary_shape, get_default_data_source
 from CFGpy.utils import binary_shape_to_id
 import yaml
@@ -10,12 +10,14 @@ import dacite
 import importlib.resources as ir
 import sys
 
+from typing import Self
+
 
 @dataclass
 class Configuration:
 
     @classmethod
-    def default(cls):
+    def default(cls) -> Self:
         config_filename = CONFIG_FILENAME
         if sys.version_info[1] >= 9:
             config_path = ir.files(CONFIG_PACKAGE).joinpath(config_filename)
@@ -25,13 +27,13 @@ class Configuration:
         return config
 
     @classmethod
-    def from_yaml(cls, yaml_path):
+    def from_yaml(cls, yaml_path) -> Self:
         with open(yaml_path) as yaml_fp:
             config_dict = yaml.safe_load(yaml_fp)
         return cls.from_dict(config_dict)
 
     @classmethod
-    def from_dict(cls, config_dict: dict):
+    def from_dict(cls, config_dict: dict) -> Self:
         config = dacite.from_dict(data_class=cls, data=config_dict, config=dacite.Config(cast=[tuple]))
         config._post_init()
         return config
@@ -56,6 +58,8 @@ class Configuration:
         required_version = self.CFGPY_VERSION
         if required_version is not None and required_version != CFGpy_version:
             raise ValueError(CFGPY_VERSION_ERROR.format(required_version, CFGpy_version))
+        if self.DATA_SOURCE not in VALID_DATA_SOURCES:
+            raise ValueError(UNSUPPORTED_DATA_SOURCE_ERROR.format(self.DATA_SOURCE))
         if self.DATA_SOURCE not in VALID_DATA_SOURCES:
             raise ValueError(UNSUPPORTED_DATA_SOURCE_ERROR.format(self.DATA_SOURCE))
         if self.SEGMENTATION_ALGORITHM not in VALID_SEGMENTATION_ALGORITHMS:
@@ -129,31 +133,37 @@ class Configuration:
     MAX_PAUSE_DURATION_SEC: float
     MAX_ZSCORE_FOR_OUTLIERS: float
 
-    GAME_NAME: str | None = None
+    GAME_NAME: str | None = None # deprecated, use GAME_ID instead
     GAME_ID: str | None = None
     GAME_VERSION_IDS: list[str] | None = None
     BEFORE_DATE: str | None = None
     AFTER_DATE: str | None = None
 
     RED_METRICS_CSV_URL: str | None = None
-    DOWNLOAD_PLAYER_REQUEST: str = None
-    EVENT_CSV_PATH: str = None
-    RAW_GAME_VERSION: str = None
-    RAW_PLAYER_BIRTHDATE: str = None
-    RAW_PLAYER_REGION: str = None
-    RAW_PLAYER_COUNTRY: str = None
-    RAW_PLAYER_GENDER: str = None
-    RAW_PLAYER_EXTERNAL_ID: str = None
-    RAW_SECTION: str = None
+    DOWNLOAD_PLAYER_REQUEST: str | None = None
+    EVENT_CSV_PATH: str | None = None
+    RAW_GAME_VERSION: str | None = None
+    RAW_PLAYER_BIRTHDATE: str | None = None
+    RAW_PLAYER_REGION: str | None = None
+    RAW_PLAYER_COUNTRY: str | None = None
+    RAW_PLAYER_GENDER: str | None = None
+    RAW_PLAYER_EXTERNAL_ID: str | None = None
+    RAW_SECTION: str | None = None
 
     DATA_SOURCE: str | None = None
 
-    CFG_GRAPHQL_URL: str | None = None
-    CFG_COGNITO_REGION: str | None = None
-    CFG_COGNITO_CLIENT_ID: str | None = None
-    CFG_COGNITO_USER_POOL_ID: str | None = None
+    WRITE_G_ALPHA: bool = False # to support old data
 
-    PRETTIFY_PARSER_OUPUT: bool = True
+    MAX_IGNORED_GAME_DURATION_SEC: float = 0
+
+    VISUALIZATION_ANIMATION_SPEED: int = 8
+    VISUALIZATION_ANIMATE: bool = False
+    VISUALIZATION_MAKE_PLOTS: bool = True
+
+    SAVE_INTERMEDIATE_FILES: bool = False
+    IOCANE_USE_EVENT_CACHE: bool = True
+    IOCANE_EVENT_CACHE_DIR: str | None = None
+
 
     SHAPE_MAX_MOVE_TIME_IDX: int = 3
 

@@ -1,25 +1,30 @@
+import os
+
+import tqdm
+import pandas as pd
 from datetime import datetime, timezone
 from CFGpy.behavioral import DataRetriever, RM1DumpDataRetriever, RedMetrics2DataRetriever, Parser, PostParser, \
-    FeatureExtractor, Configuration, RedMetrics1Downloader, CFGAppSyncDataRetriever, LocalDataRetriever
+    FeatureExtractor, Configuration, RedMetrics1Downloader, IOCANEDataRetriever, LocalDataRetriever, MultiGameDataRetriever
 from CFGpy.behavioral._consts import DEFAULT_FINAL_OUTPUT_FILENAME, RM1, RM1_NAS_DUMP, RM2, \
-    UNSUPPORTED_DATA_SOURCE_ERROR, APPSync, VALID_DATA_SOURCES, LOCAL, ARG_TO_CONF_MAP, DATA_SOURCE_ARG, GAME_NAME_ARG, \
-    GAME_ID_ARG, GAME_VERSION_IDS_ARG, BEFORE_DATE_ARG, AFTER_DATE_ARG, EVENTS_CSV_PATH_ARG
-from CFGpy.behavioral._utils import CFGPipelineException
+    UNSUPPORTED_DATA_SOURCE_ERROR, IOCANE, VALID_DATA_SOURCES, LOCAL, ARG_TO_CONF_MAP, DATA_SOURCE_ARG, \
+    GAME_ID_ARG, GAME_VERSION_IDS_ARG, BEFORE_DATE_ARG, AFTER_DATE_ARG, EVENTS_CSV_PATH_ARG, PARSED_PLAYER_ID_KEY
+from CFGpy.behavioral._utils import CFGPipelineException, get_default_data_source
+from CFGpy.behavioral._logging import build_pipeline_logger, HasLogger
+from CFGpy.utils import visualization
 
-
-class Pipeline:
-    def __init__(self, game_name: str | None = None, game_id: str | None = None,
+class Pipeline(HasLogger):
+    def __init__(self, game_id: str | None = None,
                  game_version_ids: list[str] | None = None,
                  output_filename=DEFAULT_FINAL_OUTPUT_FILENAME, config: Configuration = None,
-                 input_events_csv_path: str | None = None) -> None:
-
-        self._game_name = game_name
+                 input_events_csv_path: str | None = None, verbose=True) -> None:
+        self.output_filename = output_filename
+        logger = build_pipeline_logger(self.output_filename, verbose=verbose)
+        super().__init__(logger)
         self._game_id: str = game_id
         self._game_version_ids = game_version_ids
         self._input_events_csv_path = input_events_csv_path
-
-        self.output_filename = output_filename
         self.config = config or Configuration.default()
+        self._add_input_params_to_config()
 
         self.data_retriever = None
         self.raw_data = None
@@ -29,49 +34,28 @@ class Pipeline:
         self.postparsed_data = None
         self.feature_extractor: FeatureExtractor = None
         self.features_df = None
+        self.verbose = verbose
 
-    def _get_now_str(self) -> str:
-        """
-        Returns a string representation of the current time, formatted like server's time (given in self.config).
-
-        Python's datetime only allows specifying sub-second precision in microseconds (6 decimal places), but RedMetrics
-        URL only accept milliseconds (3 decimal places). Therefore, if the server's time format contains microseconds,
-        we manually replace that with milliseconds, to accommodate RedMetrics.
-        """
-        now = datetime.now(timezone.utc)
-        now_str = (
-            now.strftime(
-                self.config.SERVER_DATE_FORMAT
-                .replace("%f", "{}"))  # plants a placeholder instead of microseconds
-            .format(f"{now.microsecond // 1000:0>3}")  # fills in millisecond info, 0-padded to three digits
-        )
-        return now_str
 
     def _add_input_params_to_config(self):
-        self.config.GAME_NAME = self.data_retriever._game_name
-        self.config.GAME_ID = self.data_retriever._game_id
-        if self.config.DATA_SOURCE == RM1_NAS_DUMP:
-            self.config.GAME_VERSION_IDS = self.data_retriever._game_version_ids
+        def override_with_warning(config_key, input_value):
+            if not hasattr(self.config, config_key):
+                raise AttributeError(f"Configuration object has no attribute '{config_key}'")
+            config_value = getattr(self.config, config_key, None)
+            if input_value is not None:
+                if config_value is not None and config_value != input_value:
+                    self.log_warning(f"Conflict for config key '{config_key}': current value '{config_value}' vs input value '{input_value}'. Using input value.")
+                setattr(self.config, config_key, input_value)
+        override_with_warning("GAME_ID", self._game_id)
+        override_with_warning("GAME_VERSION_IDS", self._game_version_ids)
+        override_with_warning("EVENT_CSV_PATH", self._input_events_csv_path)
 
-    def _get_data_retriever(self) -> DataRetriever:
-        if self.config.DATA_SOURCE == RM1_NAS_DUMP:
-            return RM1DumpDataRetriever(game_name=self._game_name, game_id=self._game_id,
-                                        game_version_ids=self._game_version_ids, config=self.config,
-                                        output_filename=self.output_filename)
-        elif self.config.DATA_SOURCE == RM2:
-            return RedMetrics2DataRetriever(game_name=self._game_name, game_id=self._game_id, config=self.config,
-                                            output_filename=self.output_filename)
-        elif self.config.DATA_SOURCE == RM1:
-            return RedMetrics1Downloader(csv_url=self.config.RED_METRICS_CSV_URL, config=self.config,
-                                         output_filename=self.output_filename)
-        elif self.config.DATA_SOURCE == APPSync:
-            return CFGAppSyncDataRetriever(game_name=self._game_name, game_id=self._game_id, config=self.config,
-                                           output_filename=self.output_filename)
-        elif self.config.DATA_SOURCE == LOCAL:
-            return LocalDataRetriever(config=self.config, output_filename=self.output_filename,
-                                      events_csv_path=self._input_events_csv_path)
-        else:
-            raise ValueError(UNSUPPORTED_DATA_SOURCE_ERROR.format(self.config.DATA_SOURCE))
+    @staticmethod
+    def _is_multi_value(value) -> bool:
+        return isinstance(value, (list, tuple)) or (isinstance(value, str) and "," in value)
+
+    def _is_multi_game_request(self) -> bool:
+        return self._is_multi_value(self.config.GAME_ID)
 
     def _retrieve_data(self, verbose):
         """
@@ -91,21 +75,21 @@ class Pipeline:
             raise CFGPipelineException("Raw data has already been retrieved")
 
         self.data_retriever = self._get_data_retriever()
-        self._add_input_params_to_config()
-
-        if verbose:
-            print("Retrieving raw data...")
+        self.logger.info("Retrieving data...")
 
         self.raw_data = self._retrieve_data(verbose=verbose)
-        self.data_retriever.dump(verbose=verbose)
+        self.data_retriever.dump()
 
     def _parse(self):
         """
         This method contains the parsing process exclusively. This can be overridden by deriving classes.
         :return: parsed data
         """
-        self.parser = Parser(raw_data=self.raw_data, config=self.config)
-        return self.parser.parse()
+        self.parser = Parser(raw_data=self.raw_data, config=self.config, logger=self.logger)
+        parsed_data = self.parser.parse()
+        if self.config.SAVE_INTERMEDIATE_FILES:
+            self.parser.dump(name=self.output_filename, with_config=False, pretty=True)
+        return parsed_data
 
     def parse(self, verbose):
         """
@@ -117,20 +101,20 @@ class Pipeline:
             raise CFGPipelineException("Raw data has to be retrieved before parsing")
         if self.parsed_data is not None:
             raise CFGPipelineException("Data already parsed")
+        self.log_info("Parsing data...")
 
-        if verbose:
-            print("Parsing...")
         self.parsed_data = self._parse()
-        self.parser.dump(name=self.output_filename, with_config=False, pretty=self.config.PRETTIFY_PARSER_OUPUT)
+
 
     def _postparse(self):
         """
         This method contains the post-parsing process exclusively. This can be overridden by deriving classes.
         :return: post-parsed data
         """
-        self.postparser = PostParser(parsed_data=self.parsed_data, config=self.config)
+        self.postparser = PostParser(parsed_data=self.parsed_data, config=self.config, logger=self.logger)
         postparsed = self.postparser.postparse()
-        self.postparser.dump(name=self.output_filename, with_config=False, pretty=self.config.PRETTIFY_PARSER_OUPUT)
+        if self.config.SAVE_INTERMEDIATE_FILES:
+            self.postparser.dump(name=self.output_filename, with_config=False, pretty=True)
         return postparsed
 
     def postparse(self, verbose):
@@ -143,13 +127,11 @@ class Pipeline:
             raise CFGPipelineException("Data has to be parsed before post-parsing (duh!)")
         if self.postparsed_data is not None:
             raise CFGPipelineException("Data already post-parsed")
-
-        if verbose:
-            print("Post-parsing...")
+        self.log_info("Post-parsing data...")
         self.postparsed_data = self._postparse()
 
     def _extract_features(self, verbose):
-        self.feature_extractor = FeatureExtractor(preprocessed_data=self.postparsed_data, config=self.config)
+        self.feature_extractor = FeatureExtractor(preprocessed_data=self.postparsed_data, config=self.config, logger=self.logger)
         return self.feature_extractor.extract(verbose)
 
     def extract_features(self, verbose):
@@ -157,22 +139,117 @@ class Pipeline:
             raise CFGPipelineException("Data has to be post-parsed before feature extraction")
         if self.features_df is not None:
             raise CFGPipelineException("Features already extracted")
-
-        if verbose:
-            print("Calculating measures...")
+        self.log_info("Calculating measures...")
 
         self.features_df = self._extract_features(verbose)
         features_path = self.feature_extractor.dump(name=self.output_filename, with_exclusions=True, with_config=False)
+        self.log_info(f"Results written to: {features_path}")
 
+    def visualize(self, verbose):
+        postparsed_data = self.postparsed_data
+        if not (self.config.VISUALIZATION_ANIMATE or self.config.VISUALIZATION_MAKE_PLOTS):
+            self.log_info("Visualization is disabled, skipping visualization step...")
+            return
+        viz_dir = self.output_filename + "_visualizations"
+        os.makedirs(viz_dir, exist_ok=True)
+
+        if self.config.VISUALIZATION_ANIMATE:
+            self.log_info("Visualizing games with animation...")
+        else:
+            self.log_info("Visualizing games without animation...")
         if verbose:
-            print(f"Results written successfully to: {features_path}")
+            postparsed_data = tqdm.tqdm(self.postparsed_data, desc="Visualizing games", unit="game")
+        for game in postparsed_data:
+            if self.config.VISUALIZATION_ANIMATE:
+                visualization.animate_game(game=game, speed=self.config.VISUALIZATION_ANIMATION_SPEED, output_dir_path=os.path.join(viz_dir, "animations"))
+            if self.config.VISUALIZATION_MAKE_PLOTS:
+                visualization.plot_game(game=game, output_dir_path=os.path.join(viz_dir, "plots"))
+    def _clip_config_before_to_now(self):
+        # freeze the maximal time in the config to now, to avoid inconsistencies when running again with dumped configs
+        now_dt = pd.Timestamp.now(tz=timezone.utc)
+        now_str = now_dt.isoformat()
+        if self.config.BEFORE_DATE is None:
+            self.config.BEFORE_DATE = now_str
+            return
+        config_before_dt = pd.to_datetime(self.config.BEFORE_DATE, errors="coerce")
+        if pd.isna(config_before_dt):
+            self.log_warning(f"Could not parse BEFORE_DATE '{self.config.BEFORE_DATE}' in config; overriding it with current time '{now_str}' to avoid inconsistencies.")
+            self.config.BEFORE_DATE = now_str
+            return
+        if config_before_dt > now_dt:
+            self.log_warning(f"BEFORE_DATE '{self.config.BEFORE_DATE}' in config is in the future; overriding it with current time '{now_str}' to avoid inconsistencies.")
+            self.config.BEFORE_DATE = now_str
+        return
 
-    def run_pipeline(self, verbose=True):
-        self.retrieve_data(verbose=verbose)
-        self.parse(verbose=verbose)
-        self.postparse(verbose=verbose)
-        self.extract_features(verbose=verbose)
+
+    def run_pipeline(self):
+        self._clip_config_before_to_now()
+        self.retrieve_data(verbose=self.verbose)
+        # check if the retrieved data is empty before proceeding to parsing
+        if len(self.raw_data) == 0:
+            self.log_warning("Retrieved data is empty. Skipping parsing, post-parsing, visualization and feature extraction steps.")
+            return None
+        self.parse(verbose=self.verbose)
+        self.postparse(verbose=self.verbose)
+        self.visualize(verbose=self.verbose)
+        self.extract_features(verbose=self.verbose)
         return self.features_df
+
+    def _single_retriever_factory(self):
+        data_source = self.config.DATA_SOURCE
+
+        def factory(cfg: Configuration, logger):
+            if data_source == RM1_NAS_DUMP:
+                return RM1DumpDataRetriever(
+                    game_id=cfg.GAME_ID,
+                    game_version_ids=cfg.GAME_VERSION_IDS,
+                    config=cfg,
+                    output_filename=self.output_filename,
+                    logger=logger,
+                )
+            if data_source == RM2:
+                return RedMetrics2DataRetriever(
+                    game_id=cfg.GAME_ID,
+                    config=cfg,
+                    output_filename=self.output_filename,
+                    logger=logger,
+                )
+            if data_source == RM1:
+                return RedMetrics1Downloader(
+                    csv_url=cfg.RED_METRICS_CSV_URL,
+                    game_id=cfg.GAME_ID,
+                    config=cfg,
+                    output_filename=self.output_filename,
+                    logger=logger,
+                )
+            if data_source == IOCANE:
+                return IOCANEDataRetriever(
+                    game_id=cfg.GAME_ID,
+                    config=cfg,
+                    output_filename=self.output_filename,
+                    logger=logger,
+                )
+            if data_source == LOCAL:
+                return LocalDataRetriever(
+                    config=cfg,
+                    output_filename=self.output_filename,
+                    events_csv_path=cfg.EVENT_CSV_PATH,
+                    logger=logger,
+                )
+            raise ValueError(UNSUPPORTED_DATA_SOURCE_ERROR.format(data_source))
+
+        return factory
+
+    def _get_data_retriever(self) -> DataRetriever:
+        factory = self._single_retriever_factory()
+
+        if self._is_multi_game_request():
+            return MultiGameDataRetriever(
+                base_retriever_constructor=factory,
+                config=self.config,
+                logger=self.logger,
+            )
+        return factory(self.config, self.logger)
 
 
 def safe_update(config: Configuration, key: str, new_value):
@@ -199,12 +276,9 @@ def main():
 
     argparser = argparse.ArgumentParser(description="Run CFG behavioral data pipeline")
     # can give any of the valid data sources as argument to override the config data source
-    argparser.add_argument(f"--{DATA_SOURCE_ARG}", choices=VALID_DATA_SOURCES,
+    argparser.add_argument(f"--{DATA_SOURCE_ARG}", choices=VALID_DATA_SOURCES, default=get_default_data_source(),
                            help="The data source to retrieve data from. Should be provided only if it doesn't appear in the config file.")
-    argparser.add_argument(f"--{GAME_NAME_ARG}", help='The name of the name.')
     argparser.add_argument(f"--{GAME_ID_ARG}", help='The id of the game.')
-    argparser.add_argument(f"--{GAME_VERSION_IDS_ARG}", nargs="+",
-                           help='A list of the game version ids that you want to retrieve.')
     argparser.add_argument(f"--{BEFORE_DATE_ARG}", type=str, default=None,
                            help='The end of the date range of the games you want to retrieve. Should be in a pandas-parseable datetime format. Only needed if you want to provide it as an argument instead of providing it in the config.')
     argparser.add_argument(f"--{AFTER_DATE_ARG}", type=str, default=None,
@@ -213,7 +287,8 @@ def main():
     argparser.add_argument(f"--{EVENTS_CSV_PATH_ARG}",
                            help='The path to the events CSV file. Only needed if the data source is Local or if you want to provide a custom path to the events CSV file instead of providing it in the config.')
     argparser.add_argument("-o", "--output", default="cfg", dest="output_filename",
-                           help='Filename of output files.')
+                           help='Filename of output files. This filename will be used as a prefix for all output files generated by the pipeline. The final features dataframe will be saved as <output_filename>_measures.csv. Default is "cfg".')
+    argparser.add_argument("-v", "--verbose", action="store_true", help="Whether to print info during the pipeline run. Default is False.")
     args = argparser.parse_args()
 
     config: Configuration | None = Configuration.from_yaml(
@@ -222,8 +297,13 @@ def main():
     if arg_data_source:
         config.DATA_SOURCE = arg_data_source  # set data source early to allow validation of other args
     config = update_config_with_args(config, args)  # keep config as single source of truth for downstream usage
+    # check if output_filename as a path is inside a dir
 
-    pl = Pipeline(output_filename=args.output_filename, config=config)
+    # Ensure parent directory exists (if any)
+    parent_dir = os.path.dirname(args.output_filename)
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
+    pl = Pipeline(output_filename=args.output_filename, config=config, verbose=args.verbose)
 
     pl.run_pipeline()
 

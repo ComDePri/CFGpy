@@ -6,11 +6,17 @@ from tqdm import tqdm
 import pandas as pd
 from CFGpy.behavioral._consts import (DATA_RETRIEVER_OUTPUT_FILENAME, CONFIG_URL_MISMATCH_ERROR)
 from CFGpy.behavioral import Configuration, DataRetriever
+RM2_EVENT_ID_KEY = "id"
+RM2_RAW_SERVER_TIME = "serverTimestamp"
+RM2_RAW_USER_TIME = "userTimestamp"
+RM2_EVENT_TYPE = "type"
+RM2_RAW_COORDINATES = "coordinates"
 
+RM2_DOWNLOADER_COMMON_FIELDS = (RM2_EVENT_ID_KEY, RM2_RAW_SERVER_TIME, RM2_RAW_USER_TIME, RM2_EVENT_TYPE, RM2_RAW_COORDINATES)
 
 class RedMetrics2DataRetriever(DataRetriever):
-    def __init__(self, *, game_name: str | None = None, game_id: str | None = None, output_filename: str = DATA_RETRIEVER_OUTPUT_FILENAME, 
-                 config: Configuration = None) -> None:
+    def __init__(self, *, game_id: str | None = None, output_filename: str = DATA_RETRIEVER_OUTPUT_FILENAME,
+                 config: Configuration = None, logger = None) -> None:
         """
         Init a RedMetrics2DataRetriever object.
         :param game_id: The game name of the game whose data you want to retrieve from RedMetrics2.
@@ -18,10 +24,9 @@ class RedMetrics2DataRetriever(DataRetriever):
         :param output_filename: filename for output.
         :param config: a Configuration file.
         """
-        super().__init__(game_name=game_name, game_id=game_id, output_filename=output_filename, 
-                         config=config if config is not None else Configuration.default())
-        self._validate_input(input=[game_id, game_name, self._config.GAME_ID, self._config.GAME_NAME])
-        self._validate_config()
+        super().__init__(game_id=game_id, output_filename=output_filename,
+                         config=config, logger=logger)
+        self._validate_input(input=[game_id, self._config.GAME_ID])
         self._retrieved_events_json = []
         self._session = None
     
@@ -30,11 +35,7 @@ class RedMetrics2DataRetriever(DataRetriever):
         if self._session is None:
             self._init_session()
         return self._session
-    
-    def _validate_config(self) -> None:
-        if self._config.is_rm1:
-            raise ValueError(CONFIG_URL_MISMATCH_ERROR)
-        return None
+
         
     def _retrieve_data(self, *, verbose: bool = False) -> pd.DataFrame:
         
@@ -55,9 +56,8 @@ class RedMetrics2DataRetriever(DataRetriever):
 
     
     def _login_to_session(self, email: str, password: str, verbose: Optional[bool] = False) -> None:
-        
-        if verbose:
-            print("Logging into RedMetrics2...")
+        self.log_info("Logging into RedMetrics2...")
+
             
         login_url: str = "https://api.creativeforagingtask.com/v2/login"
         login_data: dict = {
@@ -68,59 +68,31 @@ class RedMetrics2DataRetriever(DataRetriever):
         response = self.session.post(login_url, data=login_data)
 
         if response.status_code == 200:
-            if verbose:
-                print("Successfully logged into RedMetrics2.")
+            self.log_info("Successfully logged into RedMetrics2.")
         else:
-            print(f"Login failed: {response.text}")
+            self.log_error(f"Failed to log into RedMetrics2: {response.status_code} - {response.text}")
 
     def _download_data_from_rm2(self, verbose: Optional[bool] = False) -> dict:
-        
-        if verbose:
-            print("Downloading data from RedMetrics2...")
-        
-        if self._game_name:
-            self._game_id = self._get_rm2_game_id(session=self.session, verbose=verbose)
+        self.log_info("Downloading data from RedMetrics2...")
+
             
         download_url: str = f"https://api.creativeforagingtask.com/v2/game/{self._game_id}/data.json"
         response = self.session.get(url=download_url)
 
         if not response.status_code == 200:
             msg = f"Error: {response.status_code} - failed to download data for game: {self._game_id}."
-            print(msg)
+            self.log_error(msg)
             raise(ValueError(msg))
-        
-        if verbose:
-                print("Data downloaded successfully from RedMetrics2.")
-                
-        return response.json()
-    
-    def _get_rm2_game_id(self, session: requests.Session, verbose: Optional[bool] = False) -> str:
-        if verbose:
-            print(f"Retrieving game id for {self._game_name}...")
-        
-        download_url: str = f"https://api.creativeforagingtask.com/v2/game"
-        response = session.get(url=download_url)
+        self.log_info("Data downloaded successfully from RedMetrics2.")
 
-        if not response.status_code == 200:
-            msg = f"Error: {response.status_code} - failed to download all games data."
-            print(msg)
-            raise(ValueError(msg))
-        
-        if verbose:
-                print("Data downloaded successfully from RedMetrics2.")
-               
-        for game in response.json():
-            if game.get('name') == self._game_name:
-                return game.get('id')
-            
-        return None
+        return response.json()
+
     
     def _create_rm2_output(self, verbose: Optional[bool] = False) -> pd.DataFrame:
        
         sessions_iterator = self._retrieved_events_json.get("sessions", {})
-        
+        self.log_info("Handling events...")
         if verbose:
-            print("\nHandling events...")
             sessions_iterator = tqdm(sessions_iterator, desc="sessions")
             
         output_json: list[dict] = []
@@ -138,8 +110,21 @@ class RedMetrics2DataRetriever(DataRetriever):
         return output_json
     
     def _process_event(self, event: dict) -> dict:
+        # fix naming conventions for common fields between RM2 and the other formats
+        rm2_standard_field_map = {
+            RM2_EVENT_ID_KEY: self._config.EVENT_ID_KEY,
+            RM2_RAW_SERVER_TIME: self._config.RAW_SERVER_TIME,
+            RM2_RAW_USER_TIME: self._config.RAW_USER_TIME,
+            RM2_EVENT_TYPE: self._config.EVENT_TYPE,
+            RM2_RAW_COORDINATES: self._config.RAW_COORDINATES
+        }
+        def normalize_key(key: str) -> str:
+            return rm2_standard_field_map.get(key, key)
         # filter to common fields
-        output_json_record = {k: v for (k, v) in event.items() if k in self._config.DOWNLOADER_COMMON_FIELDS}
+        output_json_record = {normalize_key(k): v for (k, v) in event.items() if (k in self._config.DOWNLOADER_COMMON_FIELDS) or (k in RM2_DOWNLOADER_COMMON_FIELDS)}
+        # lowercase event type:
+        if self._config.EVENT_TYPE in output_json_record:
+            output_json_record[self._config.EVENT_TYPE] = output_json_record[self._config.EVENT_TYPE].lower()
 
         # add event's custom data fields
         output_json_record = self._add_events_custom_data(event=event, output_json_record=output_json_record)
@@ -156,8 +141,7 @@ class RedMetrics2DataRetriever(DataRetriever):
         return output_json_record
 
     def _create_df(self, *, output_json: dict, verbose: Optional[bool] = False) -> pd.DataFrame:
-        if verbose:
-            print("Formatting DataFrame...")
+        self.log_info("Formatting DataFrame...")
         df = pd.DataFrame(output_json)
         self._extra_fields = set(df.columns) - set(self._config.DOWNLOADER_FIELD_ORDER)
         all_fields = self._config.DOWNLOADER_FIELD_ORDER + tuple(self._extra_fields)

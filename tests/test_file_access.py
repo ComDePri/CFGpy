@@ -34,7 +34,8 @@ def test_get_files_from_github(files_handler):
 
 def test_load_json_data(files_handler):
     """Test loading JSON data from file."""
-    json_data: dict = files_handler.load_json_data(file_name="test_json_file.json", dir_path=os.path.join(Path(__file__).parent, "test_files"))
+    json_data: dict = files_handler.load_json_data(file_name="test_json_file.json", dir_path=os.path.join(Path(__file__).parent,
+                                                                                                          "test_files"))
     assert isinstance(json_data, dict)
     assert len(json_data) == 50
     assert set(json_data.values()) == {0, 1, 2, 3, 4}

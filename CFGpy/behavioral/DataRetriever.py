@@ -4,13 +4,17 @@ import pandas as pd
 from pandas import Timestamp
 from CFGpy.behavioral import Configuration
 from CFGpy.behavioral._consts import DATA_RETRIEVER_OUTPUT_FILENAME, MULTIPLE_DATA_RETRIEVER_INPUTS_ERROR, NO_DATA_RETRIEVER_INPUT_ERROR
+from CFGpy.behavioral._logging import HasLogger
 
 
-class DataRetriever(ABC):
-    def __init__(self, *, game_name: str | None = None, game_id: str | None = None, output_filename: str = DATA_RETRIEVER_OUTPUT_FILENAME, config: Configuration = None) -> None:
-        self._game_name = game_name or config.GAME_NAME
+class DataRetriever(HasLogger,ABC):
+    def __init__(self, *, game_id: str | None = None, output_filename: str = DATA_RETRIEVER_OUTPUT_FILENAME, config: Configuration = None, logger=None) -> None:
+        super().__init__(logger)
+        if config is None:
+            config = Configuration.default()
         self._game_id: str = game_id or config.GAME_ID
         self._output_filename = output_filename
+        self.output_path = f"{self._output_filename}_events.csv"
         self._config = config
         self._retrieved_df: Optional[pd.DataFrame] = None
         self._extra_fields = set()
@@ -23,23 +27,6 @@ class DataRetriever(ABC):
         """
         pass
 
-    # def _resolve_time_column_for_filtering(self, df: pd.DataFrame) -> str | None:
-    #     """Choose which timestamp column to use for before/after filtering.
-    #
-    #     Preference order:
-    #     1) configured RAW_SERVER_TIME
-    #     2) configured RAW_USER_TIME
-    #
-    #     Returns column name if present in df, else None.
-    #     """
-    #     if self._config is None:
-    #         return None
-    #
-    #     for attr in ("RAW_SERVER_TIME", "RAW_USER_TIME"):
-    #         col = getattr(self._config, attr, None)
-    #         if col and col in df.columns:
-    #             return col
-    #     return None
 
     def _filter_df_by_date(self, df: pd.DataFrame, *, after: Timestamp | None, before: Timestamp | None, verbose: bool = False) -> pd.DataFrame:
         """Filter a DF by inclusive datetime range [after, before] on a best-effort basis.
@@ -55,25 +42,33 @@ class DataRetriever(ABC):
 
 
         if not time_col:
+            self.log_warning("No time column specified in config; skipping date filtering.")
+            return df
+        if time_col not in df.columns:
+            self.log_warning(f"Time column '{time_col}' not found in data; skipping date filtering.")
             return df
 
-        if verbose:
-            print(f"Filtering data by date using column '{time_col}'...")
+        self.log_info(f"Attempting to filter data by date using column '{time_col}' with after={after} and before={before}.")
+
 
         # Coerce to datetime; keep original column untouched.
         series = pd.to_datetime(df[time_col], errors="coerce", utc=True)
-        mask = series.notna()
+        invalid_time = series.notna()
+        mask = invalid_time.copy()
+        # check if any datetime is invalid
+        if mask.any():
+            invalid_count = (~mask).sum()
+            self.log_warning(f"Found {invalid_count} invalid datetime entries in column '{time_col}' that will be ignored in filtering.")
 
         if after is not None:
             mask &= series >= after
-            if verbose:
-                print(f"Filtering from {after} onwards...")
+            self.log_info(f"Filtering from {after} onwards...")
         if before is not None:
             mask &= series <= before
-            if verbose:
-                print(f"Filtering until {before}...")
-        if verbose:
-            print(f"Filtered from {len(df)} rows to {mask.sum()} rows by date.")
+            self.log_info(f"Filtering until {before}...")
+        # finally we can add back the rows without timestamps:
+        mask = mask | ~invalid_time
+        self.log_info(f"Filtered from {len(df)} rows to {mask.sum()} rows by date.")
         return df.loc[mask].reset_index(drop=True).copy()
 
     def _to_ts(self, s: str) -> pd.Timestamp:
@@ -90,15 +85,13 @@ class DataRetriever(ABC):
         Generic optional filtering (applies to all data sources):
             before: datetime string (inclusive upper bound)
             after: datetime string (inclusive lower bound)
-
-        These are popped from kwargs before delegating to the subclass' `_retrieve_data`, so subclasses that don't
-        accept them won't break.
         """
         # validate date filtering early before doing any work:
         before = self._config.BEFORE_DATE
         after = self._config.AFTER_DATE
         before_ts = self._to_ts(before) if before else None
         after_ts = self._to_ts(after) if after else None
+
         self._retrieved_df = self._retrieve_data(*args, **kwargs)
 
         verbose = kwargs.pop("verbose", False)
@@ -106,7 +99,13 @@ class DataRetriever(ABC):
         return self._retrieved_df
 
     def _validate_input(self, input: list[str]) -> None:
-        count: int = len(input) - input.count(None)
+        def normalize_input(inp: str | None | list[str]) -> str | None | tuple[str]:
+            if isinstance(inp, list):
+                return tuple(inp)
+            return inp
+
+        unique_inputs = set([normalize_input(inp) for inp in input if inp is not None])
+        count: int = len(unique_inputs)
 
         # at least one URL should not be None:
         if count < 1:
@@ -118,13 +117,12 @@ class DataRetriever(ABC):
 
         return None
 
-    def dump(self, verbose: Optional[bool] = False) -> None:
+    def dump(self) -> None:
 
         if self._retrieved_df is None:
             raise ValueError("No data to dump. Run retrieve_data() first.")
 
-        self._retrieved_df.to_csv(f"{self._output_filename}_events.csv", index=False)
-        if verbose:
-            print(f"Wrote CSV to {self._output_filename}")
+        self._retrieved_df.to_csv(self.output_path, index=False)
+        self.log_info(f"Wrote data to: {self.output_path}")
 
         self._config.to_yaml(self._output_filename)

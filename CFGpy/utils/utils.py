@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import json
 import networkx as nx
 from collections import Counter, defaultdict
 from CFGpy.utils import FilesHandler
@@ -18,29 +17,6 @@ def get_vanilla_features() -> pd.DataFrame:
     Returns the features extracted from the most up-to-date vanilla data.
     """
     return FilesHandler().vanilla_features
-
-
-def get_vanilla_stats():
-    """
-    Returns the necessary information for extraction of features relative to vanilla, as required by
-    behavioral.FeatureExtractor._extract_relative_features.
-    cf. behavioral.data_classes.PostparsedDataset.get_stats
-    """
-    
-    step_counter_dict = FilesHandler().vanilla_step_counter
-    step_counter = Counter({tuple(json.loads(key)): orig for key, orig in step_counter_dict.items()})
-
-    covered_steps = set(step_counter.keys())
-
-    gallery_counter_dict = FilesHandler().vanilla_gallery_counter
-    gallery_counter = Counter({int(key): orig for key, orig in gallery_counter_dict.items()})
-
-    covered_galleries = set(gallery_counter.keys())
-
-    giant_component = FilesHandler().vanilla_giant_component
-    giant_component = {tuple(node) for node in giant_component}
-
-    return covered_steps, step_counter, covered_galleries, gallery_counter, giant_component
 
 
 def get_shape_binary_matrix(shape_id):

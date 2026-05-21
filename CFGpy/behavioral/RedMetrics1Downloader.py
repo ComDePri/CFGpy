@@ -11,11 +11,27 @@ from CFGpy.behavioral._utils import CFGPipelineException
 from CFGpy.behavioral import Configuration
 import warnings
 
+RM1_TEMPLATE = "https://api.creativeforagingtask.com/v1/event.csv?game={game_id}&entityType=event"
 
 
 class RedMetrics1Downloader(DataRetriever):
-    def __init__(self, csv_url: str | None = None, output_filename: str = DATA_RETRIEVER_OUTPUT_FILENAME,
-                 config: Configuration = None) -> None:
+    def _consolidate_url(self, csv_url: str | None, game_id: str | None):
+        if csv_url is not None:
+            # using the provided url
+            if game_id is not None:
+                # warn that game_id will be ignored since csv_url is provided:
+                self.log_warning("Both csv_url and game_id were provided. The game_id will be ignored since csv_url is provided.")
+            return csv_url
+        elif game_id is not None:
+            # construct url from game_id
+            return RM1_TEMPLATE.format(game_id=game_id)
+        elif self._config.GAME_ID is not None:
+            return RM1_TEMPLATE.format(game_id=self._config.GAME_ID)
+        else:
+            raise ValueError(NO_DATA_RETRIEVER_INPUT_ERROR)
+
+    def __init__(self, csv_url: str | None = None, game_id: str | None = None, output_filename: str = DATA_RETRIEVER_OUTPUT_FILENAME,
+                 config: Configuration = None, logger = None) -> None:
         """
         Init a Downloader object.
         :param csv_url: Web address of the "Download all pages as CSV" in RedMetrics. Optional. If None, URL is expected
@@ -23,17 +39,21 @@ class RedMetrics1Downloader(DataRetriever):
         :param output_filename: filename for output.
         :param config: a Configuration file. If this defines a RedMetrics URL, `csv_url` shouldn't.
         """
+
+        super().__init__(output_filename=output_filename, game_id=game_id, config=config, logger=logger)
         # print a deprecation warning as RM1 downloading will not be supported in the future and users should transition to using the new platform or dumped data.
-        warnings.warn("The RM1 downloading functionality will not be supported in the future. Please transition to using the new platform or dumped data.",
-                      DeprecationWarning,
-                      stacklevel=2)
-        super().__init__(output_filename=output_filename, config=config if config is not None else Configuration.default())
-        self.csv_url = csv_url
-        self._validate_url()
+        self.log_warning("The RM1 downloading functionality will not be supported in the future. Please transition to using the new platform or dumped data.")
+        warnings.warn(
+            "The RM1 downloading functionality will not be supported in the future. Please transition to using the new platform or dumped data.",
+            FutureWarning,
+            stacklevel=2)
+        csv_url = self._validate_url(csv_url) # if there's a url - we should check that it's valid and there are no conflicts
+        self.csv_url = self._consolidate_url(csv_url=csv_url, game_id=game_id) # if there's no url - we should try to construct it from the game id, either from the parameter or from the config. If that's also not possible - we should raise an error.
+
         self.json_url = self.csv_url.replace("/event.csv", "/event.json")
         self.downloaded_events_json = []
         self.downloaded_events_ids = set()
-        self._temp_output_csv = output_filename + ".tmp"
+        self._temp_output_filename = output_filename + ".tmp"
 
         self.players = dict()
         self.custom_data_fields = set()
@@ -44,25 +64,23 @@ class RedMetrics1Downloader(DataRetriever):
         self.download_events_json(verbose)
         output_json = self.create_output(verbose)
         self._write_csv(output_json, verbose)
-        df = pd.read_csv(self._temp_output_csv)  # why not return output_json? see to-do in create_output
-        # delete the temp file:
-        os.remove(self._temp_output_csv)
+        df = pd.read_csv(self._temp_output_filename)
+        # delete temp file:
+        self.log_info(f"Deleting temporary file: {self._temp_output_filename}")
+        os.remove(self._temp_output_filename)
         return df
 
-    def _validate_url(self) -> None:
-        # at least one URL should not be None:
-        if self.csv_url is None and self._config.RED_METRICS_CSV_URL is None:
-            raise ValueError(NO_DATA_RETRIEVER_INPUT_ERROR)
-
+    def _validate_url(self, csv_url) -> None:
         # at most one URL should not be None:
-        if (self.csv_url is not None) and (self._config.RED_METRICS_CSV_URL is not None) and (self.csv_url != self._config.RED_METRICS_CSV_URL):
+        if (csv_url is not None) and (self._config.RED_METRICS_CSV_URL is not None) and (csv_url != self._config.RED_METRICS_CSV_URL):
             raise ValueError(MULTIPLE_DATA_RETRIEVER_INPUTS_ERROR)
-
-        self.csv_url = self._config.RED_METRICS_CSV_URL if self.csv_url is None else self.csv_url
-
+        if (csv_url is None) and (self._config.RED_METRICS_CSV_URL is None):
+            return None
+        csv_url = self._config.RED_METRICS_CSV_URL if csv_url is None else csv_url
         # URL should point to an event.csv file:
-        if not "/event.csv" in self.csv_url:
-            raise ValueError(DOWNLOADER_URL_NO_CSV_ERROR.format(self.csv_url))
+        if not "/event.csv" in csv_url:
+            raise ValueError(DOWNLOADER_URL_NO_CSV_ERROR.format(csv_url))
+        return csv_url
 
     def _get_page(self, page_i: int) -> requests.Response:
         """
@@ -152,8 +170,8 @@ class RedMetrics1Downloader(DataRetriever):
         output_json = []
 
         event_iterator = self.downloaded_events_json
+        self.log_info("Handling events...")
         if verbose:
-            print("\nHandling events...")
             event_iterator = tqdm(event_iterator, desc="events")
 
         for event in event_iterator:
@@ -195,15 +213,14 @@ class RedMetrics1Downloader(DataRetriever):
         self._extra_fields = set(self.custom_data_fields) - set(self._config.DOWNLOADER_FIELD_ORDER)
 
         all_fields = self._config.DOWNLOADER_FIELD_ORDER + tuple(self._extra_fields)
-        with open(self._temp_output_csv, "w", newline="", encoding="utf-8") as output_file:
+        with open(self._temp_output_filename, "w", newline="", encoding="utf-8") as output_file:
             output_file_writer = csv.DictWriter(output_file, fieldnames=all_fields, quoting=csv.QUOTE_ALL)
 
             output_file_writer.writeheader()
             for output_json_record in output_json:
                 output_file_writer.writerow(output_json_record)
+        self.log_info(f"Wrote output to temporary file: {self._temp_output_filename}")
 
-        if verbose:
-            print(f"Wrote CSV to {self._output_filename}")
 
     def get_net_requested_players(self) -> list:
         """

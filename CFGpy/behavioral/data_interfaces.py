@@ -1,3 +1,6 @@
+import json
+from dataclasses import dataclass
+
 import numpy as np
 import pandas as pd
 from itertools import pairwise, combinations
@@ -6,7 +9,8 @@ import networkx as nx
 from CFGpy.behavioral._consts import (PARSED_PLAYER_ID_KEY, PARSED_TIME_KEY, PARSED_ALL_SHAPES_KEY,
                                       PARSED_CHOSEN_SHAPES_KEY, EXPLORE_KEY, EXPLOIT_KEY)
 from CFGpy.behavioral import Configuration
-from CFGpy.behavioral._utils import is_semantic_connection, load_json
+from CFGpy.behavioral._utils import is_semantic_connection, load_json, median_handle_empty as median, prettify_games_json
+from CFGpy.utils import  FilesHandler, get_vanilla_features
 
 
 # TODO: consider: some methods only serve MeasureCalculator, while other are meant as API for end users (e.g.
@@ -104,7 +108,7 @@ class PostparsedPlayerData(ParsedPlayerData):
         if not gallery_indices.size:
             return np.nan, np.nan
 
-        actual_path_lengths = np.diff(gallery_indices, prepend=0)
+        actual_path_lengths = np.diff(gallery_indices, prepend=-1 if gallery_indices[0] == 0 else 0)
         gallery_ids = self.shapes_df.iloc[gallery_indices, self.config.SHAPE_ID_IDX]
         shortest_path_lengths = ([get_shortest_path_len(self.config.FIRST_SHAPE_ID, gallery_ids.iloc[0])] +
                                  [get_shortest_path_len(shape1, shape2) for shape1, shape2 in pairwise(gallery_ids)])
@@ -122,8 +126,7 @@ class PostparsedPlayerData(ParsedPlayerData):
                 explore_efficiencies.append(efficiency)
             else:
                 exploit_efficiencies.append(efficiency)
-
-        return np.median(explore_efficiencies), np.median(exploit_efficiencies)
+        return median(explore_efficiencies), median(exploit_efficiencies)
 
     def get_exploit_clusters(self):
         is_gallery = self.get_gallery_mask()
@@ -136,12 +139,30 @@ class PostparsedPlayerData(ParsedPlayerData):
 
         return clusters
 
+    def get_median_exploit_length(self):
+        exploit_lengths = [end - start for start, end in self.exploit_slices]
+        if not exploit_lengths:
+            return np.nan
+        return np.median(exploit_lengths)
+
+    def get_median_explore_length(self):
+        explore_lengths = [end - start for start, end in self.explore_slices]
+        if not explore_lengths:
+            return np.nan
+        return np.median(explore_lengths)
+
 
 class ParsedDataset:
     def __init__(self, input_data):
         self.input_data = []
         self.players_data = []
         self._reset_state(input_data)
+
+
+    def dump(self, path, prettify=False):
+        json_str = prettify_games_json(self.input_data) if prettify else json.dumps(self.input_data)
+        with open(path, "w") as f:
+            f.write(json_str)
 
     @classmethod
     def from_json(cls, path: str):
@@ -158,6 +179,8 @@ class ParsedDataset:
         return len(self.players_data)
 
     def drop_non_first_games(self):
+        if len(self.input_data) == 0:
+            return
         input_data = (pd.DataFrame(self.input_data).
                       sort_values(by=[PARSED_TIME_KEY], ascending=True).
                       drop_duplicates(subset=[PARSED_PLAYER_ID_KEY], keep="first").
@@ -214,8 +237,9 @@ class ParsedDataset:
 
         steps_not_uniquely_covered = self.get_not_uniquely_covered(n_players_took_step)
         galleries_not_uniquely_covered = self.get_not_uniquely_covered(n_players_saved_gallery)
-
-        return steps_not_uniquely_covered, n_times_step_taken, galleries_not_uniquely_covered, n_times_gallery_saved
+        stats = ParsedDatasetStats(steps_not_uniquely_covered, n_times_step_taken, galleries_not_uniquely_covered,
+                                   n_times_gallery_saved)
+        return stats
 
 
 class PostparsedDataset(ParsedDataset):
@@ -248,9 +272,26 @@ class PostparsedDataset(ParsedDataset):
         edges = [(c1, c2) for c1, c2 in combinations(exploit_clusters, 2)
                  if is_semantic_connection(c1, c2, self.config.MIN_OVERLAP_FOR_SEMANTIC_CONNECTION)]
         semantic_network.add_edges_from(edges)
-        connected_components = nx.connected_components(semantic_network)
-        GC = max(connected_components, key=len)
+        connected_components = list(nx.connected_components(semantic_network))
+        GC = max(connected_components, key=len) if len(connected_components) > 0 else set()
         return GC
+
+    def _calc_median_steps_statistics(self):
+        # compute the mean and std of median explore and median exploit steps
+        median_explore_lengths = []
+        median_exploit_lengths = []
+        for player_data in self.players_data:
+            median_explore_length = player_data.get_median_explore_length()
+            median_exploit_length = player_data.get_median_exploit_length()
+            if not np.isnan(median_explore_length):
+                median_explore_lengths.append(median_explore_length)
+            if not np.isnan(median_exploit_length):
+                median_exploit_lengths.append(median_exploit_length)
+        median_explore_mean = np.mean(median_explore_lengths) if median_explore_lengths else np.nan
+        median_explore_std = np.std(median_explore_lengths) if median_explore_lengths else np.nan
+        median_exploit_mean = np.mean(median_exploit_lengths) if median_exploit_lengths else np.nan
+        median_exploit_std = np.std(median_exploit_lengths) if median_exploit_lengths else np.nan
+        return median_explore_mean, median_explore_std, median_exploit_mean, median_exploit_std
 
     def get_stats(self):
         """
@@ -258,4 +299,74 @@ class PostparsedDataset(ParsedDataset):
         :return: 5-tuple
         """
         giant_component = self._calc_giant_component()
-        return super().get_stats() + (giant_component,)
+        parsed_stats = super().get_stats()
+        median_explore_mean, median_explore_std, median_exploit_mean, median_exploit_std = self._calc_median_steps_statistics()
+        postparsed_stats = PostParsedDatasetStats(steps_not_uniquely_covered=parsed_stats.steps_not_uniquely_covered,
+                                                  n_times_step_taken=parsed_stats.n_times_step_taken,
+                                                  galleries_not_uniquely_covered=parsed_stats.galleries_not_uniquely_covered,
+                                                  n_times_gallery_saved=parsed_stats.n_times_gallery_saved,
+                                                  giant_component=giant_component,
+                                                  median_explore_mean=median_explore_mean,
+                                                  median_explore_std=median_explore_std,
+                                                  median_exploit_mean=median_exploit_mean,
+                                                  median_exploit_std=median_exploit_std)
+        return postparsed_stats
+
+
+
+# define data class for holding dataset-wide stats for the ParsedDataset:
+@dataclass
+class ParsedDatasetStats:
+    steps_not_uniquely_covered: list
+    n_times_step_taken: Counter
+    galleries_not_uniquely_covered: list
+    n_times_gallery_saved: Counter
+
+
+# define data class for holding dataset-wide stats for the PostParsedDatset:
+@dataclass
+class PostParsedDatasetStats(ParsedDatasetStats):
+    giant_component: set
+    median_explore_mean: float
+    median_explore_std: float
+    median_exploit_mean: float
+    median_exploit_std: float
+
+
+def get_vanilla_stats(explore_length_key="median exp steps", exploit_length_key="median scav steps") -> PostParsedDatasetStats:
+    """
+    Returns the necessary information for extraction of features relative to vanilla, as required by
+    behavioral.FeatureExtractor._extract_relative_features.
+    cf. behavioral.data_classes.PostparsedDataset.get_stats
+    """
+
+    step_counter_dict = FilesHandler().vanilla_step_counter
+    step_counter = Counter({tuple(json.loads(key)): orig for key, orig in step_counter_dict.items()})
+
+    covered_steps = set(step_counter.keys())
+
+    gallery_counter_dict = FilesHandler().vanilla_gallery_counter
+    gallery_counter = Counter({int(key): orig for key, orig in gallery_counter_dict.items()})
+
+    covered_galleries = set(gallery_counter.keys())
+
+    giant_component = FilesHandler().vanilla_giant_component
+    giant_component = {tuple(node) for node in giant_component}
+
+    vanilla_features = get_vanilla_features()
+    median_exploit_mean = vanilla_features[exploit_length_key].mean()
+    median_exploit_std = vanilla_features[exploit_length_key].std()
+    median_explore_mean = vanilla_features[explore_length_key].mean()
+    median_explore_std = vanilla_features[explore_length_key].std()
+    stats = PostParsedDatasetStats(
+        steps_not_uniquely_covered=list(covered_steps),
+        n_times_step_taken=step_counter,
+        galleries_not_uniquely_covered=list(covered_galleries),
+        n_times_gallery_saved=gallery_counter,
+        giant_component=giant_component,
+        median_explore_mean=median_explore_mean,
+        median_explore_std=median_explore_std,
+        median_exploit_mean=median_exploit_mean,
+        median_exploit_std=median_exploit_std)
+
+    return stats
