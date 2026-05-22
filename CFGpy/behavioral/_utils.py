@@ -135,9 +135,51 @@ def segment_explore_exploit(shapes, shape_move_time_idx, shape_save_time_idx,
     return explore_slices, exploit_slices
 
 
+def group_by_monotone_decreasing_mri(
+        sequence: np.ndarray,
+        pace_array: np.ndarray = None,
+        max_pace: float = np.inf) -> list[list[int]]:
+    """
+    Groups consecutive elements in a sequence based on a non-increasing trend,
+    with an optional pace criterion for MRI games.
+
+    In Standard Mode (pace_array is None), the grouping breaks if the current
+    element is greater than the previous one (sequence[i-1] < sequence[i]).
+
+    In MRI Mode, the grouping also breaks if the pace is too slow (pace[i] > max_pace).
+
+    :param sequence: 1D NumPy array (e.g., gallery_diffs).
+    :param pace_array: 1D NumPy array of pace values (seconds/step). Required for MRI mode.
+    :param max_pace: Maximal pace allowed for a sequence to continue. np.inf by default. Required for MRI mode.
+    :return: List of lists, where each inner list contains the indices of a monotone sequence.
+    """
+    monotone_sequences = []
+    current_sequence = [0]
+    for i in range(1, sequence.size):
+        # If the current shape breaks the monotone sequence
+        # or If the current shape continues a monotone sequence of accelerating pace
+        # make sure it survives the pace criterion
+        # TODO: in the original "main" branch, the condition was for sequence[i - 1] <= sequence[i]
+        #  I changed it here to "<" to match the "aviv" MRI branch
+        if (sequence[i - 1] < sequence[i] or
+                (pace_array is not None and pace_array[i] > max_pace)):
+            monotone_sequences.append(current_sequence)
+            current_sequence = [i]
+        else:
+            current_sequence.append(i)
+
+    if current_sequence not in monotone_sequences:
+        monotone_sequences.append(current_sequence)
+
+    return monotone_sequences
+
+
+#########################################################
+# beginning of MRI-related utils and helper functions
+#########################################################
 def segment_explore_exploit_mri(shapes, min_save_for_exploit, min_efficiency, max_pace,
-                            shape_save_time_idx, shape_move_time_idx, shape_max_move_time_idx,
-                            shape_id_index):
+                                shape_save_time_idx, shape_move_time_idx, shape_max_move_time_idx,
+                                shape_id_index):
     """
     This function groups clusters based on efficiency.
     The logic here is this:
@@ -148,6 +190,7 @@ def segment_explore_exploit_mri(shapes, min_save_for_exploit, min_efficiency, ma
         3. Group the resulting clusters based on save-time differences
         4. Group these clusters based on efficiency
         Determine the number of shapes
+
         :param shapes: the shapes the user created - still raw (not pandas DataFrame)
         :param min_save_for_exploit: minimal cluster size considered exploit
         :param min_efficiency: minimal efficiency to consider merging two clusters
@@ -187,7 +230,10 @@ def segment_explore_exploit_mri(shapes, min_save_for_exploit, min_efficiency, ma
     # Set the first difference to 0 (no previous shape to compare with)
     gallery_diffs.iloc[0] = 0
     gallery_diffs = gallery_diffs.to_numpy()
-    # now we remove the empty steps times for all intermediate shapes between each pair of gallery shapes.
+    # np.random.shuffle(gallery_diffs) # ROEY: Shuffle the gallery time differences, to make sure we don't get correlated explore/exploit times
+
+    # Fix the gallery_diffs by removing time spent on "empty steps" (steps that leave the shape unchanged)
+    # Reduce the time spent on "empty steps" between each pair of gallery shapes
     empty_steps_time = shapes_df.iloc[:, shape_max_move_time_idx] - shapes_df.iloc[:, shape_move_time_idx]
     gallery_diffs_fixed = gallery_diffs
     for gI, gallery_idx in enumerate(
@@ -198,6 +244,7 @@ def segment_explore_exploit_mri(shapes, min_save_for_exploit, min_efficiency, ma
     gallery_diffs = gallery_diffs_fixed
 
     # Get the pace, the mean step time between consecutive gallery shapes (in seconds per step)
+    # TODO: is this really the way to go? Do we need to make sure we use in-steps and out-steps? I don't think so. If a change required 1 step but actually do to duplicate shapes took 4 steps, then we would like efficiency to capture this. If we include the duplicate steps in the calculation, the pace will be a faster one (there is less time for each step) and this won't count as a very slow transition that will undo the efficiency.
     gallery_steps_diffs = gallery_indices - np.roll(gallery_indices, 1)
     gallery_steps_diffs[0] = 0  # Set the first difference to 0 (no previous shape to compare with)
     gallery_pace = np.nan_to_num(gallery_diffs / gallery_steps_diffs)
@@ -207,7 +254,7 @@ def segment_explore_exploit_mri(shapes, min_save_for_exploit, min_efficiency, ma
     robust_median_value = np.nan
     if gallery_diffs.size:
 
-        # ** Experimental - define subject sepcific threshold with robust medians **
+        # ** Experimental - define subject sepcific threshold with tobust medians **
         #  this code runs because pace_criterion is always true for mri cases
         # Get gallery shapes based on the original algorithm
         """
@@ -215,11 +262,11 @@ def segment_explore_exploit_mri(shapes, min_save_for_exploit, min_efficiency, ma
         excluding the empty steps and using all the logics above.
         Here, we call the STANDARD segment_explore_exploit, which gives us a better upper-bound on the pace threshold,
         keeps the code cleaner and maintainable, and avoids possible bugs from recursive calls.
-    
+
         AI-generated explanation for this decision:
             If we use the Legacy method, we might calibrate based on segments where the player was actually thinking for a long time (staring),
              just because their hand moved fast. This could pollute the "Pace" baseline with "Thinking" data.
-    
+
             Using the Standard function ensures we only calibrate using segments where the player was fast both physically and mentally.
              This provides a cleaner, higher-confidence signal for what "Maximum Speed" looks like for this subject.
         """
@@ -241,7 +288,7 @@ def segment_explore_exploit_mri(shapes, min_save_for_exploit, min_efficiency, ma
             max_pace = robust_median_value + 5 * robust_mad_value
 
         # Group differences into monotone decreasing sequences
-        all_monotone_series = pd.Series(group_by_monotone_decreasing(gallery_diffs, gallery_pace, max_pace))
+        all_monotone_series = pd.Series(group_by_monotone_decreasing_mri(gallery_diffs, gallery_pace, max_pace))
 
         # Calculate the peaks (first elements) of each monotone sequence
         gallery_diffs_peaks = np.array(
@@ -251,14 +298,14 @@ def segment_explore_exploit_mri(shapes, min_save_for_exploit, min_efficiency, ma
             [gallery_pace[monotone_series[0]] for monotone_series in all_monotone_series])
 
         # Group these peaks into further monotone decreasing sequences
-        twice_monotone_series = group_by_monotone_decreasing(gallery_diffs_peaks, gallery_pace_first_shapes,
+        twice_monotone_series = group_by_monotone_decreasing_mri(gallery_diffs_peaks, gallery_pace_first_shapes,
                                                              max_pace)
 
         # Form clusters by concatenating the original monotone sequences
         clusters = [np.concatenate(all_monotone_series[monotone_series].values)
                     for monotone_series in twice_monotone_series]
 
-        # Add code to group sequences based on efficiency (unless the pace is too slow)
+        # Add code to group sequences based on efficiency
         clusters = group_by_efficiency(clusters, shapes_df,
                                        gallery_indices, min_efficiency, max_pace,
                                        shape_id_index, shape_move_time_idx,
