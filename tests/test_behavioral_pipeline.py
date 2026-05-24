@@ -10,6 +10,7 @@ import pandas as pd
 import sys
 from enum import Enum
 from typing import Iterable
+import shutil
 
 
 class Process(Enum):
@@ -90,6 +91,37 @@ def test_configurable_parameters_run(cparam: ConfigurableParam):
             pipeline = Pipeline(config=cfg)
             pipeline.run_pipeline()
 
+def test_feature_extractor_dump_correctness():
+    """
+    Test that the feature extractor can dump the extracted features to a csv file and that the dumped file has the same content as the original extracted features.
+    """
+    test_dir = os.path.join(PIPELINE_TEST_FILES_DIR, "set6_iocane")
+    config = Configuration.from_yaml(os.path.join(test_dir, "config.yml"))
+    feature_extractor = FeatureExtractor.from_json(os.path.join(test_dir, TEST_POSTPARSED_FILENAME), config=config)
+    feats = feature_extractor.extract(verbose=True)
+    out_dir = os.path.join(test_dir, "dump_test")
+    feats_dump_name = f"{out_dir}/feats_dump"
+    if os.path.exists(out_dir):
+        shutil.rmtree(out_dir)
+    for with_config in [True, False]:
+        for with_exclusions in [True, False]:
+            for with_filtered_postparsed in [True, False]:
+                feature_extractor.dump(name=feats_dump_name, with_config=with_config,
+                                                         with_exclusions=with_exclusions,
+                                                         with_filtered_postparsed=with_filtered_postparsed)
+                output_suffix_expectations = {
+                    "measures.csv": True,
+                    "measures_config.yml": with_config,
+                    "exclusions.csv": with_exclusions,
+                    "measures_postparsed_clean.json": with_filtered_postparsed
+                }
+
+                for suffix, is_expected in output_suffix_expectations.items():
+                    output_path = f"{feats_dump_name}_{suffix}"
+                    assert os.path.exists(output_path) == is_expected, f"File {output_path} existence does not match expectation based on the dump parameters"
+                    if os.path.exists(output_path):
+                        os.remove(output_path)
+                shutil.rmtree(out_dir)
 
 def test_default_config_dump_compatibility():
     """
