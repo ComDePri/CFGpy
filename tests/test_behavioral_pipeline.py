@@ -112,10 +112,21 @@ def test_feature_extractor_dump_correctness():
                 output_suffix_expectations = {
                     "measures.csv": True,
                     "measures_config.yml": with_config,
-                    "exclusions.csv": with_exclusions,
+                    "measures_exclusions.csv": with_exclusions,
                     "measures_postparsed_clean.json": with_filtered_postparsed
                 }
 
+                for suffix, is_expected in output_suffix_expectations.items():
+                    output_path = f"{feats_dump_name}_{suffix}"
+                    assert os.path.exists(output_path) == is_expected, f"File {output_path} existence does not match expectation based on the dump parameters"
+                    if os.path.exists(output_path):
+                        os.remove(output_path)
+
+                # do the same with the path argument
+                measures_path = f"{feats_dump_name}_measures.csv"
+                feature_extractor.dump(path=measures_path, with_config=with_config,
+                                       with_exclusions=with_exclusions,
+                                        with_filtered_postparsed=with_filtered_postparsed)
                 for suffix, is_expected in output_suffix_expectations.items():
                     output_path = f"{feats_dump_name}_{suffix}"
                     assert os.path.exists(output_path) == is_expected, f"File {output_path} existence does not match expectation based on the dump parameters"

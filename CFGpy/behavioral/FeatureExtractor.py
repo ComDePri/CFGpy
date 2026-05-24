@@ -98,7 +98,7 @@ class FeatureExtractor(HasLogger):
             self.input_data.dump(postparsed_path, prettify=True)
 
         if with_exclusions:
-            exclusions_path = f"{name}_exclusions.csv" if name else measures_path.replace(".csv", "") + "_exclusions.csv"
+            exclusions_path = measures_path.replace(".csv", "") + "_exclusions.csv"
             self.exclusions.to_csv(exclusions_path, index=False)
         if with_config:
             self.config.to_yaml(measures_path.replace(".csv", ""))
