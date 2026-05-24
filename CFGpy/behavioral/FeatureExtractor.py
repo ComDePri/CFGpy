@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import pandas as pd
 from datetime import datetime
@@ -84,15 +85,20 @@ class FeatureExtractor(HasLogger):
         self._log_missing_values()
         return self.output_df
 
-    def dump(self, name: str = None, path: str = None, with_config=True, with_exclusions=True):
+    def dump(self, name: str = None, path: str = None, with_config=True, with_exclusions=True, with_filtered_postparsed=True):
         measures_path = resolve_path(name=name, path=path, default_suffix=DEFAULT_FINAL_OUTPUT_FILENAME)
+        # make sure the directory exists
+        measures_dir = os.path.dirname(measures_path)
+        if measures_dir and not os.path.exists(measures_dir):
+            os.makedirs(measures_dir)
 
         self.output_df.to_csv(measures_path, index=False)
-        postparsed_path = resolve_path(name=name, path=path, default_suffix=DEFAULT_POSTPARSED_FILTERED_OUTPUT_FILENAME)
-        self.input_data.dump(postparsed_path, prettify=True)
+        if with_filtered_postparsed:
+            postparsed_path = measures_path.replace(".csv", "") + f"_{DEFAULT_POSTPARSED_FILTERED_OUTPUT_FILENAME}"
+            self.input_data.dump(postparsed_path, prettify=True)
 
         if with_exclusions:
-            exclusions_path = f"{name}_exclusions.csv" if name else measures_path.replace(".csv", "") + "_exclusions.csv"
+            exclusions_path = measures_path.replace(".csv", "") + "_exclusions.csv"
             self.exclusions.to_csv(exclusions_path, index=False)
         if with_config:
             self.config.to_yaml(measures_path.replace(".csv", ""))
