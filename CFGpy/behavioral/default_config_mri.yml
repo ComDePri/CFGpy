@@ -1,0 +1,114 @@
+# This is a pipeline configuration file. The values defined here affect both the results and structure of the pipeline.
+# These values may change on a case to case basis (for example, changing participant exclusion criteria to suit a specific
+# population, or for exploratory purposes).
+
+# The version of this file found in the `main` branch of the CFGpy package should always reflect the lab's defaults.
+# Do NOT change unless you're absolutely sure you know what you're doing, AND you have Yuval's approval for the new defaults.
+
+{
+  CFGPY_VERSION: null, # CFGpy version to use with this configuration. Null will be replaced with current version in runtime
+  SAVE_INTERMEDIATE_FILES: true,
+  
+  ## Raw Data
+  EVENT_ID_KEY: &EVENT_ID_KEY "id",
+  EVENT_CUSTOM_DATA_KEY: "customData",
+  EVENT_PLAYER_ID_KEY: "player",
+  RAW_PLAYER_ID: &RAW_PLAYER_ID "playerId",
+  RAW_SERVER_TIME: &RAW_SERVER_TIME "serverTime",
+  RAW_USER_TIME: &RAW_USER_TIME "userTime",
+  RAW_GAME_VERSION: &RAW_GAME_VERSION "gameVersion",
+  RAW_PLAYER_BIRTHDATE: &RAW_PLAYER_BIRTHDATE "playerBirthdate",
+  RAW_PLAYER_REGION: &RAW_PLAYER_REGION "playerRegion",
+  RAW_PLAYER_COUNTRY: &RAW_PLAYER_COUNTRY "playerCountry",
+  RAW_PLAYER_GENDER: &RAW_PLAYER_GENDER "playerGender",
+  RAW_PLAYER_EXTERNAL_ID: &RAW_PLAYER_EXTERNAL_ID "playerExternalId",
+  RAW_PLAYER_CUSTOM_DATA: &RAW_PLAYER_CUSTOM_DATA "playerCustomData",
+  EVENT_TYPE: &EVENT_TYPE "type",
+  RAW_COORDINATES: &RAW_COORDINATES "coordinates",
+  RAW_SECTION: &RAW_SECTION "section",
+  RAW_NEW_SHAPE: &RAW_NEW_SHAPE "customData.newShape",
+  RAW_SHAPE: &RAW_SHAPE "customData.shape",
+
+  ## Downloading
+  GAME_ID: null, # ID of the game
+  GAME_VERSION_IDS: null, # A list of the game versions
+  DOWNLOADER_COMMON_FIELDS: [
+    *EVENT_ID_KEY, *RAW_SERVER_TIME, *RAW_USER_TIME, *RAW_GAME_VERSION, *EVENT_TYPE, *RAW_COORDINATES, *RAW_SECTION ],
+  DOWNLOADER_FIELD_ORDER: [
+    *EVENT_ID_KEY,
+    *RAW_SERVER_TIME,
+    *RAW_USER_TIME,
+    *RAW_GAME_VERSION,
+    *RAW_PLAYER_ID,
+    *RAW_PLAYER_BIRTHDATE,
+    *RAW_PLAYER_REGION,
+    *RAW_PLAYER_COUNTRY,
+    *RAW_PLAYER_GENDER,
+    *RAW_PLAYER_EXTERNAL_ID,
+    *RAW_PLAYER_CUSTOM_DATA,
+    *EVENT_TYPE,
+    *RAW_COORDINATES,
+    *RAW_SECTION,
+    "customData.startPosition",
+    "customData.shapeIndices",
+    "customData.shapeIndex",
+    "customData.isSelected",
+    *RAW_NEW_SHAPE,
+    "customData.timeSinceLastMouseUp",
+    "customData.time",
+    "customData.shapes",
+    *RAW_SHAPE,
+    "customData.endPosition",
+  ],
+  TUTORIAL_END_EVENT_TYPE: "startsearch", # in very old data versions, this is 'tutorial complete'
+  SHAPE_MOVE_EVENT_TYPE: "movedblock",
+  GALLERY_SAVE_EVENT_TYPE: "added shape to gallery",
+  CFG_COGNITO_CLIENT_ID: "6p17vg29cv4u849th3p58t7ugd",
+  CFG_GRAPHQL_URL: "https://5zz6fltmdfbrvfvngh5ydl2eey.appsync-api.us-east-1.amazonaws.com/graphql",
+  CFG_COGNITO_REGION: "us-east-1",
+  CFG_COGNITO_USER_POOL_ID: "us-east-1_dkZkb7RyW",
+
+  ## Parsing
+  FIRST_SHAPE_SERVER_COORDS: "[[0,0],[1,0],[2,0],[4,0],[5,0],[6,0],[3,0],[7,0],[8,0],[9,0]]",
+  UNIQUE_INTERNAL_ID_COLUMN: *RAW_PLAYER_ID,
+  PARSER_ID_COLUMNS: [ "userProvidedId", *RAW_PLAYER_EXTERNAL_ID, "userId", "prolificId" ], # those are organized in order of preference, i.e., if playerExternalId is present, it will be used as the internal ID, otherwise the parser will look for userProvidedId, and so on. Note that the internal ID is not necessarily unique across games, but should be unique within a game.
+  INCLUDE_IN_PARSER_ID: [ ],
+  SERVER_DATE_FORMAT: "%Y-%m-%dT%H:%M:%S.%fZ",
+  PARSER_TIME_COLUMN: &PARSER_TIME_COLUMN "userTime", # RAW_USER_TIME
+  PARSER_JSON_COLUMN: *RAW_PLAYER_CUSTOM_DATA,
+  SHAPE_MOVE_COLUMN: &SHAPE_MOVE_COLUMN "customData.newShape", # RAW_NEW_SHAPE
+  SHAPE_SAVE_COLUMN: *RAW_SHAPE,
+  GALLERY_SAVE_TIME_COLUMN: &GALLERY_SAVE_TIME_COLUMN "gallery save time", # arbitrary value, could be defined in _consts.py
+  # GALLERY_SAVE_TIME_COLUMN is defined here to allow fully specifying PARSED_GAME_HEADERS
+  PARSED_GAME_HEADERS: [ *SHAPE_MOVE_COLUMN, *PARSER_TIME_COLUMN, *GALLERY_SAVE_TIME_COLUMN ],
+
+  ## Post-Parsing
+  MIN_SAVE_FOR_EXPLOIT: 3,  # minimal number of galleries in a cluster to be considered exploitation
+
+  ## Feature Extraction
+  #SEGMENTATION_ALGORITHM: "MRI",
+  MARGIN_FOR_PAUSE_DURATION: 3,  # margins are excluded from the calculation of the max pause a player took between moves
+  MIN_OVERLAP_FOR_SEMANTIC_CONNECTION: 2,  # minimal overlap between two clustered to be considered semantically connected
+  STEP_ORIG_PSEUDOCOUNT: 1,  # alpha parameter for additive smoothing
+  GALLERY_ORIG_PSEUDOCOUNT: 1,  # alpha parameter for additive smoothing
+  STEP_ORIG_N_CATEGORIES: 36445,  # d parameter for additive smoothing; all possible steps
+  GALLERY_ORIG_N_CATEGORIES: 36446,  # d parameter for additive smoothing; all possible shapes
+  WRITE_G_ALPHA: true, # save the empirical g and alpha (switching rate and tendency to exploit) in the final features output
+
+  ## Soft Filtering
+MANUALLY_EXCLUDED_IDS: ['999999','999998','999997','777777','025','026','048','050','059','071','076',
+    '078','079','085','094','096','102','106',
+    '109','111','114','119','125','126','143',
+    '146','154','155','158','160','162','178',
+    '179','182','184','186','198','199','201',
+    '206','221','223','224','232','241','246','247','249',
+    '023','044','064','065','073','122','132','149','170','172','172n','234'],  # IDs to exclude, e.g., those used for testing the experiment. Last row is subject that didn't save shapes in explore at all, so we couldn't calculate their Explore efficiency etc.
+  MIN_N_MOVES: 80,  # exclude participants who made fewer moves than this
+  MIN_N_CLUSTERS: 1,  # exclude participants who made fewer clusters than this
+  MIN_GAME_DURATION_SEC: 600,  # exclude participants who played for less than this duration
+  MAX_IGNORED_GAME_DURATION_SEC: 180, # ignore games up to this duration, before removing duplicate games. This is to allow including games of participants that stopped after a very short period and then played a full game.
+  MAX_PAUSE_DURATION_SEC: 90,  # excluded participants who paused for longer than this duration
+  MAX_ZSCORE_FOR_OUTLIERS: 3,  # exclude participants with absolute zscore greater than this in median explore/exploit lengths (usually set to 3, but might remove too many subjects?)
+  DOWNLOAD_PLAYER_REQUEST: "https://api.creativeforagingtask.com/v1/player/{}",
+  VISUALIZATION_MAKE_PLOTS: true, # whether to make the visualizations of the pipeline. Setting this to false will speed up the pipeline, but will not produce the visualizations.
+}

@@ -9,9 +9,10 @@ import warnings
 import matplotlib.pyplot as plt
 import seaborn as sns
 from CFGpy.behavioral._consts import (SERVER_COORDS_TYPE_ERROR, EXPLORE_KEY, PRETTIFY_WARNING, PARSED_ALL_SHAPES_KEY,
-                                      PARSED_CHOSEN_SHAPES_KEY, EXPLOIT_KEY, DATA_SOURCES_ALIASES_LOW, RM1, IOCANE)
+                                      PARSED_CHOSEN_SHAPES_KEY, EXPLOIT_KEY, DATA_SOURCES_ALIASES_LOW, RM1, IOCANE, PARSED_PLAYER_ID_KEY)
 from _ctypes import PyObj_FromPtr
 
+from pathlib import Path
 
 class CFGPipelineException(Exception):
     pass
@@ -135,7 +136,95 @@ def segment_explore_exploit(shapes, shape_move_time_idx, shape_save_time_idx,
     return explore_slices, exploit_slices
 
 
-def group_by_monotone_decreasing_mri(
+
+def group_by_monotone_and_efficiency_mri_BEFORE_USING_group_by_monotone_and_efficiency_mri(sequence: np.ndarray, gallery_pace: np.ndarray, 
+                                         max_pace: float, shapes_df: pd.DataFrame, 
+                                         gallery_indices: np.ndarray, min_efficiency: float, 
+                                         shape_id_index: int, shape_move_time_idx: int, 
+                                         shape_max_move_time_idx: int) -> list[list[int]]:
+    """
+    Groups elements if save times are strictly decreasing. 
+    If save times increase, it checks if efficiency is high and pace is fast enough 
+    to rescue and continue the sequence anyway.
+    """
+    from CFGpy.utils import get_shortest_path_len
+
+    if sequence.size == 0:
+        return []
+
+    monotone_sequences = []
+    current_sequence = [0]
+
+    # Pre-calculate empty steps array for efficiency calculation
+    empty_steps_time = shapes_df.iloc[:, shape_max_move_time_idx] - shapes_df.iloc[:, shape_move_time_idx]
+
+    for i in range(1, sequence.size):
+        # 1. Primary Criterion: Is the save time decreasing?
+        if sequence[i - 1] >= sequence[i]:
+            current_sequence.append(i)
+            continue
+            
+        # 2. Fallback Criterion: Decreasing failed. Check Efficiency + Pace to rescue it.
+        prev_shape_idx = current_sequence[-1]
+        next_shape_idx = i
+
+        prev_shape_id = shapes_df.iloc[gallery_indices[prev_shape_idx], shape_id_index]
+        next_shape_id = shapes_df.iloc[gallery_indices[next_shape_idx], shape_id_index]
+
+        shortest_path_len = get_shortest_path_len(prev_shape_id, next_shape_id)
+        actual_path_len = gallery_indices[next_shape_idx] - gallery_indices[prev_shape_idx]
+        efficiency = shortest_path_len / actual_path_len
+
+        # Calculate adjusted pace between these two shapes
+        prev_shape_gallery_out_time = shapes_df.iloc[gallery_indices[prev_shape_idx]][shape_max_move_time_idx]
+        next_shape_gallery_in_times = shapes_df.iloc[gallery_indices[next_shape_idx]][shape_move_time_idx]
+        time_diff = next_shape_gallery_in_times - prev_shape_gallery_out_time
+
+        start_idx = gallery_indices[prev_shape_idx] + 1
+        end_idx = gallery_indices[next_shape_idx] # Exclusive indexing fix applied
+        time_diff -= sum(empty_steps_time[start_idx:end_idx])
+
+        steps_diff = gallery_indices[next_shape_idx] - gallery_indices[prev_shape_idx]
+        pace = time_diff / steps_diff
+
+        # If both fallback conditions are met, rescue the sequence and continue
+        if (efficiency >= min_efficiency) and (pace < max_pace):
+            current_sequence.append(i)
+        else:
+            # Both criteria failed -> Break the sequence and start a new cluster
+            monotone_sequences.append(current_sequence)
+            current_sequence = [i]
+
+    if current_sequence not in monotone_sequences:
+        monotone_sequences.append(current_sequence)
+
+    return monotone_sequences
+
+
+def group_by_monotone_decreasing_mri(sequence: np.ndarray) -> list[list[int]]:
+    """
+    Groups consecutive elements in a sequence strictly based on a non-increasing trend.
+    Pace is ignored entirely here, allowing strictly decreasing save times to stay grouped.
+    """
+    if sequence.size == 0:
+        return []
+
+    monotone_sequences = []
+    current_sequence = [0]
+    for i in range(1, sequence.size):
+        if sequence[i - 1] < sequence[i]: # Breaks ONLY if save time increases
+            monotone_sequences.append(current_sequence)
+            current_sequence = [i]
+        else:
+            current_sequence.append(i)
+
+    if current_sequence not in monotone_sequences:
+        monotone_sequences.append(current_sequence)
+
+    return monotone_sequences
+
+
+def group_by_monotone_decreasing_mri_BEFORE_ROEY_FIXED_A_BUG_HERE(
         sequence: np.ndarray,
         pace_array: np.ndarray = None,
         max_pace: float = np.inf) -> list[list[int]]:
@@ -177,7 +266,126 @@ def group_by_monotone_decreasing_mri(
 #########################################################
 # beginning of MRI-related utils and helper functions
 #########################################################
+
 def segment_explore_exploit_mri(shapes, min_save_for_exploit, min_efficiency, max_pace,
+                                shape_save_time_idx, shape_move_time_idx, shape_max_move_time_idx,
+                                shape_id_index):
+    n_shapes = len(shapes)
+    no_exploit_return_value = [(0, n_shapes)], [], np.nan, np.nan
+    shapes_df = pd.DataFrame(shapes)
+
+    gallery_saves = shapes_df[shape_save_time_idx]
+    gallery_indices = np.flatnonzero(gallery_saves.notna())
+
+    if len(gallery_indices) == 0:
+        return no_exploit_return_value
+
+    gallery_in_times = shapes_df.iloc[gallery_indices][shape_move_time_idx]
+    gallery_out_times = shapes_df.iloc[gallery_indices][shape_max_move_time_idx]
+
+    gallery_diffs = gallery_in_times - gallery_out_times.shift()
+    gallery_diffs.iloc[0] = 0
+    gallery_diffs = gallery_diffs.to_numpy().copy() # Writable copy fix applied
+    
+    empty_steps_time = shapes_df.iloc[:, shape_max_move_time_idx] - shapes_df.iloc[:, shape_move_time_idx]
+    for gI, gallery_idx in enumerate(gallery_indices[:-1]):
+        start_idx = gallery_idx + 1
+        end_idx = gallery_indices[gI + 1] # Slicing boundary fix applied
+        gallery_diffs[gI + 1] -= sum(empty_steps_time[start_idx:end_idx])
+
+    gallery_steps_diffs = gallery_indices - np.roll(gallery_indices, 1)
+    gallery_steps_diffs[0] = 0
+    gallery_pace = np.nan_to_num(gallery_diffs / gallery_steps_diffs)
+
+    clusters = []
+    robust_median_value = np.nan
+    
+    if gallery_diffs.size:
+        # ---------------------------------------------------------------------
+        # 1. THE DUMMY RUN: Pure Downward Trends Only (No Efficiency, No Pace)
+        # ---------------------------------------------------------------------
+        # Base grouping: strictly non-increasing save times
+        dummy_monotone = group_by_monotone_decreasing(gallery_diffs) # Uses your simple file function
+        
+        # Macro grouping: strictly non-increasing sequence peaks
+        dummy_peaks = np.array([gallery_diffs[seq[0]] for seq in dummy_monotone])
+        dummy_twice_monotone = group_by_monotone_decreasing(dummy_peaks)
+        
+        # Build raw dummy clusters
+        dummy_clusters = [np.concatenate([np.array(dummy_monotone[idx]) for idx in macro_seq])
+                          for macro_seq in dummy_twice_monotone]
+
+        # Standard processing to extract temporary baseline exploit segments
+        exploit_slices_dummy = []
+        for cluster in dummy_clusters:
+            if cluster.size >= min_save_for_exploit:
+                start = gallery_indices[cluster][0]
+                end = gallery_indices[cluster][-1] + 1
+                exploit_slices_dummy.append((int(start), int(end)))
+
+        # ---------------------------------------------------------------------
+        # 2. THE CALIBRATION PHASE
+        # ---------------------------------------------------------------------
+        exploit_indices = get_exploit_indices_excluding_first_per_segment(exploit_slices_dummy, gallery_indices)
+
+        if len(exploit_indices) == 0:
+            max_pace = np.nan
+        else:
+            robust_median_value, robust_mad_value = robust_median(gallery_pace[exploit_indices])
+            max_pace = robust_median_value + 5 * robust_mad_value
+
+        # ---------------------------------------------------------------------
+        # 3. THE REAL RUN: Time Trends with Fallback Efficiency/Pace Rescues
+        # ---------------------------------------------------------------------
+        # Group individual shapes: decreasing save time OR (High Efficiency + Fast Pace)
+        real_monotone_series = group_by_monotone_and_efficiency_mri(
+            gallery_diffs, gallery_pace, max_pace, shapes_df, gallery_indices, min_efficiency,
+            shape_id_index, shape_move_time_idx, shape_max_move_time_idx
+        )
+
+        # Convert to arrays for index flattening
+        real_monotone_arrays = [np.array(seq) for seq in real_monotone_series]
+
+        # Macro grouping: Group the peaks of these clusters if their save times are dropping
+        real_peaks = np.array([gallery_diffs[cluster[0]] for cluster in real_monotone_arrays])
+        real_twice_monotone = group_by_monotone_decreasing(real_peaks)
+
+        # Concatenate macro structures into final clusters
+        clusters = [np.concatenate([real_monotone_arrays[idx] for idx in macro_seq])
+                    for macro_seq in real_twice_monotone]
+
+    # ---------------------------------------------------------------------
+    # 4. EXPLOIT / EXPLORE SLICE EXTRACTION
+    # ---------------------------------------------------------------------
+    exploit_slices = []
+    explore_slices = []
+    prev_exploit_end = 0
+    
+    for cluster in clusters:
+        start = gallery_indices[cluster][0]
+        end = gallery_indices[cluster][-1] + 1
+        if cluster.size >= min_save_for_exploit:
+            exploit_slices.append((int(start), int(end)))
+            if prev_exploit_end != start:
+                explore_slices.append((int(prev_exploit_end), int(start)))
+            prev_exploit_end = end
+
+    if not exploit_slices:
+        return no_exploit_return_value
+
+    exploit_end = exploit_slices[-1][1]
+    explore_end = explore_slices[-1][1] if explore_slices else 0
+
+    if explore_end < exploit_end < n_shapes:
+        explore_slices.append((exploit_end, n_shapes))
+    elif exploit_end < explore_end < n_shapes:
+        last_explore_slice = (explore_slices[-1][0], n_shapes)
+        explore_slices[-1] = last_explore_slice
+
+    return explore_slices, exploit_slices, robust_median_value, max_pace
+
+
+def segment_explore_exploit_mri_BEFORE_USING_THE_FUNCTION_group_by_monotone_and_efficiency_mri(shapes, min_save_for_exploit, min_efficiency, max_pace,
                                 shape_save_time_idx, shape_move_time_idx, shape_max_move_time_idx,
                                 shape_id_index):
     """
@@ -209,6 +417,7 @@ def segment_explore_exploit_mri(shapes, min_save_for_exploit, min_efficiency, ma
     # TODO: Roey, remove the np.nan's and make sure we only try to extract the other outputs when using the pace criterion
     # TODO: done, by Zohar - pace criterion is true always for mri cases
     no_exploit_return_value = [(0, n_shapes)], [], np.nan, np.nan
+    
     # Convert shapes data to a pandas DataFrame
     shapes_df = pd.DataFrame(shapes)
 
@@ -218,7 +427,7 @@ def segment_explore_exploit_mri(shapes, min_save_for_exploit, min_efficiency, ma
     gallery_indices = np.flatnonzero(gallery_saves.notna())
 
     # Return the default value if no shapes were saved
-    if not any(gallery_indices):
+    if len(gallery_indices) == 0:
         return no_exploit_return_value
 
     # Get the in and out times of shapes based on save indices
@@ -229,19 +438,18 @@ def segment_explore_exploit_mri(shapes, min_save_for_exploit, min_efficiency, ma
     gallery_diffs = gallery_in_times - gallery_out_times.shift()
     # Set the first difference to 0 (no previous shape to compare with)
     gallery_diffs.iloc[0] = 0
-    gallery_diffs = gallery_diffs.to_numpy()
+    gallery_diffs = gallery_diffs.to_numpy().copy()
     # np.random.shuffle(gallery_diffs) # ROEY: Shuffle the gallery time differences, to make sure we don't get correlated explore/exploit times
 
     # Fix the gallery_diffs by removing time spent on "empty steps" (steps that leave the shape unchanged)
     # Reduce the time spent on "empty steps" between each pair of gallery shapes
     empty_steps_time = shapes_df.iloc[:, shape_max_move_time_idx] - shapes_df.iloc[:, shape_move_time_idx]
-    gallery_diffs_fixed = gallery_diffs
-    for gI, gallery_idx in enumerate(
-            gallery_indices[:-1]):  # [:-1] makes sure we exclude the last element
+    
+    for gI, gallery_idx in enumerate(gallery_indices[:-1]):  # [:-1] makes sure we exclude the last element
         start_idx = gallery_idx + 1
-        end_idx = gallery_indices[gI + 1] - 1
-        gallery_diffs_fixed[gI + 1] = gallery_diffs[gI + 1] - sum(empty_steps_time[start_idx:end_idx])
-    gallery_diffs = gallery_diffs_fixed
+        # Removed the - 1 here so the slice includes all empty steps
+        end_idx = gallery_indices[gI + 1]
+        gallery_diffs[gI + 1] -= sum(empty_steps_time[start_idx:end_idx])
 
     # Get the pace, the mean step time between consecutive gallery shapes (in seconds per step)
     # TODO: is this really the way to go? Do we need to make sure we use in-steps and out-steps? I don't think so. If a change required 1 step but actually do to duplicate shapes took 4 steps, then we would like efficiency to capture this. If we include the duplicate steps in the calculation, the pace will be a faster one (there is less time for each step) and this won't count as a very slow transition that will undo the efficiency.
@@ -252,6 +460,7 @@ def segment_explore_exploit_mri(shapes, min_save_for_exploit, min_efficiency, ma
     # Initialize the list of clusters
     clusters = []
     robust_median_value = np.nan
+    
     if gallery_diffs.size:
 
         # ** Experimental - define subject sepcific threshold with tobust medians **
@@ -271,8 +480,6 @@ def segment_explore_exploit_mri(shapes, min_save_for_exploit, min_efficiency, ma
              This provides a cleaner, higher-confidence signal for what "Maximum Speed" looks like for this subject.
         """
 
-        # def segment_explore_exploit(shapes, shape_move_time_idx, shape_save_time_idx,
-        #                             min_save_for_exploit) -> tuple[list, list]:
         explore, exploit = segment_explore_exploit(shapes,
                                                    shape_move_time_idx,
                                                    shape_save_time_idx,
@@ -288,7 +495,7 @@ def segment_explore_exploit_mri(shapes, min_save_for_exploit, min_efficiency, ma
             max_pace = robust_median_value + 5 * robust_mad_value
 
         # Group differences into monotone decreasing sequences
-        all_monotone_series = pd.Series(group_by_monotone_decreasing_mri(gallery_diffs, gallery_pace, max_pace))
+        all_monotone_series = pd.Series(group_by_monotone_decreasing_mri(gallery_diffs)) # TODO: Roey changed this because here we actually don't want to use "gallery_pace, max_pace"
 
         # Calculate the peaks (first elements) of each monotone sequence
         gallery_diffs_peaks = np.array(
@@ -298,8 +505,7 @@ def segment_explore_exploit_mri(shapes, min_save_for_exploit, min_efficiency, ma
             [gallery_pace[monotone_series[0]] for monotone_series in all_monotone_series])
 
         # Group these peaks into further monotone decreasing sequences
-        twice_monotone_series = group_by_monotone_decreasing_mri(gallery_diffs_peaks, gallery_pace_first_shapes,
-                                                             max_pace)
+        twice_monotone_series = group_by_monotone_decreasing_mri(gallery_diffs_peaks) # TODO: Roey removed the "gallery_pace_first_shapes, max_pace" arguments here too, because if the series are monotonically decreasing, we don't need to take pace into account
 
         # Form clusters by concatenating the original monotone sequences
         clusters = [np.concatenate(all_monotone_series[monotone_series].values)
@@ -315,12 +521,14 @@ def segment_explore_exploit_mri(shapes, min_save_for_exploit, min_efficiency, ma
     exploit_slices = []
     explore_slices = []
     prev_exploit_end = 0  # Keep track of the end of the previous exploit cluster
+    
     # Process each cluster
     for cluster in clusters:
         # Start index of the current cluster (indices are in terms of all the shapes visited in the game)
         start = gallery_indices[cluster][0]
         # End index of the current cluster (indices are in terms of all the shapes visited in the game)
         end = gallery_indices[cluster][-1] + 1
+        
         # Check if the cluster meets the criteria for "exploit"
         if cluster.size >= min_save_for_exploit:
             exploit_slices.append((int(start), int(end)))
@@ -350,6 +558,69 @@ def segment_explore_exploit_mri(shapes, min_save_for_exploit, min_efficiency, ma
 
     # Return the identified explore and exploit slices
     return explore_slices, exploit_slices, robust_median_value, max_pace
+
+def group_by_monotone_and_efficiency_mri(sequence: np.ndarray, gallery_pace: np.ndarray, 
+                                         max_pace: float, shapes_df: pd.DataFrame, 
+                                         gallery_indices: np.ndarray, min_efficiency: float, 
+                                         shape_id_index: int, shape_move_time_idx: int, 
+                                         shape_max_move_time_idx: int) -> list[list[int]]:
+    """
+    Groups elements if save times are strictly decreasing. 
+    If save times increase, it checks if efficiency is high and pace is fast enough 
+    to rescue and continue the sequence anyway.
+    """
+    from CFGpy.utils import get_shortest_path_len
+
+    if sequence.size == 0:
+        return []
+
+    monotone_sequences = []
+    current_sequence = [0]
+
+    # Pre-calculate empty steps array for efficiency calculation
+    empty_steps_time = shapes_df.iloc[:, shape_max_move_time_idx] - shapes_df.iloc[:, shape_move_time_idx]
+
+    for i in range(1, sequence.size):
+        # 1. Primary Criterion: Is the save time decreasing?
+        if sequence[i - 1] >= sequence[i]:
+            current_sequence.append(i)
+            continue
+            
+        # 2. Fallback Criterion: Decreasing failed. Check Efficiency + Pace to rescue it.
+        prev_shape_idx = current_sequence[-1]
+        next_shape_idx = i
+
+        prev_shape_id = shapes_df.iloc[gallery_indices[prev_shape_idx], shape_id_index]
+        next_shape_id = shapes_df.iloc[gallery_indices[next_shape_idx], shape_id_index]
+
+        shortest_path_len = get_shortest_path_len(prev_shape_id, next_shape_id)
+        actual_path_len = gallery_indices[next_shape_idx] - gallery_indices[prev_shape_idx]
+        efficiency = shortest_path_len / actual_path_len
+
+        # Calculate adjusted pace between these two shapes
+        prev_shape_gallery_out_time = shapes_df.iloc[gallery_indices[prev_shape_idx]][shape_max_move_time_idx]
+        next_shape_gallery_in_times = shapes_df.iloc[gallery_indices[next_shape_idx]][shape_move_time_idx]
+        time_diff = next_shape_gallery_in_times - prev_shape_gallery_out_time
+
+        start_idx = gallery_indices[prev_shape_idx] + 1
+        end_idx = gallery_indices[next_shape_idx] # Exclusive indexing fix applied
+        time_diff -= sum(empty_steps_time[start_idx:end_idx])
+
+        steps_diff = gallery_indices[next_shape_idx] - gallery_indices[prev_shape_idx]
+        pace = time_diff / steps_diff
+
+        # If both fallback conditions are met, rescue the sequence and continue
+        if (efficiency >= min_efficiency) and (pace < max_pace):
+            current_sequence.append(i)
+        else:
+            # Both criteria failed -> Break the sequence and start a new cluster
+            monotone_sequences.append(current_sequence)
+            current_sequence = [i]
+
+    if current_sequence not in monotone_sequences:
+        monotone_sequences.append(current_sequence)
+
+    return monotone_sequences
 
 def get_exploit_indices_excluding_first_per_segment(exploit, gallery_indices):
     # This function loops over all exploit segment in "exploit" and returns the indices of the gallery shapes that are
@@ -446,7 +717,7 @@ def group_by_efficiency(clusters, shapes_df,
 
         # Reduce the time spent on "empty steps" between each pair of gallery shapes (remove_empty_steps_time)
         start_idx = gallery_indices[prev_shape_idx] + 1
-        end_idx = gallery_indices[next_shape_idx] - 1
+        end_idx = gallery_indices[next_shape_idx] # TODO: Roey removed the - 1 here, which was a bug
         time_diff = time_diff - sum(empty_steps_time[start_idx:end_idx])
 
         # Calculate the steps difference between them
@@ -698,3 +969,110 @@ def mean_handle_empty(arr):
     if arr.size == 0:
         return np.nan
     return np.mean(arr)
+
+
+## Roey: Added functions for creating CSV files of explore and exploit times &&&
+def _get_default_config_if_needed(config):
+    """
+    Lazily import Configuration to avoid creating import cycles when _utils.py
+    is imported by PostParser.py.
+    """
+    if config is not None:
+        return config
+
+    from CFGpy.behavioral import Configuration
+    return Configuration.default()
+
+
+def get_player_cluster_times(player_data, include_last_explore=True):
+    """
+    Get explore and exploit cluster times for a single PostparsedPlayerData.
+
+    Assumes player_data is a PostparsedPlayerData object created from
+    postparsed data.
+
+    Important:
+    The trailing explore interval after the final exploit cluster is
+    intentionally *included*. This is in contrast to the old behavior where the final append
+    using GAME_LENGTH_IN_SEC was commented out.
+    """
+    exploit_times = []
+    explore_times = []
+    prev_last_out_time = 0
+
+    for start, end in player_data.exploit_slices:
+        first_in_time = player_data.shapes_df.iloc[start, player_data.config.SHAPE_MOVE_TIME_IDX]
+        first_out_time = player_data.shapes_df.iloc[start, player_data.config.SHAPE_MAX_MOVE_TIME_IDX]
+        last_in_time = player_data.shapes_df.iloc[end - 1, player_data.config.SHAPE_MOVE_TIME_IDX]
+        last_out_time = player_data.shapes_df.iloc[end - 1, player_data.config.SHAPE_MAX_MOVE_TIME_IDX]
+
+        exploit_times.append([first_out_time, last_in_time])
+        explore_times.append([prev_last_out_time, first_in_time])
+
+        prev_last_out_time = last_out_time
+
+    if include_last_explore:
+        game_end_time = player_data.shapes_df.iloc[-1, player_data.config.SHAPE_MAX_MOVE_TIME_IDX]
+
+        if prev_last_out_time < game_end_time:
+            explore_times.append([prev_last_out_time, game_end_time])
+
+    return explore_times, exploit_times
+
+
+
+def player_cluster_times_to_dataframe(player_data):
+    explore_times, exploit_times = get_player_cluster_times(player_data)
+
+    explore_df = pd.DataFrame(explore_times, columns=["start", "end"])
+    explore_df["phase"] = EXPLORE_KEY
+
+    exploit_df = pd.DataFrame(exploit_times, columns=["start", "end"])
+    exploit_df["phase"] = EXPLOIT_KEY
+
+    return pd.concat([explore_df, exploit_df], ignore_index=True)
+
+def save_player_cluster_times_csv(player_data, csv_file_path):
+    csv_file_path = Path(csv_file_path)
+    csv_file_path.parent.mkdir(parents=True, exist_ok=True)
+
+    cluster_times_df = player_cluster_times_to_dataframe(player_data)
+    cluster_times_df.to_csv(csv_file_path, index=False)
+
+    return csv_file_path
+
+def save_players_cluster_times_csvs(
+    postparsed_data,
+    output_folder,
+    skip_non_players=True,
+):
+    """
+    Save one cluster-times CSV per valid PostparsedPlayerData.
+
+    Skips:
+    - non-player subjects whose id starts with '9999'
+    - subjects with no exploit clusters
+    """
+    output_folder = Path(output_folder)
+    output_folder.mkdir(parents=True, exist_ok=True)
+
+    saved_paths = []
+
+    for player_data in postparsed_data:
+        player_id = str(player_data.id)
+
+        if skip_non_players and player_id.startswith("9999"):
+            continue
+
+        if not player_data.exploit_slices:
+            continue
+
+        csv_file_path = output_folder / f"Player_{player_id}_cluster_times.csv"
+
+        saved_path = save_player_cluster_times_csv(
+            player_data=player_data,
+            csv_file_path=csv_file_path,
+        )
+        saved_paths.append(saved_path)
+
+    return saved_paths
